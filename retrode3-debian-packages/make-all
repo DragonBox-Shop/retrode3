@@ -7,7 +7,7 @@ set -e
 echo build retrode tool and package
 export DEPLOY=true DEVICE=otg	# auto-install by .qcodeproj
 DEV=root@192.168.0.202	# for ssh (could use con $DEVICE or trick for rsync to use con as well; but scp is more tricky)
-CARTREADER=/Volumes/Retrode3/cartreader/Cart_Reader
+CARTREADER=/Volumes/Retrode3/Retrode3-Software/Cart_Reader
 BINDIR=/usr/local/bin/
 ROOTDIR=/usr/local/games/retrode/
 
