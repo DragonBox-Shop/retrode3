@@ -1,0 +1,5 @@
+#!/bin/bash
+# this is a chmod +s script
+# upgrade Debian Packages of Retread
+
+apt-get update && apt-get upgrade

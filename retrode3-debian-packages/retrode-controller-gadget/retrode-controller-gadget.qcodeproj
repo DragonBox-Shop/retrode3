@@ -12,5 +12,7 @@ export INCLUDES+=" -I${_KERNEL_SOURCE}/arch/arm/include/generated"
 export INSTALL_PATH="//"
 export PRODUCT_NAME="retread-controller-gadget"
 export SOURCES="hidd.c"
+export SOURCES+=" retread-controller-gadget.prerm"
+export SOURCES+=" retread-controller-gadget.postinst"
 
 cd "$(dirname "${BASH_SOURCE[0]}")" && "$QuantumSTEP/System/Sources/Frameworks/mySTEP.make" $ACTION

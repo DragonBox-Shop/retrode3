@@ -18,5 +18,7 @@ export SOURCES="retread-controller-gadget/retread-controller-gadget.qcodeproj"
 export SOURCES+=" retread-tools/ucon64.qcodeproj"
 export SOURCES+=" retread-udev-rules/retread-udev-rules.qcodeproj"
 export SOURCES+=" retread-web-control/retread-web-control.qcodeproj"
+export SOURCES+=" retread.postinst"
+export SOURCES+=" retread.prerm"
 
 cd "$(dirname "${BASH_SOURCE[0]}")" && "$QuantumSTEP/System/Sources/Frameworks/mySTEP.make" $ACTION

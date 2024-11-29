@@ -1,0 +1,66 @@
+# make all packages
+# this requires a Retread connected and running RNDIS
+# also needs to have gcc / g++ installed
+
+set -e
+
+echo build retread tool and package
+export DEPLOY=true DEVICE=otg	# auto-install by .qcodeproj
+DEV=root@192.168.0.202	# for ssh (could use con $DEVICE or trick for rsync to use con as well; but scp is more tricky)
+CARTREADER=/Volumes/Retrode3/cartreader/Cart_Reader
+BINDIR=/usr/local/bin/
+ROOTDIR=/usr/local/games/retread/
+
+mkdir -p ./$BINDIR/ ./$ROOTDIR/
+(
+	cd $CARTREADER
+	make clean all remote
+)
+
+cp $CARTREADER/retread ./$BINDIR/retread
+cp -R $CARTREADER/../sd/* ./$ROOTDIR
+./retread.qcodeproj
+PACKAGES+=" retread"
+
+echo build ucon64
+SRCDIR=/usr/local/src/ucon64
+rsync -rltDvzh "/Volumes/Retrode3/ucon64-2.2.2-src/" "$DEV:$SRCDIR"
+cat <<END | con $DEVICE
+cd
+cd $SRCDIR/src
+./configure --disable-parallel
+make
+./install.sh
+END
+scp $DEV:$BINDIR/ucon64 ./$BINDIR/ucon64
+
+./ucon64.qcodeproj
+PACKAGES+=" ucon64"
+
+echo other packages
+
+./retread-setup.qcodeproj	# makes others recursively but only if instructed...
+PACKAGES+=" retread-setup"
+
+# ./retread-controller-gadget.qcodeproj
+./retread-udev-rules.qcodeproj
+PACKAGES+=" retread-udev-rules"
+
+./retread-samba.qcodeproj
+PACKAGES+=" retread-samba"
+
+./retread-web-control.qcodeproj
+PACKAGES+=" retread-web-control"
+
+echo Debian Packages: $PACKAGES
+DEBIAN=/Volumes/Retrode3/debian/
+rm -rf $DEBIAN/
+mkdir $DEBIAN
+
+for PACKAGE in $PACKAGES
+do
+	# packages can be _mipsel or _all
+	cp /usr/local/QuantumSTEP/System/Installation/Debian/dists/staging/main/binary-*/${PACKAGE}_*_*.deb /Volumes/Retrode3/debian/
+done
+
+ls -l $DEBIAN
