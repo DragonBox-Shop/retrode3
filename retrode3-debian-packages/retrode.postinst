@@ -1,5 +1,5 @@
 #! /bin/sh
-# postinst script for retread
+# postinst script for retrode3
 #
 # see: dh_installdeb(1)
 

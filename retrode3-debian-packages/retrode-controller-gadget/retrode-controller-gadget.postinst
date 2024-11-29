@@ -1,5 +1,5 @@
 #! /bin/sh
-# postinst script for retread-controller-gadget
+# postinst script for retrode-controller-gadget
 #
 # see: dh_installdeb(1)
 
@@ -19,7 +19,7 @@ set -e
 
 case "$1" in
     configure)
-	/usr/sbin/service retread-controller-gadget@js0 start
+	/usr/sbin/service retrode-controller-gadget@js0 start
     ;;
 
     abort-upgrade|abort-remove|abort-deconfigure)

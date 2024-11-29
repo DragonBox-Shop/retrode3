@@ -1,5 +1,5 @@
 #!/bin/bash
 # this is a chmod +s script
-# upgrade Debian Packages of Retread
+# upgrade Debian Packages of Retrode3
 
 apt-get update && apt-get upgrade

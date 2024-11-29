@@ -4,7 +4,7 @@ if [ true != "$INIT_D_SCRIPT_SOURCED" ] ; then
     set "$0" "$@"; INIT_D_SCRIPT_SOURCED=true . /lib/init/init-d-script
 fi
 ### BEGIN INIT INFO
-# Provides:          retread-controller-gadget
+# Provides:          retrode-controller-gadget
 # Required-Start:    letux-gadget
 # Required-Stop:
 # Default-Start:     
@@ -16,7 +16,7 @@ fi
 
 # Author: H. Nikolaus Schaller <hns@goldelico.com>
 
-SERVICE=retread-controller-gadget
+SERVICE=retrode-controller-gadget
 DEVICE=ttyHID0
 
 do_status () {

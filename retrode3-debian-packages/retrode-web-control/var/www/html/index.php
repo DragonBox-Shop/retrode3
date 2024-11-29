@@ -13,7 +13,7 @@ $here=strtok($_SERVER["REQUEST_URI"], '?');	// without query part
 if(isset($_GET['download']))
 	{ // handle file download
 	$path=$_GET['download'];
-	$path="/usr/local/games/retread/".$path;
+	$path="/usr/local/games/retrode/".$path;
 	// check if permitted... i.e. strip off any .. or initial /
 	if(!file_exists($path))
 		{
@@ -24,7 +24,7 @@ if(isset($_GET['download']))
 		echo "<html>";
 		echo "<head>";
 		echo "<title>404 Not Found</title>";
-		echo "<meta name=\"generator\" content=\"retread\">";	// a hint that the script is running
+		echo "<meta name=\"generator\" content=\"retrode\">";	// a hint that the script is running
 		echo "</head>";
 		echo "<body>";
 		echo "<h1>Not Found</h1>";
@@ -57,7 +57,7 @@ if(isset($_GET['delete']))
 ?>
 <form method="POST" action="<?php echo $here;?>">
 <img src="https://dragonbox.de/img/dragonbox-logo-15724157971.jpg"/>
-<h1>Welcome to RetRead 3</h1>
+<h1>Welcome to retrode 3</h1>
 <p>
 <?php
 echo $_SERVER['REMOTE_ADDR']." ";
@@ -87,7 +87,7 @@ if(isset($_GET['update']))
 	switch($_GET['update'])
 		{
 		case "yes":
-			system("(wget -qO /tmp/cart_reader.zip https://codeload.github.com/sanni/cartreader/zip/refs/heads/master && unzip -q /tmp/cart_reader.zip 'cartreader-master/sd/*' -d /tmp && mv /tmp/cartreader-master/sd/* /usr/local/games/retread/test && echo Cart database updated. || echo failed.) 2>&1");
+			system("(wget -qO /tmp/cart_reader.zip https://codeload.github.com/sanni/cartreader/zip/refs/heads/master && unzip -q /tmp/cart_reader.zip 'cartreader-master/sd/*' -d /tmp && mv /tmp/cartreader-master/sd/* /usr/local/games/retrode/test && echo Cart database updated. || echo failed.) 2>&1");
 			break;
 		case "system":
 
@@ -113,7 +113,7 @@ foreach(array(1 => "MegaDrive", 0 => "SNES", 2 => "NES") as $SLOT => $NAME)
 	echo "<td>";
 	if($status == "active")
 		{ // there is a Cart inserted
-		$file=popen("sh -vc '/usr/local/bin/retread-info /dev/slot$SLOT'", "r");
+		$file=popen("sh -vc '/usr/local/bin/retrode-info /dev/slot$SLOT'", "r");
 		$str=stream_get_contents($file);
 		fclose($file);
 		if(!$str)
@@ -124,7 +124,7 @@ foreach(array(1 => "MegaDrive", 0 => "SNES", 2 => "NES") as $SLOT => $NAME)
 		echo "empty";
 	echo "</td>";
 // fails:	system("/root/copyrom /dev/slot$SLOT /tmp/slot.bin; wc -c </tmp/slot.bin");
-	// besser: ein slot-info.sh aufrufen das den retread-Befehl benutzt
+	// besser: ein slot-info.sh aufrufen das den retrode-Befehl benutzt
 	echo "</tr>";
 	}
 
@@ -134,7 +134,7 @@ if(isset($_GET['slot']))
 	echo "<p>Reading ".$_GET['name']."</p>";
 	echo "<p>Please wait...";
 	flush();
-	fclose(popen("/usr/local/bin/retread-read $slot", "r"));
+	fclose(popen("/usr/local/bin/retrode-read $slot", "r"));
 	echo " ...done.</p>";
 	flush();
 	}
@@ -179,9 +179,9 @@ $link="smb://".$_SERVER['SERVER_ADDR']."/media";
 echo "<a href=\"$link\">Open through SMB</a> ";
 echo "</p>";
 
-$path="/usr/local/games/retread";	// on Retread device
+$path="/usr/local/games/retrode";	// on retrode device
 if(!file_exists($path))
-	$path="/Volumes/Retrode3/retread-setup/usr/local/games/retread";	// on development host
+	$path="/Volumes/Retrode3/retrode-setup/usr/local/games/retrode";	// on development host
 
 function scansubdirs($dir)
 {

@@ -1,5 +1,5 @@
 /*
- * RetRead 3 HID translation daemon
+ * Retrode3 HID translation daemon
  *
  * function:
  *	reads /dev/input/events from game ports

@@ -1,5 +1,5 @@
 #! /bin/sh
-# prerm script for retread-controller-gadget
+# prerm script for retrode-controller-gadget
 #
 # see: dh_installdeb(1)
 
@@ -19,7 +19,7 @@ set -e
 
 case "$1" in
     remove)
-	/usr/sbin/service retread-controller-gadget@js0 stop || : ignore errors
+	/usr/sbin/service retrode-controller-gadget@js0 stop || : ignore errors
     ;;
 
     upgrade|deconfigure)

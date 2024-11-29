@@ -1,15 +1,15 @@
 # make all packages
-# this requires a Retread connected and running RNDIS
+# this requires a Retrode3 connected and running RNDIS
 # also needs to have gcc / g++ installed
 
 set -e
 
-echo build retread tool and package
+echo build retrode tool and package
 export DEPLOY=true DEVICE=otg	# auto-install by .qcodeproj
 DEV=root@192.168.0.202	# for ssh (could use con $DEVICE or trick for rsync to use con as well; but scp is more tricky)
 CARTREADER=/Volumes/Retrode3/cartreader/Cart_Reader
 BINDIR=/usr/local/bin/
-ROOTDIR=/usr/local/games/retread/
+ROOTDIR=/usr/local/games/retrode/
 
 mkdir -p ./$BINDIR/ ./$ROOTDIR/
 (
@@ -17,10 +17,10 @@ mkdir -p ./$BINDIR/ ./$ROOTDIR/
 	make clean all remote
 )
 
-cp $CARTREADER/retread ./$BINDIR/retread
+cp $CARTREADER/retrode ./$BINDIR/retrode
 cp -R $CARTREADER/../sd/* ./$ROOTDIR
-./retread.qcodeproj
-PACKAGES+=" retread"
+./retrode.qcodeproj
+PACKAGES+=" retrode"
 
 echo build ucon64
 SRCDIR=/usr/local/src/ucon64
@@ -39,18 +39,18 @@ PACKAGES+=" ucon64"
 
 echo other packages
 
-./retread-setup.qcodeproj	# makes others recursively but only if instructed...
-PACKAGES+=" retread-setup"
+./retrode-setup.qcodeproj	# makes others recursively but only if instructed...
+PACKAGES+=" retrode-setup"
 
-# ./retread-controller-gadget.qcodeproj
-./retread-udev-rules.qcodeproj
-PACKAGES+=" retread-udev-rules"
+# ./retrode-controller-gadget.qcodeproj
+./retrode-udev-rules.qcodeproj
+PACKAGES+=" retrode-udev-rules"
 
-./retread-samba.qcodeproj
-PACKAGES+=" retread-samba"
+./retrode-samba.qcodeproj
+PACKAGES+=" retrode-samba"
 
-./retread-web-control.qcodeproj
-PACKAGES+=" retread-web-control"
+./retrode-web-control.qcodeproj
+PACKAGES+=" retrode-web-control"
 
 echo Debian Packages: $PACKAGES
 DEBIAN=/Volumes/Retrode3/debian/

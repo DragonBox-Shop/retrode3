@@ -1,5 +1,5 @@
 #! /bin/sh
-# prerm script for retread
+# prerm script for retrode3
 #
 # see: dh_installdeb(1)
 

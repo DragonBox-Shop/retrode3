@@ -1,6 +1,8 @@
 #!/bin/bash
 # this is a chmod +s script
-# upgrade Cart definitions of Retread
+# upgrade Cart definitions of Retrode
 
 # fetch from git project
+#   https://github.com/sanni/cartreader/tree/master/sd
 # install at right place
+#   .../sd
