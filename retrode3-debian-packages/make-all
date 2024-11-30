@@ -1,12 +1,12 @@
 # make all packages
 # this requires a Retrode3 connected and running RNDIS
-# also needs to have gcc / g++ installed
+# also needs to have gcc / g++ installed (apt-get install g++)
 
 set -e
 
 echo build retrode tool and package
 export DEPLOY=true DEVICE=otg	# auto-install by .qcodeproj
-DEV=root@192.168.0.202	# for ssh (could use con $DEVICE or trick for rsync to use con as well; but scp is more tricky)
+DEV=root@192.168.0.202	# for ssh and rsync
 CARTREADER=/Volumes/Retrode3/Retrode3-Software/Cart_Reader
 BINDIR=/usr/local/bin/
 ROOTDIR=/usr/local/games/retrode/
@@ -19,12 +19,16 @@ mkdir -p ./$BINDIR/ ./$ROOTDIR/
 
 cp $CARTREADER/retrode ./$BINDIR/retrode
 cp -R $CARTREADER/../sd/* ./$ROOTDIR
-./retrode.qcodeproj
-PACKAGES+=" retrode"
+# ./retrode.qcodeproj
+echo "Main package (and subpackages)"
+RECURSIVE=yes ./retrode.qcodeproj	# could make others recursively but then we have no clear list
+PACKAGES+=" retrode3"
 
-echo build ucon64
-SRCDIR=/usr/local/src/ucon64
-rsync -rltDvzh "/Volumes/Retrode3/ucon64-2.2.2-src/" "$DEV:$SRCDIR"
+if false	# build remote
+then
+	echo build ucon64
+	SRCDIR=/usr/local/src/ucon64
+	rsync -rltDvzh "/Volumes/Retrode3/ucon64-2.2.2-src/" "$DEV:$SRCDIR"
 cat <<END | con $DEVICE
 cd
 cd $SRCDIR/src
@@ -32,35 +36,37 @@ cd $SRCDIR/src
 make
 ./install.sh
 END
-scp $DEV:$BINDIR/ucon64 ./$BINDIR/ucon64
-
-./ucon64.qcodeproj
-PACKAGES+=" ucon64"
+	scp $DEV:$BINDIR/ucon64 ./$BINDIR/ucon64
+else	# cross compile
+	(cd /Volumes/Retrode3/ucon64-2.2.2-src && ./ucon64.qcodeproj)
+	PACKAGES+=" ucon64"
+fi
 
 echo other packages
 
-./retrode-setup.qcodeproj	# makes others recursively but only if instructed...
-PACKAGES+=" retrode-setup"
+# PACKAGES+=" retrode3"
 
-# ./retrode-controller-gadget.qcodeproj
-./retrode-udev-rules.qcodeproj
+#(cd retrode-controller-gadget && ./retrode-controller-gadget.qcodeproj)
+PACKAGES+=" retrode-controller-gadget"
+
+#(cd retrode-tools && ./retrode-tool.qcodeproj)
+PACKAGES+=" retrode-tool"
+
+#(cd retrode-udev-rules && ./retrode-udev-rules.qcodeproj)
 PACKAGES+=" retrode-udev-rules"
 
-./retrode-samba.qcodeproj
-PACKAGES+=" retrode-samba"
-
-./retrode-web-control.qcodeproj
+#(cd retrode-web-control && ./retrode-web-control.qcodeproj)
 PACKAGES+=" retrode-web-control"
 
 echo Debian Packages: $PACKAGES
 DEBIAN=/Volumes/Retrode3/debian/
 rm -rf $DEBIAN/
-mkdir $DEBIAN
+mkdir -p $DEBIAN
 
 for PACKAGE in $PACKAGES
 do
 	# packages can be _mipsel or _all
-	cp /usr/local/QuantumSTEP/System/Installation/Debian/dists/staging/main/binary-*/${PACKAGE}_*_*.deb /Volumes/Retrode3/debian/
+	cp /usr/local/QuantumSTEP/System/Installation/Debian/dists/staging/main/binary-*/${PACKAGE}_*_*.deb /Volumes/Retrode3/debian/ || true
 done
 
 ls -l $DEBIAN
