@@ -19,5 +19,7 @@ export SOURCES+=" retrode-udev-rules/retrode-udev-rules.qcodeproj"
 export SOURCES+=" retrode-web-control/retrode-web-control.qcodeproj"
 export SOURCES+=" retrode.postinst"
 export SOURCES+=" retrode.prerm"
+export SOURCES+=" retrode-tools/retrode-tool.qcodeproj"
+export SOURCES+=" retrode-tools/ucon64.qcodeproj"
 
 cd "$(dirname "${BASH_SOURCE[0]}")" && "$QuantumSTEP/System/Sources/Frameworks/mySTEP.make" $ACTION
