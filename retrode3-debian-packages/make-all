@@ -1,6 +1,7 @@
-# make all packages
+#!/bin/bash
+# make all packages for Retrode3
 # this requires a Retrode3 connected and running RNDIS
-# also needs to have gcc / g++ installed (apt-get install g++)
+# also needs to have gcc / g++ installed (apt-get install g++) there
 
 set -e
 
@@ -11,24 +12,20 @@ CARTREADER=/Volumes/Retrode3/Retrode3-Software/Cart_Reader
 BINDIR=/usr/local/bin/
 ROOTDIR=/usr/local/games/retrode/
 
+echo remote build retrode-tool
 mkdir -p ./$BINDIR/ ./$ROOTDIR/
 (
 	cd $CARTREADER
 	make clean all remote
 )
 
+echo fetch retrode binary
 cp $CARTREADER/retrode ./$BINDIR/retrode
 cp -R $CARTREADER/../sd/* ./$ROOTDIR
-# ./retrode.qcodeproj
-echo "Main package (and subpackages)"
-RECURSIVE=yes ./retrode.qcodeproj	# could make others recursively but then we have no clear list
-PACKAGES+=" retrode3"
 
-if false	# build remote
-then
-	echo build ucon64
-	SRCDIR=/usr/local/src/ucon64
-	rsync -rltDvzh "/Volumes/Retrode3/ucon64-2.2.2-src/" "$DEV:$SRCDIR"
+echo remote build ucon64
+SRCDIR=/usr/local/src/ucon64
+rsync -rltDvzh "retrode-tools/ucon64-2.2.2-src/" "$DEV:$SRCDIR"
 cat <<END | con $DEVICE
 cd
 cd $SRCDIR/src
@@ -36,27 +33,18 @@ cd $SRCDIR/src
 make
 ./install.sh
 END
-	scp $DEV:$BINDIR/ucon64 ./$BINDIR/ucon64
-else	# cross compile
-	(cd /Volumes/Retrode3/ucon64-2.2.2-src && ./ucon64.qcodeproj)
-	PACKAGES+=" ucon64"
-fi
+echo fetch ucon binary
+scp $DEV:$BINDIR/ucon64 ./$BINDIR/ucon64
 
-echo other packages
+echo "Pack retrode3.deb (and subpackages)"
+RECURSIVE=yes ./retrode.qcodeproj	# could make others recursively but then we have no clear list
 
-# PACKAGES+=" retrode3"
-
-#(cd retrode-controller-gadget && ./retrode-controller-gadget.qcodeproj)
+PACKAGES+=" retrode3"
 PACKAGES+=" retrode-controller-gadget"
-
-#(cd retrode-tools && ./retrode-tool.qcodeproj)
 PACKAGES+=" retrode-tool"
-
-#(cd retrode-udev-rules && ./retrode-udev-rules.qcodeproj)
 PACKAGES+=" retrode-udev-rules"
-
-#(cd retrode-web-control && ./retrode-web-control.qcodeproj)
 PACKAGES+=" retrode-web-control"
+PACKAGES+=" ucon64"
 
 echo Debian Packages: $PACKAGES
 DEBIAN=/Volumes/Retrode3/debian/
