@@ -1,0 +1,1103 @@
+diff -Naur ucon64/src/Makefile.vc6 ucon64.analyze/src/Makefile.vc6
+--- ucon64/src/Makefile.vc6	2021-10-27 02:06:28.437426000 +0900
++++ ucon64.analyze/src/Makefile.vc6	2021-11-20 04:14:22.071782900 +0900
+@@ -1,7 +1,7 @@
+ USE_PARALLEL=1
+ DLOPEN=1
+ #USE_ZLIB=1
+-#USE_DISCMAGE=1
++USE_DISCMAGE=1
+ #USE_USB=1
+ USE_LIBCD64=1
+ USE_LIBCD64_RAWIO=1
+@@ -35,12 +35,13 @@
+ 
+ CC=cl.exe
+ CFLAGS=$(CFLAGS) /nologo /I. /W4 /Wall /wd4710 /wd4711 /wd4774 /wd5045 /O2 /MT \
+-       /D_CRT_NONSTDC_NO_DEPRECATE /D_CRT_SECURE_NO_WARNINGS /DHAVE_CONFIG_H
++       /D_CRT_NONSTDC_NO_DEPRECATE /D_CRT_SECURE_NO_WARNINGS /DHAVE_CONFIG_H /analyze:stacksize 140000 /wd6031
+ # Place /Wall *after* /W<n>. /W<n> after /Wall will adjust the effect of /Wall.
+ # /wd4710: 'function' : function not inlined
+ # /wd4711: function 'function' selected for inline expansion
+ # /wd4774: 'function' : format string expected in argument 'argument' is not a string literal
+ # /wd5045: Compiler will insert Spectre mitigation for memory load if /Qspectre switch specified
++# /wd6031: Return value ignored: 'function'.
+ LDFLAGS=$(LDFLAGS) /NOLOGO /VERSION:2.2 setargv.obj
+ 
+ !ifdef WINXP_TARGETING
+diff -Naur ucon64/src/backup/fal.c ucon64.analyze/src/backup/fal.c
+--- ucon64/src/backup/fal.c	2021-10-26 01:47:18.639864000 +0900
++++ ucon64.analyze/src/backup/fal.c	2021-11-20 04:14:22.076783200 +0900
+@@ -981,7 +981,14 @@
+ 
+               addr += 16;
+               if ((addr & 0x3fff) == 0) // call ucon64_gauge() after sending 32 kB
++#if     defined _MSC_VER && defined _M_X64
++#pragma warning(push)
++#pragma warning(disable: 6297)
++#endif
+                 ucon64_gauge (starttime, addr << 1, FileSize);
++#if     defined _MSC_VER && defined _M_X64
++#pragma warning(pop)
++#endif
+ 
+               PPWriteWord (INTEL28F_CONFIRM);   // Comfirm block write
+ 
+@@ -1021,7 +1028,14 @@
+         }
+ 
+       clear_line ();                            // remove last gauge
++#if     defined _MSC_VER && defined _M_X64
++#pragma warning(push)
++#pragma warning(disable: 6297)
++#endif
+       ucon64_gauge (starttime, addr << 1, FileSize); // make gauge reach 100% when size % 32 k != 0
++#if     defined _MSC_VER && defined _M_X64
++#pragma warning(pop)
++#endif
+       WriteFlash (0, INTEL28F_READARRAY);
+       outpb (SPPCtrlPort, 0);
+ 
+@@ -1109,7 +1123,14 @@
+                 }
+               addr += 32;
+               if ((addr & 0x3fff) == 0) // call ucon64_gauge() after sending 32 kB
++#if     defined _MSC_VER && defined _M_X64
++#pragma warning(push)
++#pragma warning(disable: 6297)
++#endif
+                 ucon64_gauge (starttime, addr << 1, FileSize);
++#if     defined _MSC_VER && defined _M_X64
++#pragma warning(pop)
++#endif
+               PPWriteWord (INTEL28F_CONFIRM);   // Comfirm block write
+               PPWriteWord (INTEL28F_CONFIRM);   // Comfirm block write
+ 
+@@ -1135,7 +1156,14 @@
+         }
+ 
+       clear_line ();                            // remove last gauge
++#if     defined _MSC_VER && defined _M_X64
++#pragma warning(push)
++#pragma warning(disable: 6297)
++#endif
+       ucon64_gauge (starttime, addr << 1, FileSize); // make gauge reach 100% when size % 32 k != 0
++#if     defined _MSC_VER && defined _M_X64
++#pragma warning(pop)
++#endif
+       WriteFlash (0, INTEL28F_READARRAY);
+       outpb (SPPCtrlPort, 0);
+       WriteFlash (1, INTEL28F_READARRAY);
+@@ -1196,11 +1224,25 @@
+ 
+           j = GetFileByte (fp);
+           if ((addr & 0x3fff) == 0)     // call ucon64_gauge() after sending 32 kB
++#if     defined _MSC_VER && defined _M_X64
++#pragma warning(push)
++#pragma warning(disable: 6297)
++#endif
+             ucon64_gauge (starttime, addr << 1, FileSize);
++#if     defined _MSC_VER && defined _M_X64
++#pragma warning(pop)
++#endif
+         }
+ 
+       clear_line ();                            // remove last gauge
++#if     defined _MSC_VER && defined _M_X64
++#pragma warning(push)
++#pragma warning(disable: 6297)
++#endif
+       ucon64_gauge (starttime, addr << 1, FileSize); // make gauge reach 100% when size % 32 k != 0
++#if     defined _MSC_VER && defined _M_X64
++#pragma warning(pop)
++#endif
+       WriteFlash (0, INTEL28F_READARRAY);
+       outpb (SPPCtrlPort, 0);
+     }
+diff -Naur ucon64/src/backup/gd.c ucon64.analyze/src/backup/gd.c
+--- ucon64/src/backup/gd.c	2021-10-26 02:00:16.266341700 +0900
++++ ucon64.analyze/src/backup/gd.c	2021-11-20 04:14:22.080783400 +0900
+@@ -825,7 +825,14 @@
+     num_units = snes_gd_make_names (filename, rominfo->backup_header_len, names);
+ 
+   dirname2 (filename, dir);
++#ifdef  _MSC_VER
++#pragma warning(push)
++#pragma warning(disable: 6387)
++#endif
+   filename_len = (unsigned int) (strlen (dir) + strlen (names[0]) + 6); // file sep., suffix, ASCII-z => 6
++#ifdef  _MSC_VER
++#pragma warning(pop)
++#endif
+   gd_header_len = rominfo->backup_header_len;
+   for (i = 0; i < num_units; i++)
+     {
+@@ -875,7 +882,14 @@
+   // send the ROM to the hardware
+   if (gd6_protocol && gd6_sync_hardware () == GD_ERROR)
+     io_error ("gd6_sync_hardware()");
++#ifdef  _MSC_VER
++#pragma warning(push)
++#pragma warning(disable: 6386)
++#endif
+   memcpy (buffer, prolog_str, 4);
++#ifdef  _MSC_VER
++#pragma warning(pop)
++#endif
+   buffer[4] = (unsigned char) num_units;
+   if (gd_send_prolog_bytes (buffer, 5) == GD_ERROR)
+     io_error (gd6_protocol ? "gd6_send_prolog_bytes(5)" : "gd3_send_prolog_bytes(5)");
+@@ -919,7 +933,14 @@
+       {
+         // No suffix is necessary but the name entry must be upper case and MUST
+         //  be 11 characters long, padded at the end with spaces if necessary.
++#ifdef  _MSC_VER
++#pragma warning(push)
++#pragma warning(disable: 6387)
++#endif
+         size_t len = strlen (names[i]);
++#ifdef  _MSC_VER
++#pragma warning(pop)
++#endif
+         memcpy (&buffer[4], strupr (names[i]), len);
+         if (len < 11)                           // warning remover
+           memset (buffer + 4 + len, ' ', 11 - len);
+diff -Naur ucon64/src/backup/libcd64/Makefile.vc6 ucon64.analyze/src/backup/libcd64/Makefile.vc6
+--- ucon64/src/backup/libcd64/Makefile.vc6	2021-01-07 12:41:24.272576600 +0900
++++ ucon64.analyze/src/backup/libcd64/Makefile.vc6	2021-11-20 04:14:22.086783800 +0900
+@@ -8,6 +8,7 @@
+ !else
+ CFLAGS=$(CFLAGS) /O2
+ !endif
++CFLAGS=$(CFLAGS) /analyze
+ # Place /Wall *after* /W<n>. /W<n> after /Wall will adjust the effect of /Wall.
+ # /wd4710: 'function' : function not inlined
+ # /wd4711: function 'function' selected for inline expansion
+diff -Naur ucon64/src/backup/md-pro.c ucon64.analyze/src/backup/md-pro.c
+--- ucon64/src/backup/md-pro.c	2021-10-26 02:01:09.733399900 +0900
++++ ucon64.analyze/src/backup/md-pro.c	2021-11-20 04:14:22.091784100 +0900
+@@ -267,7 +267,14 @@
+   fseek (file, 0x83f4, SEEK_SET);
+   fread_checked (buffer, 1, 12, file);
+   // currently we ignore the version string
++#ifdef  _MSC_VER
++#pragma warning(push)
++#pragma warning(disable: 6054)
++#endif
+   multi_game = strncmp ((char *) buffer, "uCON64", 6) ? 0 : 1;
++#ifdef  _MSC_VER
++#pragma warning(pop)
++#endif
+ 
+   if (multi_game)
+     {
+diff -Naur ucon64/src/backup/mgd.c ucon64.analyze/src/backup/mgd.c
+--- ucon64/src/backup/mgd.c	2021-10-26 05:44:56.851387100 +0900
++++ ucon64.analyze/src/backup/mgd.c	2021-11-20 04:14:22.097784400 +0900
+@@ -69,7 +69,14 @@
+     }
+   for (n = 0; n < size / 2; n++)
+     {
++#ifdef  _MSC_VER
++#pragma warning(push)
++#pragma warning(disable: 6386)
++#endif
+       (*buffer)[n] = src[n * 2 + 1];
++#ifdef  _MSC_VER
++#pragma warning(pop)
++#endif
+       (*buffer)[size / 2 + n] = src[n * 2];
+     }
+   free (src);
+@@ -91,7 +98,14 @@
+   for (offset = 0; offset < data_size / 2; offset++)
+     {
+       (*buffer)[n++] = src[data_size / 2 + offset];
++#ifdef  _MSC_VER
++#pragma warning(push)
++#pragma warning(disable: 6386)
++#endif
+       (*buffer)[n++] = src[offset];
++#ifdef  _MSC_VER
++#pragma warning(pop)
++#endif
+     }
+   free (src);
+ }
+diff -Naur ucon64/src/backup/pce-pro.c ucon64.analyze/src/backup/pce-pro.c
+--- ucon64/src/backup/pce-pro.c	2021-10-26 02:05:27.009115200 +0900
++++ ucon64.analyze/src/backup/pce-pro.c	2021-11-20 04:14:22.101784600 +0900
+@@ -202,7 +202,14 @@
+   fseek (file, 0xb3f4, SEEK_SET);
+   fread_checked (buffer, 1, 12, file);
+   // currently we ignore the version string
++#ifdef  _MSC_VER
++#pragma warning(push)
++#pragma warning(disable: 6054)
++#endif
+   multi_game = strncmp ((char *) buffer, "uCON64", 6) ? 0 : 1;
++#ifdef  _MSC_VER
++#pragma warning(pop)
++#endif
+ 
+   if (multi_game)
+     {
+diff -Naur ucon64/src/backup/smcic2.c ucon64.analyze/src/backup/smcic2.c
+--- ucon64/src/backup/smcic2.c	2021-08-18 00:07:11.058384800 +0900
++++ ucon64.analyze/src/backup/smcic2.c	2021-11-20 04:14:22.107785000 +0900
+@@ -144,7 +144,14 @@
+       FILE *file;
+       size_t bytesread;
+ 
++#ifdef  _MSC_VER
++#pragma warning(push)
++#pragma warning(disable: 6387)
++#endif
+       if ((file = fopen (fname, "rb")) == NULL)
++#ifdef  _MSC_VER
++#pragma warning(pop)
++#endif
+         {
+           fprintf (stderr, ucon64_msg[OPEN_READ_ERROR], fname);
+           exit (1);
+diff -Naur ucon64/src/backup/smsgg-pro.c ucon64.analyze/src/backup/smsgg-pro.c
+--- ucon64/src/backup/smsgg-pro.c	2021-10-26 02:14:43.304933500 +0900
++++ ucon64.analyze/src/backup/smsgg-pro.c	2021-11-20 04:14:22.112785300 +0900
+@@ -244,7 +244,14 @@
+   fseek (file, 0x21f4, SEEK_SET);
+   fread_checked (buffer, 1, 12, file);
+   // currently we ignore the version string
++#ifdef  _MSC_VER
++#pragma warning(push)
++#pragma warning(disable: 6054)
++#endif
+   multi_game = strncmp ((char *) buffer, "uCON64", 6) ? 0 : 1;
++#ifdef  _MSC_VER
++#pragma warning(pop)
++#endif
+ 
+   if (multi_game)
+     {
+diff -Naur ucon64/src/config.h ucon64.analyze/src/config.h
+--- ucon64/src/config.h	1970-01-01 09:00:00.000000000 +0900
++++ ucon64.analyze/src/config.h	2021-11-20 04:14:22.116785500 +0900
+@@ -0,0 +1,144 @@
++/* config.h.  Generated from config.h.in by configure.  */
++/* config.h.in.  Generated from configure.in by autoheader.  */
++
++/* enable debug output (default: no) */
++/* #undef DEBUG */
++
++/* enable dynamic loading of add-on libraries (default: yes) */
++#define DLOPEN 1
++
++/* Define to 1 if you have the <byteswap.h> header file. */
++/* #undef HAVE_BYTESWAP_H */
++
++/* Define to 1 if you have the `clock_nanosleep' function. */
++/* #undef HAVE_CLOCK_NANOSLEEP */
++
++/* Define to 1 if you have the <dirent.h> header file, and it defines `DIR'.
++   */
++/* #undef HAVE_DIRENT_H */
++
++/* Define to 1 if you don't have `vprintf' but do have `_doprnt.' */
++/* #undef HAVE_DOPRNT */
++
++/* Define to 1 if you have the <fcntl.h> header file. */
++#define HAVE_FCNTL_H 1
++
++/* Define to 1 if you have the <inttypes.h> header file. */
++/* #undef HAVE_INTTYPES_H */
++
++/* Define to 1 if you have the <memory.h> header file. */
++#define HAVE_MEMORY_H 1
++
++/* Define to 1 if you have the <ndir.h> header file, and it defines `DIR'. */
++/* #undef HAVE_NDIR_H */
++
++/* Define to 1 if you have the `realpath' function. */
++/* #undef HAVE_REALPATH */
++
++/* Define to 1 if you have the `sched_setscheduler' function. */
++/* #undef HAVE_SCHED_SETSCHEDULER */
++
++/* Define to 1 if you have the <stdint.h> header file. */
++/* #undef HAVE_STDINT_H */
++
++/* Define to 1 if you have the <stdlib.h> header file. */
++#define HAVE_STDLIB_H 1
++
++/* Define to 1 if you have the `strftime' function. */
++#define HAVE_STRFTIME 1
++
++/* Define to 1 if you have the <strings.h> header file. */
++/* #undef HAVE_STRINGS_H */
++
++/* Define to 1 if you have the <string.h> header file. */
++#define HAVE_STRING_H 1
++
++/* Define to 1 if you have the `strnlen' function. */
++#define HAVE_STRNLEN 1
++
++/* Define to 1 if you have the <sys/dir.h> header file, and it defines `DIR'.
++   */
++/* #undef HAVE_SYS_DIR_H */
++
++/* Define to 1 if you have the <sys/io.h> header file. */
++/* #undef HAVE_SYS_IO_H */
++
++/* Define to 1 if you have the <sys/ndir.h> header file, and it defines `DIR'.
++   */
++/* #undef HAVE_SYS_NDIR_H */
++
++/* Define to 1 if you have the <sys/stat.h> header file. */
++#define HAVE_SYS_STAT_H 1
++
++/* Define to 1 if you have the <sys/types.h> header file. */
++#define HAVE_SYS_TYPES_H 1
++
++/* Define to 1 if you have the <unistd.h> header file. */
++/* #undef HAVE_UNISTD_H */
++
++/* Define to 1 if you have the `vprintf' function. */
++#define HAVE_VPRINTF 1
++
++/* Define to the address where bug reports for this package should be sent. */
++#define PACKAGE_BUGREPORT "ucon64-main@lists.sourceforge.net"
++
++/* Define to the full name of this package. */
++#define PACKAGE_NAME "uCON64"
++
++/* Define to the full name and version of this package. */
++#define PACKAGE_STRING "uCON64 2.2.2"
++
++/* Define to the one symbol short name of this package. */
++#define PACKAGE_TARNAME "ucon64"
++
++/* Define to the home page for this package. */
++#define PACKAGE_URL ""
++
++/* Define to the version of this package. */
++#define PACKAGE_VERSION "2.2.2"
++
++/* Define to 1 if you have the ANSI C header files. */
++#define STDC_HEADERS 1
++
++/* enable the use of color (default: yes) */
++#define USE_ANSI_COLOR 1
++
++/* build with libdiscmage support (default: no) */
++#define USE_DISCMAGE 1
++
++/* build with libcd64 support (default: no) */
++#define USE_LIBCD64 1
++
++/* enable support for parallel port backup units (default: yes) */
++#define USE_PARALLEL 1
++
++/* use ppdev for parallel port I/O (default: no) */
++/* #undef USE_PPDEV */
++
++/* build with libusb support (default: no) */
++//#define USE_USB 1
++
++/* build with gzip and zip support (default: yes) */
++//#define USE_ZLIB 1
++
++/* Define to empty if `const' does not conform to ANSI C. */
++/* #undef const */
++
++/* Define to `int' if <sys/types.h> doesn't define. */
++/* #undef gid_t */
++
++/* Define to `__inline__' or `__inline' if that's what the C compiler
++   calls it, or to nothing if 'inline' is not supported under any name.  */
++#ifndef __cplusplus
++/* Visual C++ 6 doesn't allow inline in C source code. */
++#define inline __inline
++#endif
++
++/* Define to `int' if <sys/types.h> does not define. */
++/* #undef pid_t */
++
++/* Define to `unsigned int' if <sys/types.h> does not define. */
++/* #undef size_t */
++
++/* Define to `int' if <sys/types.h> doesn't define. */
++/* #undef uid_t */
+diff -Naur ucon64/src/console/gb.c ucon64.analyze/src/console/gb.c
+--- ucon64/src/console/gb.c	2021-11-03 19:14:37.909237600 +0900
++++ ucon64.analyze/src/console/gb.c	2021-11-20 04:14:22.121785800 +0900
+@@ -518,7 +518,14 @@
+ 
+   // Windows 3.x BMP file format
+   bmp_buffer[0] = 'B';
++#ifdef  _MSC_VER
++#pragma warning(push)
++#pragma warning(disable: 6386)
++#endif
+   bmp_buffer[1] = 'M';
++#ifdef  _MSC_VER
++#pragma warning(pop)
++#endif
+   bmp_buffer[2] = file_size & 0xff;
+   bmp_buffer[3] = (file_size >> 8) & 0xff;
+   bmp_buffer[10] = DATAOFFSET;
+@@ -544,7 +551,14 @@
+                     y_pos * GPWIDTH + x_pos);
+             color = 3;
+           }
++#ifdef  _MSC_VER
++#pragma warning(push)
++#pragma warning(disable: 6385)
++#endif
+         bmp_buffer[DATAOFFSET + pixel_offset / 2] |= color << (~pixel_offset & 1) * 4;
++#ifdef  _MSC_VER
++#pragma warning(pop)
++#endif
+       }
+ 
+   ucon64_fwrite (bmp_buffer, 0, file_size, dest_name, "wb");
+diff -Naur ucon64/src/console/genesis.c ucon64.analyze/src/console/genesis.c
+--- ucon64/src/console/genesis.c	2021-10-26 07:15:16.257359400 +0900
++++ ucon64.analyze/src/console/genesis.c	2021-11-20 04:14:22.127786100 +0900
+@@ -671,7 +671,14 @@
+                  dest_name, "ab");
+           printf (ucon64_msg[WROTE], dest_name);
+ 
++#ifdef  _MSC_VER
++#pragma warning(push)
++#pragma warning(disable: 6387)
++#endif
+           strncpy (names[name_i++], p0, n)[n] = '\0';
++#ifdef  _MSC_VER
++#pragma warning(pop)
++#endif
+           (*p)++;
+         }
+       mgd_write_index_file (names, name_i);
+diff -Naur ucon64/src/console/snes.c ucon64.analyze/src/console/snes.c
+--- ucon64/src/console/snes.c	2021-10-27 01:42:22.794740000 +0900
++++ ucon64.analyze/src/console/snes.c	2021-11-20 04:14:22.137786700 +0900
+@@ -5949,7 +5949,14 @@
+             totalsize_card += bytestowrite;
+           if (bytestowrite == 0)
+             done = 1;
++#ifdef  _MSC_VER
++#pragma warning(push)
++#pragma warning(disable: 6385)
++#endif
+           fwrite (buffer, 1, bytestowrite, destfile);
++#ifdef  _MSC_VER
++#pragma warning(pop)
++#endif
+           byteswritten += bytestowrite;
+         }
+ 
+diff -Naur ucon64/src/libdiscmage/Makefile.vc6 ucon64.analyze/src/libdiscmage/Makefile.vc6
+--- ucon64/src/libdiscmage/Makefile.vc6	2021-10-29 03:18:24.691641900 +0900
++++ ucon64.analyze/src/libdiscmage/Makefile.vc6	2021-11-20 04:14:22.142787000 +0900
+@@ -4,11 +4,12 @@
+ 
+ CC=cl.exe
+ CFLAGS=$(CFLAGS) /nologo /I. /W4 /Wall /wd4710 /wd4711 /wd5045 /O2 /MT /DDLL \
+-       /D_CRT_NONSTDC_NO_DEPRECATE /D_CRT_SECURE_NO_WARNINGS /DHAVE_CONFIG_H
++       /D_CRT_NONSTDC_NO_DEPRECATE /D_CRT_SECURE_NO_WARNINGS /DHAVE_CONFIG_H /analyze:stacksize 70000 /wd6031
+ # Place /Wall *after* /W<n>. /W<n> after /Wall will adjust the effect of /Wall.
+ # /wd4710: 'function' : function not inlined
+ # /wd4711: function 'function' selected for inline expansion
+ # /wd5045: Compiler will insert Spectre mitigation for memory load if /Qspectre switch specified
++# /wd6031: Return value ignored: 'function'.
+ !ifdef DLOPEN
+ CFLAGS=$(CFLAGS) /DDLOPEN
+ !endif
+diff -Naur ucon64/src/libdiscmage/config.h ucon64.analyze/src/libdiscmage/config.h
+--- ucon64/src/libdiscmage/config.h	1970-01-01 09:00:00.000000000 +0900
++++ ucon64.analyze/src/libdiscmage/config.h	2021-11-20 04:14:22.146787200 +0900
+@@ -0,0 +1,144 @@
++/* config.h.  Generated from config.h.in by configure.  */
++/* config.h.in.  Generated from configure.in by autoheader.  */
++
++/* enable debug output (default: no) */
++/* #undef DEBUG */
++
++/* enable dynamic loading of add-on libraries (default: yes) */
++#define DLOPEN 1
++
++/* Define to 1 if you have the <byteswap.h> header file. */
++/* #undef HAVE_BYTESWAP_H */
++
++/* Define to 1 if you have the `clock_nanosleep' function. */
++/* #undef HAVE_CLOCK_NANOSLEEP */
++
++/* Define to 1 if you have the <dirent.h> header file, and it defines `DIR'.
++   */
++/* #undef HAVE_DIRENT_H */
++
++/* Define to 1 if you don't have `vprintf' but do have `_doprnt.' */
++/* #undef HAVE_DOPRNT */
++
++/* Define to 1 if you have the <fcntl.h> header file. */
++#define HAVE_FCNTL_H 1
++
++/* Define to 1 if you have the <inttypes.h> header file. */
++/* #undef HAVE_INTTYPES_H */
++
++/* Define to 1 if you have the <memory.h> header file. */
++#define HAVE_MEMORY_H 1
++
++/* Define to 1 if you have the <ndir.h> header file, and it defines `DIR'. */
++/* #undef HAVE_NDIR_H */
++
++/* Define to 1 if you have the `realpath' function. */
++/* #undef HAVE_REALPATH */
++
++/* Define to 1 if you have the `sched_setscheduler' function. */
++/* #undef HAVE_SCHED_SETSCHEDULER */
++
++/* Define to 1 if you have the <stdint.h> header file. */
++/* #undef HAVE_STDINT_H */
++
++/* Define to 1 if you have the <stdlib.h> header file. */
++#define HAVE_STDLIB_H 1
++
++/* Define to 1 if you have the `strftime' function. */
++#define HAVE_STRFTIME 1
++
++/* Define to 1 if you have the <strings.h> header file. */
++/* #undef HAVE_STRINGS_H */
++
++/* Define to 1 if you have the <string.h> header file. */
++#define HAVE_STRING_H 1
++
++/* Define to 1 if you have the `strnlen' function. */
++#define HAVE_STRNLEN 1
++
++/* Define to 1 if you have the <sys/dir.h> header file, and it defines `DIR'.
++   */
++/* #undef HAVE_SYS_DIR_H */
++
++/* Define to 1 if you have the <sys/io.h> header file. */
++/* #undef HAVE_SYS_IO_H */
++
++/* Define to 1 if you have the <sys/ndir.h> header file, and it defines `DIR'.
++   */
++/* #undef HAVE_SYS_NDIR_H */
++
++/* Define to 1 if you have the <sys/stat.h> header file. */
++#define HAVE_SYS_STAT_H 1
++
++/* Define to 1 if you have the <sys/types.h> header file. */
++#define HAVE_SYS_TYPES_H 1
++
++/* Define to 1 if you have the <unistd.h> header file. */
++/* #undef HAVE_UNISTD_H */
++
++/* Define to 1 if you have the `vprintf' function. */
++#define HAVE_VPRINTF 1
++
++/* Define to the address where bug reports for this package should be sent. */
++#define PACKAGE_BUGREPORT "ucon64-main@lists.sourceforge.net"
++
++/* Define to the full name of this package. */
++#define PACKAGE_NAME "uCON64"
++
++/* Define to the full name and version of this package. */
++#define PACKAGE_STRING "uCON64 2.2.2"
++
++/* Define to the one symbol short name of this package. */
++#define PACKAGE_TARNAME "ucon64"
++
++/* Define to the home page for this package. */
++#define PACKAGE_URL ""
++
++/* Define to the version of this package. */
++#define PACKAGE_VERSION "2.2.2"
++
++/* Define to 1 if you have the ANSI C header files. */
++#define STDC_HEADERS 1
++
++/* enable the use of color (default: yes) */
++#define USE_ANSI_COLOR 1
++
++/* build with libdiscmage support (default: no) */
++#define USE_DISCMAGE 1
++
++/* build with libcd64 support (default: no) */
++#define USE_LIBCD64 1
++
++/* enable support for parallel port backup units (default: yes) */
++#define USE_PARALLEL 1
++
++/* use ppdev for parallel port I/O (default: no) */
++/* #undef USE_PPDEV */
++
++/* build with libusb support (default: no) */
++//#define USE_USB 1
++
++/* build with gzip and zip support (default: yes) */
++//#define USE_ZLIB 1
++
++/* Define to empty if `const' does not conform to ANSI C. */
++/* #undef const */
++
++/* Define to `int' if <sys/types.h> doesn't define. */
++/* #undef gid_t */
++
++/* Define to `__inline__' or `__inline' if that's what the C compiler
++   calls it, or to nothing if 'inline' is not supported under any name.  */
++#ifndef __cplusplus
++/* Visual C++ 6 doesn't allow inline in C source code. */
++#define inline __inline
++#endif
++
++/* Define to `int' if <sys/types.h> does not define. */
++/* #undef pid_t */
++
++/* Define to `unsigned int' if <sys/types.h> does not define. */
++/* #undef size_t */
++
++/* Define to `int' if <sys/types.h> doesn't define. */
++/* #undef uid_t */
+diff -Naur ucon64/src/libdiscmage/format/cdi.c ucon64.analyze/src/libdiscmage/format/cdi.c
+--- ucon64/src/libdiscmage/format/cdi.c	2020-03-09 04:51:12.685484500 +0900
++++ ucon64.analyze/src/libdiscmage/format/cdi.c	2021-11-20 04:14:22.150787400 +0900
+@@ -111,8 +111,15 @@
+   fseek (fh, 4, SEEK_CUR);     //     4    discjuggler settings        no idea of internal bit fields
+   if (fread_checked2 (&value8, 1, 1, fh) != 0) //     1    filename_length
+     return -1;
++#ifdef  _MSC_VER
++#pragma warning(push)
++#pragma warning(disable: 6029)
++#endif
+   if (fread_checked2 (&value_s, 1, value8, fh) != 0) //  [fl]    [filename]
+     return -1;
++#ifdef  _MSC_VER
++#pragma warning(pop)
++#endif
+ #ifdef  DEBUG
+   value_s[value8] = '\0';
+   puts (value_s);
+diff -Naur ucon64/src/libdiscmage/format/other.c ucon64.analyze/src/libdiscmage/format/other.c
+--- ucon64/src/libdiscmage/format/other.c	2020-03-11 03:01:35.485910500 +0900
++++ ucon64.analyze/src/libdiscmage/format/other.c	2021-11-20 04:14:22.155787700 +0900
+@@ -194,7 +194,14 @@
+ //  if (!(fh = fopen (image->fname, "rb")))
+ //    return -1;
+ 
++#ifdef  _MSC_VER
++#pragma warning(push)
++#pragma warning(disable: 6385)
++#endif
+   for (x = 0; probe[x].version; x++)
++#ifdef  _MSC_VER
++#pragma warning(pop)
++#endif
+     if ((header_start = q_fncmp (image->fname,
+                                  probe[x].start,
+                                  probe[x].len,
+diff -Naur ucon64/src/libdiscmage/misc.c ucon64.analyze/src/libdiscmage/misc.c
+--- ucon64/src/libdiscmage/misc.c	2021-10-29 16:21:27.287892700 +0900
++++ ucon64.analyze/src/libdiscmage/misc.c	2021-11-20 04:14:22.160788000 +0900
+@@ -867,7 +867,16 @@
+ #if     defined DJGPP || defined __CYGWIN__ || defined __MINGW32__
+          (*(p1 - 1) == '/' || *(p1 - 1) == '\\') && (*p1 == '/' || *p1 == '\\'))
+ #else
++#ifdef  _MSC_VER
++#pragma warning(push)
++#pragma warning(disable: 6011)
++#pragma warning(disable: 6387)
++#pragma warning(disable: 28182)
++#endif
+          *(p1 - 1) == DIR_SEPARATOR && *p1 == DIR_SEPARATOR)
++#ifdef  _MSC_VER
++#pragma warning(pop)
++#endif
+ #endif
+     p1--;
+ 
+@@ -882,8 +891,20 @@
+     *p1 = '\0';                                 // terminate string (overwrite the separator)
+   else
+     {
++#ifdef  _MSC_VER
++#pragma warning(push)
++#pragma warning(disable: 6011)
++#endif
+       dir[0] = '.';
++#ifdef  _MSC_VER
++#pragma warning(pop)
++#pragma warning(push)
++#pragma warning(disable: 6386)
++#endif
+       dir[1] = '\0';
++#ifdef  _MSC_VER
++#pragma warning(pop)
++#endif
+     }
+ 
+   return dir;
+@@ -1222,7 +1243,14 @@
+   else
+     path2 = path;
+ 
++#ifdef  _MSC_VER
++#pragma warning(push)
++#pragma warning(disable: 6001)
++#endif
+   if (path1[0] == '\0')
++#ifdef  _MSC_VER
++#pragma warning(pop)
++#endif
+     {
+       size_t len = strnlen (path2, sizeof path1 - 1);
+ 
+@@ -1940,7 +1968,14 @@
+       (*patterns)[n].replace = NULL;
+       for (m = 0; m < (*patterns)[n].n_sets; m++)
+         {
++#ifdef  _MSC_VER
++#pragma warning(push)
++#pragma warning(disable: 6011)
++#endif
+           free ((*patterns)[n].sets[m].data);
++#ifdef  _MSC_VER
++#pragma warning(pop)
++#endif
+           (*patterns)[n].sets[m].data = NULL;
+         }
+       free ((*patterns)[n].sets);
+@@ -2055,7 +2090,14 @@
+               if (len >= sizeof value)
+                 len = sizeof value - 1;
+               snprintf (value, len + 1, "%s%s", tmp, p);
++#ifdef  _MSC_VER
++#pragma warning(push)
++#pragma warning(disable: 6386)
++#endif
+               value[len] = '\0';
++#ifdef  _MSC_VER
++#pragma warning(pop)
++#endif
+             }
+           else
+             /*
+@@ -2299,7 +2341,14 @@
+     {
+       if (comment)
+         {
++#ifdef  _MSC_VER
++#pragma warning(push)
++#pragma warning(disable: 6386)
++#endif
+           strcat (str, PROPERTY_COMMENT_S "\n" PROPERTY_COMMENT_S " ");
++#ifdef  _MSC_VER
++#pragma warning(pop)
++#endif
+ 
+           for (; *comment; comment++)
+             switch (*comment)
+diff -Naur ucon64/src/libdiscmage/misc_z.c ucon64.analyze/src/libdiscmage/misc_z.c
+--- ucon64/src/libdiscmage/misc_z.c	2021-07-21 03:13:08.958772300 +0900
++++ ucon64.analyze/src/libdiscmage/misc_z.c	2021-11-20 04:14:22.165788300 +0900
+@@ -83,7 +83,14 @@
+       while (!gzeof ((gzFile) file))
+         {
+           gzseek ((gzFile) file, 1024 * 1024, SEEK_CUR);
++#ifdef  _MSC_VER
++#pragma warning(push)
++#pragma warning(disable: 6269)
++#endif
+           gzgetc ((gzFile) file);       // necessary in order to set EOF (zlib 1.2.8)
++#ifdef  _MSC_VER
++#pragma warning(pop)
++#endif
+         }
+ #else
+       // Is there a more efficient way to determine the uncompressed size?
+diff -Naur ucon64/src/misc/archive.c ucon64.analyze/src/misc/archive.c
+--- ucon64/src/misc/archive.c	2021-09-26 05:00:35.659674600 +0900
++++ ucon64.analyze/src/misc/archive.c	2021-11-20 04:14:22.170788600 +0900
+@@ -91,7 +91,14 @@
+ #else
+           gzseek ((gzFile) file, 1024 * 1024, SEEK_CUR);
+ #endif
++#ifdef  _MSC_VER
++#pragma warning(push)
++#pragma warning(disable: 6269)
++#endif
+           gzgetc ((gzFile) file);       // necessary in order to set EOF (zlib 1.2.8)
++#ifdef  _MSC_VER
++#pragma warning(pop)
++#endif
+         }
+ #else
+       // Is there a more efficient way to determine the uncompressed size?
+diff -Naur ucon64/src/misc/chksum.c ucon64.analyze/src/misc/chksum.c
+--- ucon64/src/misc/chksum.c	2021-10-04 16:27:11.529952800 +0900
++++ ucon64.analyze/src/misc/chksum.c	2021-11-20 04:14:22.175788900 +0900
+@@ -510,7 +510,14 @@
+ 
+   crc = ~crc;
+   while (size--)
++#ifdef  _MSC_VER
++#pragma warning(push)
++#pragma warning(disable: 6011)
++#endif
+     crc = (crc >> 8) ^ crc16_table[(crc ^ *p++) & 0xff];
++#ifdef  _MSC_VER
++#pragma warning(pop)
++#endif
+   return ~crc;
+ }
+ 
+@@ -542,7 +549,14 @@
+ 
+   crc = ~crc;
+   while (size--)
++#ifdef  _MSC_VER
++#pragma warning(push)
++#pragma warning(disable: 6011)
++#endif
+     crc = (crc >> 8) ^ crc32_table[(crc ^ *p++) & 0xff];
++#ifdef  _MSC_VER
++#pragma warning(pop)
++#endif
+   return ~crc;
+ }
+ #endif
+diff -Naur ucon64/src/misc/file.c ucon64.analyze/src/misc/file.c
+--- ucon64/src/misc/file.c	2021-10-29 15:59:32.569695100 +0900
++++ ucon64.analyze/src/misc/file.c	2021-11-20 04:14:22.180789200 +0900
+@@ -425,7 +425,14 @@
+   else
+     path2 = path;
+ 
++#ifdef  _MSC_VER
++#pragma warning(push)
++#pragma warning(disable: 6001)
++#endif
+   if (path1[0] == '\0')
++#ifdef  _MSC_VER
++#pragma warning(pop)
++#endif
+     {
+       size_t len = strnlen (path2, sizeof path1 - 1);
+ 
+@@ -494,7 +501,15 @@
+ #if     defined DJGPP || defined __CYGWIN__ || defined __MINGW32__
+          (*(p1 - 1) == '/' || *(p1 - 1) == '\\') && (*p1 == '/' || *p1 == '\\'))
+ #else
++#ifdef  _MSC_VER
++#pragma warning(push)
++#pragma warning(disable: 6011)
++#pragma warning(disable: 28182)
++#endif
+          *(p1 - 1) == DIR_SEPARATOR && *p1 == DIR_SEPARATOR)
++#ifdef  _MSC_VER
++#pragma warning(pop)
++#endif
+ #endif
+     p1--;
+ 
+@@ -509,7 +524,14 @@
+     *p1 = '\0';                                 // terminate string (overwrite the separator)
+   else
+     {
++#ifdef  _MSC_VER
++#pragma warning(push)
++#pragma warning(disable: 6011)
++#endif
+       dir[0] = '.';
++#ifdef  _MSC_VER
++#pragma warning(pop)
++#endif
+       dir[1] = '\0';
+     }
+ 
+@@ -1171,7 +1193,14 @@
+       if (*mode == 'w' || *mode == 'a' || mode[1] == '+')
+         {
+           fseeko2 (fh, -(int64_t) buffer_len, SEEK_CUR);
++#ifdef  _MSC_VER
++#pragma warning(push)
++#pragma warning(disable: 6385)
++#endif
+           fwrite (buffer, 1, buffer_len, fh);
++#ifdef  _MSC_VER
++#pragma warning(pop)
++#endif
+           /*
+             This appears to be a bug in DJGPP and Solaris (for example, when
+             called from ucon64_fbswap16()). Without an extra call to fseek() a
+diff -Naur ucon64/src/misc/getopt.c ucon64.analyze/src/misc/getopt.c
+--- ucon64/src/misc/getopt.c	2019-06-21 23:22:51.810033000 +0900
++++ ucon64.analyze/src/misc/getopt.c	2021-11-20 04:14:22.185789400 +0900
+@@ -225,10 +225,17 @@
+ /* Avoid depending on library functions or files
+    whose names are inconsistent.  */
+ 
++#ifdef  _MSC_VER
++#pragma warning(push)
++#pragma warning(disable: 28251)
++#endif
+ #ifdef __cplusplus
+ extern "C"
+ #endif
+ char *getenv (const char *);
++#ifdef  _MSC_VER
++#pragma warning(pop)
++#endif
+ 
+ static char *
+ my_index (const char *str, int chr)
+diff -Naur ucon64/src/misc/misc.c ucon64.analyze/src/misc/misc.c
+--- ucon64/src/misc/misc.c	2021-10-21 00:53:44.964659000 +0900
++++ ucon64.analyze/src/misc/misc.c	2021-11-20 04:14:22.189789700 +0900
+@@ -890,7 +890,14 @@
+       (*patterns)[n].replace = NULL;
+       for (m = 0; m < (*patterns)[n].n_sets; m++)
+         {
++#ifdef  _MSC_VER
++#pragma warning(push)
++#pragma warning(disable: 6011)
++#endif
+           free ((*patterns)[n].sets[m].data);
++#ifdef  _MSC_VER
++#pragma warning(pop)
++#endif
+           (*patterns)[n].sets[m].data = NULL;
+         }
+       free ((*patterns)[n].sets);
+@@ -959,7 +966,14 @@
+           if (len >= sizeof value)
+             len = sizeof value - 1;
+           snprintf (value, len + 1, "%s%s", tmp, p);
++#ifdef  _MSC_VER
++#pragma warning(push)
++#pragma warning(disable: 6386)
++#endif
+           value[len] = '\0';
++#ifdef  _MSC_VER
++#pragma warning(pop)
++#endif
+         }
+       else
+         /*
+diff -Naur ucon64/src/misc/property.c ucon64.analyze/src/misc/property.c
+--- ucon64/src/misc/property.c	2021-03-09 03:45:07.362196900 +0900
++++ ucon64.analyze/src/misc/property.c	2021-11-20 04:14:22.193789900 +0900
+@@ -138,7 +138,14 @@
+   size_t len = strnlen (str, MAXBUFSIZE - 1);
+ 
+   memcpy (buf, str, len);
++#ifdef  _MSC_VER
++#pragma warning(push)
++#pragma warning(disable: 6386)
++#endif
+   buf[len] = '\0';
++#ifdef  _MSC_VER
++#pragma warning(pop)
++#endif
+ 
+   p = strtriml (buf);
+   if (*p == comment_sep || *p == '\n' || *p == '\r')
+diff -Naur ucon64/src/patch/ips.c ucon64.analyze/src/patch/ips.c
+--- ucon64/src/patch/ips.c	2021-09-30 05:09:24.971372700 +0900
++++ ucon64.analyze/src/patch/ips.c	2021-11-20 04:14:22.197790100 +0900
+@@ -474,14 +474,28 @@
+           unsigned char bridge[BRIDGE_LEN + 1];
+ 
+           bridge[0] = byte;
++#ifdef  _MSC_VER
++#pragma warning(push)
++#pragma warning(disable: 6386)
++#endif
+           buf[ndiffs] = byte2;
++#ifdef  _MSC_VER
++#pragma warning(pop)
++#endif
+           n = fread (bridge + 1, 1, BRIDGE_LEN, orgfile);
+           n2 = fread (buf + ndiffs + 1, 1,
+                       MIN (BRIDGE_LEN, BUFSIZE - 1 - ndiffs), modfile);
+           ncompare = 1 + MIN (n, n2);
+ 
+           for (i = 1; i < ncompare; i++)        // buf[ndiffs] == bridge[0]
++#ifdef  _MSC_VER
++#pragma warning(push)
++#pragma warning(disable: 6385)
++#endif
+             if (buf[ndiffs + i] != bridge[i])
++#ifdef  _MSC_VER
++#pragma warning(pop)
++#endif
+               {
+                 for (n = 0; n < i; n++)
+                   {
+diff -Naur ucon64/src/ucon64_misc.c ucon64.analyze/src/ucon64_misc.c
+--- ucon64/src/ucon64_misc.c	2021-11-06 00:30:44.589664300 +0900
++++ ucon64.analyze/src/ucon64_misc.c	2021-11-20 04:14:22.202790400 +0900
+@@ -1007,7 +1007,14 @@
+           n = 0;
+         }
+       start_n = n;
++#ifdef  _MSC_VER
++#pragma warning(push)
++#pragma warning(disable: 6293)
++#endif
+       for (i = blocksize - 1; i <= blocksize - 1; i--)
++#ifdef  _MSC_VER
++#pragma warning(pop)
++#endif
+         {
+           if (buffer[i] != c)
+             {
+@@ -1296,7 +1303,14 @@
+   result = set_property_array (ucon64.configfile, props);
+ 
+   for (i -= 2; i >= 0; i--)
++#ifdef  _MSC_VER
++#pragma warning(push)
++#pragma warning(disable: 6001)
++#endif
+     free ((char *) props[i].value_s);
++#ifdef  _MSC_VER
++#pragma warning(pop)
++#endif
+ 
+   return result;
+ }
+@@ -1759,7 +1773,14 @@
+                                   patterns[n].replace_size, patterns[n].offset,
+                                   patterns[n].sets);
+         }
++#ifdef  _MSC_VER
++#pragma warning(push)
++#pragma warning(disable: 6385)
++#endif
+       fwrite (buffer, 1, bytesread + effective_overlap - overlap, destfile);
++#ifdef  _MSC_VER
++#pragma warning(pop)
++#endif
+ 
+       totalbytesread += bytesread;
+       if (totalbytesread < ucon64.fsize)
+diff -Naur ucon64/src/ucon64_opts.c ucon64.analyze/src/ucon64_opts.c
+--- ucon64/src/ucon64_opts.c	2021-11-20 03:48:55.086444400 +0900
++++ ucon64.analyze/src/ucon64_opts.c	2021-11-20 04:14:22.208790800 +0900
+@@ -1176,7 +1176,14 @@
+           }
+         memset (buf, 0, (size_t) MIN (bytesleft, MAXBUFSIZE));
+         while (bytesleft > 0)
++#ifdef  _MSC_VER
++#pragma warning(push)
++#pragma warning(disable: 6385)
++#endif
+           bytesleft -= fwrite (buf, 1, (size_t) MIN (bytesleft, MAXBUFSIZE), file);
++#ifdef  _MSC_VER
++#pragma warning(pop)
++#endif
+         fclose (file);
+       }
+       fcopy (src_name, 0, ucon64.fsize, dest_name, "ab");
