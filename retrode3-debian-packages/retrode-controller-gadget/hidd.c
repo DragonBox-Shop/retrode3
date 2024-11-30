@@ -3,7 +3,7 @@
  *
  * function:
  *	reads /dev/input/events from game ports
- * 	writes HID event packages for configs
+ * 	writes HID event packages for configfs generated USB pipes
  *
  * usage:
  * 	/root/hidd /dev/input/event1 /dev/hidg1&
@@ -24,6 +24,25 @@
 #include <sys/ioctl.h>
 #include <sys/select.h>
 #include <unistd.h>
+#include <stdint.h>
+
+/* from asm-generic/posix_types.h> */
+typedef unsigned long	__kernel_ulong_t;
+
+/* from uapi/drm/drm.h */
+typedef int8_t   __s8;
+typedef uint8_t  __u8;
+typedef int16_t  __s16;
+typedef uint16_t __u16;
+typedef int32_t  __s32;
+typedef uint32_t __u32;
+typedef int64_t  __s64;
+typedef uint64_t __u64;
+typedef size_t   __kernel_size_t;
+
+#define __KERNEL__	// do not use standard includes
+#define __user	// there is no need to define attribute
+
 #include <linux/input.h>	// UAPI
 #include <linux/input-event-codes.h>
 
@@ -111,7 +130,7 @@ int hid(char *device, char *hid_file)
 			if (n == 0)
 				return 0;	/* EOF */
 
-fprintf(stderr, "type=%d code=%d value=%ld\n", event.type, event.code, event.value);
+fprintf(stderr, "type=%d code=%d value=%d\n", event.type, event.code, event.value);
 
 			// geht! type=1 code=158/143 value=0/1 (loslassen/drücken)
 			// dazwischen noch type=0 code=0 value=0?
