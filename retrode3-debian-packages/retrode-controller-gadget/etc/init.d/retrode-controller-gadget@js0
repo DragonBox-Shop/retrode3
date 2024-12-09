@@ -17,10 +17,14 @@ fi
 # Author: H. Nikolaus Schaller <hns@goldelico.com>
 
 SERVICE=retrode-controller-gadget
+
+# FIXME: how can we start that twice for two separate game controllers?
+# do we simply need two separate controller-gadgets?
+
 DEVICE=ttyHID0
 
 do_status () {
-	if [ -e /dev/ttyHID0 ] ; then
+	if [ -e /dev/$DEVICE ] ; then
 		echo "$SERVICE is running."
 		return 0
 	else
@@ -32,7 +36,7 @@ case "$1" in
   start)
 	log_daemon_msg "Starting $SERVICE"
 	/etc/gadget/core/letux-gadget.sh add hid
-	daemon -r --name=$SERVICE -- hidd $DEVICE
+	daemon -r --name=$SERVICE -- /bin/mipsel-linux-gnu/hidd /dev/input/event1 /dev/$DEVICE
 	exit 0
 	;;
   restart|reload|force-reload)
@@ -42,8 +46,7 @@ case "$1" in
   stop)
 	log_daemon_msg "Stopping $SERVICE"
 	daemon --name=$SERVICE --stop 2>/dev/null
-	/etc/gadget/core/letux-gadget.sh remove hid
-	log_progress_msg "disabled."
+	/etc/gadget/core/letux-gadget.sh remove hid && log_progress_msg "disabled." || true
 	log_end_msg 0
 	exit 0
 	;;
