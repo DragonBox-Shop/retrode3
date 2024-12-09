@@ -9,7 +9,7 @@
  * 	/root/hidd /dev/input/event1 /dev/hidg1&
  *
  * for testing:
- * 	./hidd /dev/input/event0 /dev/fd/1 | xxd
+ * 	./hidd /dev/input/event0 /dev/stdout | xxd
  *
  * to build on target device:
  * 	make hidd
