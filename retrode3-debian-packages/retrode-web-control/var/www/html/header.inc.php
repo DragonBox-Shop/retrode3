@@ -62,8 +62,8 @@ if(isset($_GET['delete']))
 ?>
 
 <form method="POST" action="<?php echo $here;?>">
-<img src="https://dragonbox.de/img/dragonbox-logo-15724157971.jpg"/>
-<h1>Welcome to retrode 3</h1>
+<a href="https://www.retrode.com"><img style="height: 80px;" src="https://www.retrode.com/wp-content/uploads/2025/03/Retrode-Logo-768x162.webp"/></a>
+<h1>Welcome to Retrode 3</h1>
 <?php
 echo $_SERVER['REMOTE_ADDR']." ";
 echo date(DATE_RFC822)." ";
@@ -74,5 +74,7 @@ echo date(DATE_RFC822)." ";
 <a href="files.php">Files</a>
 <a href="mapper.php">Mapper</a>
 <a href="settings.php">Settings</a>
+<a href="feedback.php">Feedback</a>
+<a href="https://www.retrode.com">Info</a>
 </h2>
 
