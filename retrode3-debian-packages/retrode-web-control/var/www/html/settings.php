@@ -51,12 +51,12 @@ switch(getvar("update"))
 		callcmd($cmd);
 		break;
 	case "Connect":
-		if(!$ssid && !$password)
+		if(!$ssid)
 			{
 			echo "Missing ssid and/or password";
 			break;
 			}
-		$cmd="(/root/wlan-on -p '$password' '$ssid' && echo Successfully connected. || echo failed.) 2>&1";
+		$cmd="(/root/wlan-on".($password?" -p '$password'":"")." '$ssid' && echo Successfully connected. || echo failed.) 2>&1";
 		callcmd($cmd);
 		break;
 	}
@@ -89,9 +89,10 @@ echo "<tr><td>WPA-Key</td><td><input type=\"password\" name=\"PASSWORD\" value=\
 
 // find out information about ifconfig or iwconfig
 
-echo "<tr><td>IP Address</td><td>192.168.178...</td></tr>";
-echo "<tr><td>MAC Address</td><td>xx.xx.xx.xx.xx</td></tr>";
-echo "<tr><td>Frequency</td><td>2.4 GHz</td></tr>";
+// associated? // iwconfig -> Access Point: Not-Associated
+echo "<tr><td>IP Address</td><td>192.168.178...</td></tr>";	// ifconfig -> inet6 addr: fe80::f2f5:bdff:fe02:313c/64
+echo "<tr><td>MAC Address</td><td>xx.xx.xx.xx.xx</td></tr>";	// ifconfig -> HWaddr
+echo "<tr><td>Frequency</td><td>2.4 GHz</td></tr>";		// ?
 echo "</table>";
 }
 
