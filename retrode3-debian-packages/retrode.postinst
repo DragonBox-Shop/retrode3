@@ -20,8 +20,7 @@ set -e
 case "$1" in
     configure)
 	# we need at least 100MB swap
-	/root/swap-on 0.1 || : ignore error
-	fgrep -q /swapfile /etc/fstab || echo '/swapfile swap swap defaults 0 0' >>/etc/fstab
+	/root/swap-on -b 0.1 || : ignore error
     ;;
 
     abort-upgrade|abort-remove|abort-deconfigure)
