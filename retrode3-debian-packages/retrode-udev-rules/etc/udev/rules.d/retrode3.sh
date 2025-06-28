@@ -24,7 +24,8 @@ case "$ACTION" in
 
 			SLOT=$(basename "$DEVNAME")
 			SENSENAME=/sys/class/retrode3/$SLOT/sense
-			LEDNAME=/sys/class/leds/green:programming-${SLOT##slot}
+			LEDNAME=/sys/class/leds/blue:programming-${SLOT##slot}	# version 2.9.4
+			[ -r "$LEDNAME" ] || LEDNAME=/sys/class/leds/green:programming-${SLOT##slot}	# version 2.9.3
 
 			SENSE=$(cat "$SENSENAME" 2>/dev/null)
 			case "$SENSE" in	# SENSE="active" / "empty"	# (new) state
