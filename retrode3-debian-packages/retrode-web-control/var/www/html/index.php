@@ -5,18 +5,19 @@ include("header.inc.php");
 ?>
 <p>
 This is just a demo of what is possible with a HTML GUI.
-Alternative methods of access:
+Alternative methods of access (depends on host OS):
 </ul>
 <li>serial console login on USB (works like an FTDI adapter)</li>
 <li>ssh root@192.168.0.202</li>
-<li>mount smb 192.168.0.202/media</li>
+<li>mount smb <a href="smb://192.168.0.202/media">192.168.0.202/media</a></li>
 </ul>
 </p>
 <h2>Slot Status</h2>
 <?php
 
 echo "<table border=\"1\">";
-foreach(array(1 => "MegaDrive", 0 => "SNES", 2 => "NES") as $SLOT => $NAME)
+// this is not universal in the sense that there is a different assignment between 2.9.3 and 2.9.4
+foreach(array(0 => "MegaDrive", 1 => "SNES", 2 => "NES") as $SLOT => $NAME)
 	{
 	echo "<tr>";
 	echo "<td>".htmlentities($NAME)."</td>";
@@ -64,7 +65,7 @@ foreach(array("left", "right") as $NAME)
 }
 
 echo "<tr>";
-echo "<td>SD Card reader (up to v2.9.3 only)</td>";
+echo "<td>SD Card partitions</td>";
 echo "<td>";
 $file=file("/proc/partitions");
 foreach($file as $str)
