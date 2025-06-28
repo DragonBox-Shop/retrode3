@@ -60,11 +60,17 @@ if(isset($_GET['delete']))
 		exit;
 	}
 ?>
+<html>
+<head>
 
+</head>
+<body>
 <form method="POST" action="<?php echo $here;?>">
 <a href="https://www.retrode.com"><img style="height: 80px;" src="https://www.retrode.com/wp-content/uploads/2025/03/Retrode-Logo-768x162.webp"/></a>
-<h1>Welcome to Retrode 3</h1>
+
 <?php
+$model=str_replace(chr(0), '', file_get_contents("/proc/device-tree/model"));
+echo "<h1>Welcome to $model</h1>";
 echo $_SERVER['REMOTE_ADDR']." ";
 echo date(DATE_RFC822)." ";
 ?>

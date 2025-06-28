@@ -8,3 +8,5 @@ Copyright ...
 <?php
 // add code here
 ?>
+</body>
+</html>
