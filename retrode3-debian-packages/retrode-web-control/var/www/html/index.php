@@ -15,6 +15,8 @@ Alternative methods of access (depends on host OS):
 <h2>Slot Status</h2>
 <?php
 
+text("Idea: There could be an animated Graphics showing the Retrode and game ports and the slots e.g. in 3D. With virtual Carts showing the game title that was detected...");
+
 echo "<table border=\"1\">";
 // this is not universal in the sense that there is a different assignment between 2.9.3 and 2.9.4
 foreach(array(0 => "MegaDrive", 1 => "SNES", 2 => "NES") as $SLOT => $NAME)
