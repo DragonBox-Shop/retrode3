@@ -14,7 +14,19 @@ Manually select mapper: <input name="mapper" type="text" width="20">
 <p>
 
 <h3>Raw Read</h3>
-Do a raw read.
+<p>
+<a href="?raw=slot0">Slot 0</a>
+<a href="?raw=slot1">Slot 1</a>
+<a href="?raw=slot2">Slot 2</a>
+</p>
+<?php
+$slot=getvar("raw");
+if($slot)
+	{
+	$slot=str_replace("/..", "", "/dev/".$slot);
+	callcmd("(xxd $slot | head -32) 2>&1");
+	}
+?>
 
 <h3>Cart Flasher</h3>
 Flash Carts with EEPROM.
