@@ -9,54 +9,103 @@ if(true)
 	error_reporting(E_ALL);
 }
 
-// download manager
+/* general helper functions */
+
+function getvar($name)
+{
+	if(isset($_GET[$name]))
+		return $_GET[$name];
+	if(isset($_POST[$name]))
+		return $_POST[$name];
+	return "";
+}
+
+// SECURITY NOTE: this should be the only locations where direct "echo" is used!
+
+function html($html)
+	{
+	echo $html;
+	}
+
+function _htmlentities($value)
+	{
+	return htmlentities($value, ENT_COMPAT | ENT_SUBSTITUTE, 'UTF-8');
+	}
+
+function parameter($name, $value)
+	{
+	// FIXME: use htmlentites($value) like for _value - or only optional???
+	// also for name?
+	html(" $name=\"".$value."\"");
+	}
+
+function text($text)
+	{
+	html(_htmlentities($text));
+	}
+
+function callcmd($command)
+{ // call command with sudo environment
+
+// FIXME: poweroff: must run as superuser.
+// see: https://stackoverflow.com/questions/67292960/how-to-run-a-shell-as-root-from-php-apache
+
+	system($command);
+	return;
+
+	$p=popen($command, "r");
+	$result=stream_get_contents($p);
+	$exit=pclose($p);
+	text($result);
+}
+
+/* download manager */
 
 // print_r($_SERVER);
 $here=strtok($_SERVER["REQUEST_URI"], '?');	// without query part
 // echo $here;
 
-if(isset($_GET['download']))
+if($dlpath=getvar('download'))
 	{ // handle file download
-	$path=$_GET['download'];
-	$path="/usr/local/games/retrode/".$path;
-	// check if permitted... i.e. strip off any .. or initial /
-	if(!file_exists($path))
+	$dlpath="/usr/local/games/retrode/".$dlpath;
+	$dlpath=str_replace("/..", "", $dlpath);
+	if(!file_exists($dlpath))
 		{
 		header($_SERVER["SERVER_PROTOCOL"]." 404 Not Found");
 		header("Status: 404 Not Found");
 		$_SERVER['REDIRECT_STATUS'] = 404;
 		// echo "<DOCTYPE>";
-		echo "<html>";
-		echo "<head>";
-		echo "<title>404 Not Found</title>";
+		html("<html>");
+		html("<head>");
+		html("<title>"); text("404 Not Found"); html("</title>");
 		echo "<meta name=\"generator\" content=\"retrode\">";	// a hint that the script is running
-		echo "</head>";
-		echo "<body>";
+		html("</head>");
+		html("<body>");
 		echo "<h1>Not Found</h1>";
 		echo "<p>The requested URL ";
 		echo htmlentities($_SERVER['PHP_SELF']);
 		if($_SERVER['QUERY_STRING'])
 			echo "?".htmlentities($_SERVER['QUERY_STRING']);
 		echo " was not found on this server.</p>";
-// print_r($path);
+// print_r($dlpath);
 	// FIXME: optionally notify someone?
-		echo "</body>";
-		echo "</html>";
+		html("<//body>");
+		html("</html>");
 		exit;
 		}
 	header("Content-Type: application/octet-stream");
-	header("Content-Length: ".filesize($path));
-	header("Content-Disposition: attachment; filename=".basename($path));
+	header("Content-Length: ".filesize($dlpath));
+	header("Content-Disposition: attachment; filename=".basename($dlpath));
 //	header("Refresh: 0; url=$here");	// it is not clear if this is standard or non-standard: https://stackoverflow.com/questions/283752/refresh-http-header
-	readfile($path);	// send file
+	readfile($dlpath);	// send file
 	exit;
 	}
-if(isset($_GET['delete']))
+
+if($dlpath=getvar('delete'))
 	{ // handle file delete
-	$path=$_GET['delete'];
 	// check if permitted...
 	// if yes, delete file
-		echo "delete $path";
+		text("delete $dlpath - not implemented");
 		exit;
 	}
 ?>
