@@ -2,29 +2,9 @@
 
 include("header.inc.php");
 
-function callcmd($cmd)
-{
-	// call command with sudo environment
+// Updates
 
-// FIXME: poweroff: must run as superuser.
-// see: https://stackoverflow.com/questions/67292960/how-to-run-a-shell-as-root-from-php-apache
-
-	system($cmd);
-}
-
-function getvar($name)
-{
-	if(isset($_GET[$name]))
-		return $_GET[$name];
-	if(isset($_POST[$name]))
-		return $_POST[$name];
-	return "";
-}
-
-$ssid=getvar('SSID');		// from <input> or connect link
-$password=getvar("PASSWORD");	// from <input>
-
-echo "<p><font color=\"red\">";
+html("<p><font color=\"red\">");
 switch(getvar("update"))
 	{
 	case "yes":
@@ -50,38 +30,46 @@ switch(getvar("update"))
 		$cmd="(poweroff && echo Will power off now... || echo failed.) 2>&1";
 		callcmd($cmd);
 		break;
-	case "Connect":
-		if(!$ssid)
-			{
-			echo "Missing ssid and/or password";
-			break;
-			}
-		$cmd="(/root/wlan-on".($password?" -p '$password'":"")." '$ssid' && echo Successfully connected. || echo failed.) 2>&1";
-		callcmd($cmd);
-		break;
 	}
-echo "</font></p>";
+html("</font></p>");
 
-echo "<p>";
-echo "Device Model: ".str_replace(chr(0), '', file_get_contents("/proc/device-tree/model"))."</br>";
-echo "Current Linux Version: "; system("fgrep VERSION= /etc/os-release | sed 's/VERSION=//' | sed 's/\"//g'"); echo "<br>";
-echo "Current Kernel Version: "; system("uname -a"); echo "<br>";
-echo "</p>";
+html("<p>");
+text("Device Model: ".str_replace(chr(0), '', file_get_contents("/proc/device-tree/model"))); html("</br>");
+text("Current Linux Version: "); callcmd("fgrep VERSION= /etc/os-release | sed 's/VERSION=//' | sed 's/\"//g'"); html("</br>");
+text("Current Kernel Version: "); callcmd("uname -a"); html("</br>");
+html("</p>");
 
-echo "<p>";
+html("<p>");
 echo "<a href=\"$here?update=yes\">Update Game Database</a> ";
 echo "<a href=\"$here?update=system\">Update Linux</a> ";
 echo "<a href=\"$here?update=poweroff\">Power Off</a> ";
-echo "</p>";
+html("</p>");
+
+// WLAN
+
+$ssid=trim(getvar('SSID'));		// from <input> or connect link
+$password=trim(getvar("PASSWORD"));	// from <input>
 
 if (true)
 {
 // check if wlan exists (e.g. /sys/class/net/wlan* or search ifconfig -a)
 // find interface number through e.g. iwconfig 2>&1 | fgrep 'wlan'
 
-echo "<h3>WLAN Configuration</h3>";
+html("<h3>"); text("WLAN Configuration"); html("</h3>");
+switch(getvar("wlan"))
+{
+	case "Connect":
+		if(!$ssid)
+			{
+			text("Missing SSID");
+			break;
+			}
+		$cmd="(/root/wlan-on".($password?" -p '$password'":"")." '$ssid' && echo Successfully connected. || echo failed.) 2>&1";
+		callcmd($cmd);
+		break;
+}
 echo "<table border=\"1\">";
-echo "<tr><td>SSID</td><td><input name=\"SSID\" value=\"$ssid\" width=\"20\"></input> <input type=\"submit\" name=\"update\" value=\"Connect\"></input></td></tr>";
+echo "<tr><td>SSID</td><td><input name=\"SSID\" value=\"$ssid\" width=\"20\"></input> <input type=\"submit\" name=\"wlan\" value=\"Connect\"></input></td></tr>";
 
 // add java script to toggle type between "password" and "text" to unhide the password
 
@@ -100,7 +88,7 @@ if (true)
 {
 // this also needs root permissions!
 // see: https://stackoverflow.com/questions/67292960/how-to-run-a-shell-as-root-from-php-apache
-echo "<h3>WLAN Networks</h3>";
+html("<h3>"); text("WLAN Networks"); html("</h3>");
 callcmd("/root/wlan-scan");
 
 echo "<table border=\"1\">";
