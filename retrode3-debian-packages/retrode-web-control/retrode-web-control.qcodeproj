@@ -15,5 +15,12 @@ export DEBIAN_RAW_SUBDIR="var/www/html/"
 export DEBIAN_REPLACES="letux-httpd"
 export INSTALL_PATH="//"
 export PRODUCT_NAME="retrode-web-control"
+export SOURCES="var/www/html/feedback.php"
+export SOURCES+=" var/www/html/files.php"
+export SOURCES+=" var/www/html/footer.inc.php"
+export SOURCES+=" var/www/html/header.inc.php"
+export SOURCES+=" var/www/html/index.php"
+export SOURCES+=" var/www/html/mapper.php"
+export SOURCES+=" var/www/html/settings.php"
 
 cd "$(dirname "${BASH_SOURCE[0]}")" && "$QuantumSTEP/System/Sources/Frameworks/mySTEP.make" $ACTION
