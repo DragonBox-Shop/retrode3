@@ -1,60 +1,63 @@
 #!/bin/bash
 # make all packages for Retrode3
+#
+# if we rebuild the binaries (option -b),
 # this requires a Retrode3 connected and running RNDIS
 # also needs to have gcc / g++ installed (apt-get install g++) there
 
 set -e
 
-echo build retrode tool and package
-export DEPLOY=true DEVICE=otg	# auto-install by .qcodeproj
-DEV=root@192.168.0.202	# for ssh and rsync
-CARTREADER=/Volumes/Retrode3/Retrode3-Software/Cart_Reader
-BINDIR=/usr/local/bin/
-ROOTDIR=/usr/local/games/retrode/
+if [ "$1" == -b ]
+then
+	echo build retrode tool and package
+	export DEPLOY=true DEVICE=otg	# auto-install by .qcodeproj
+	DEV=root@192.168.0.202	# for ssh and rsync
+	CARTREADER=/Volumes/Retrode3/Retrode3-Software/Cart_Reader
+	BINDIR=/usr/local/bin/
+	ROOTDIR=/usr/local/games/retrode/
 
-echo remote build retrode-tool
-mkdir -p ./$BINDIR/ ./$ROOTDIR/
-(
-	cd $CARTREADER
-	make clean all remote
-)
+	echo remote build retrode-tool
+	mkdir -p ./$BINDIR/ ./$ROOTDIR/
+	(
+		cd $CARTREADER
+		make clean all remote
+	)
 
-echo fetch retrode binary
-cp $CARTREADER/retrode ./$BINDIR/retrode
-cp -R $CARTREADER/../sd/* ./$ROOTDIR
+	echo fetch retrode binary
+	cp $CARTREADER/retrode ./$BINDIR/retrode
+	cp -R $CARTREADER/../sd/* ./$ROOTDIR
 
-echo remote build ucon64
-SRCDIR=/usr/local/src/ucon64
-rsync -rltDvzh "retrode-tools/ucon64-2.2.2-src/" "$DEV:$SRCDIR"
-cat <<END | con $DEVICE
+	echo remote build ucon64
+	SRCDIR=/usr/local/src/ucon64
+	rsync -rltDvzh "retrode-tools/ucon64-2.2.2-src/" "$DEV:$SRCDIR"
+	cat <<END | con $DEVICE
 cd
 cd $SRCDIR/src
 ./configure --disable-parallel
 make
 ./install.sh
 END
-echo fetch ucon binary
-scp $DEV:$BINDIR/ucon64 ./$BINDIR/ucon64
+	echo fetch ucon binary
+	scp $DEV:$BINDIR/ucon64 ./$BINDIR/ucon64
+fi
 
-echo "Pack retrode3.deb (and subpackages)"
-RECURSIVE=yes ./retrode.qcodeproj	# could make others recursively but then we have no clear list
+echo "Check retrode-web-control"
+for i in retrode-web-control/var/www/html/*.php;
+do
+	php -l $i || exit 1
+done
 
-PACKAGES+=" retrode3"
+echo "Build retrode3.deb (and subpackages)"
+RECURSIVE=true ./retrode.qcodeproj	# could make others recursively but then we have no clear list
+
+# PACKAGES+=" retrode3"
 PACKAGES+=" retrode-controller-gadget"
 PACKAGES+=" retrode-tool"
 PACKAGES+=" retrode-udev-rules"
 PACKAGES+=" retrode-web-control"
 PACKAGES+=" ucon64"
 
-echo Debian Packages: $PACKAGES
-DEBIAN=/Volumes/Retrode3/debian/
-rm -rf $DEBIAN/
-mkdir -p $DEBIAN
+echo installing Debian Packages: $PACKAGES
 
-for PACKAGE in $PACKAGES
-do
-	# packages can be _mipsel or _all
-	cp /usr/local/QuantumSTEP/System/Installation/Debian/dists/staging/main/binary-*/${PACKAGE}_*_*.deb /Volumes/Retrode3/debian/ || true
-done
-
-ls -l $DEBIAN
+./dl-deb -o $PACKAGES
+open http://192.168.0.202
