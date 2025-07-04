@@ -5,7 +5,7 @@
 # - on game controller connect/disconnect
 #
 # ACTION="change"		# currently we only have change events
-# DEVNAME=/dev/slot0		# the device name of the slot (for slots)
+# DEVNAME=/dev/slot-md		# the device name of the slot (for slots)
 # DEVNAME=""			# for game controller slot
 # CHANNEL=0 / 1			# for game controller
 # PWD=/				# script runs in root directory
@@ -20,14 +20,20 @@ echo DATE=$(date) SUBSYSTEM=$SUBSYSTEM ACTION=$ACTION DEVNAME=$DEVNAME STATE=$ST
 case "$ACTION" in
 	change )
 		if [ "$DEVNAME" ]
-		then # real slot with /dev/slot0..2
+		then # real slot with /dev/slot-md etc.
 
 			SLOT=$(basename "$DEVNAME")
-			SENSENAME=/sys/class/retrode3/$SLOT/sense
-			LEDNAME=/sys/class/leds/blue:programming-${SLOT##slot}	# version 2.9.4
-			[ -r "$LEDNAME" ] || LEDNAME=/sys/class/leds/green:programming-${SLOT##slot}	# version 2.9.3
 
+			# FIXME: this is 2.9.4 mapping of slots to LEDs only - should read from or a symlink through /sys/class/retrode3/$SLOT/ledname?
+			case "$SLOT" in
+				slot-md )	LEDNAME=$(echo /sys/class/leds/*:programming-0);;
+				slot-snes )	LEDNAME=$(echo /sys/class/leds/*:programming-1);;
+				slot-nes )	LEDNAME=$(echo /sys/class/leds/*:programming-2);;
+			esac
+
+			SENSENAME=/sys/class/retrode3/$SLOT/sense
 			SENSE=$(cat "$SENSENAME" 2>/dev/null)
+
 			case "$SENSE" in	# SENSE="active" / "empty"	# (new) state
 				active )
 					# make cart visible over USB (configfs)
@@ -41,12 +47,14 @@ case "$ACTION" in
 			esac
 		else # game controller
 			# decode CHANNEL 0 -> right, 1 -> left
+
 			case "$CHANNEL" in
 # FIXME: we should add something to the retrode3.rule so that the DEV is passed here
 				0 ) CH=right; DEV=/dev/input/event1;;
 				1 ) CH=left; DEV=/dev/input/event2;;
 			esac
-			LEDNAME=/sys/class/leds/red:heartbeat
+
+			LEDNAME=$(echo /sys/class/leds/*:heartbeat)
 
 			case "$STATE" in	# STATE="connected" / "disconnected"	# (new) state
 				connected )
