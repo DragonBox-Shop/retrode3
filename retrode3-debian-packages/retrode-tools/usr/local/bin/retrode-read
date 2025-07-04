@@ -1,25 +1,14 @@
 #!/bin/bash
 # retrode-read slot - read game from slot
 
-# exec 2>&1	# report any errors
-
-# NOTES:
-# - this is required so that retrode can access everything
-# - especially if run by a PHP script in the web server
-# - this fix belongs somewhere else, most likely to some .postinst
-# - therefore it must be run once from the root shell after each update
-
-chown root:root -R /usr/local/bin/retrode /usr/local/games/retrode 2>/dev/null
-chmod ug+s /usr/local/bin/retrode 2>/dev/null
-
 case "$1" in
-	/dev/slot0 )	# SNES
+	/dev/slot-snes )	# SNES
 		echo "10 0 " | /usr/local/bin/retrode
 		;;
-	/dev/slot1 )	# MD
+	/dev/slot-md )	# MD
 		echo "200" | /usr/local/bin/retrode
 		;;
-	/dev/slot2 )	# NES
+	/dev/slot-nes )	# NES
 		echo  "00 0" | /usr/local/bin/retrode
 		;;
 	* )

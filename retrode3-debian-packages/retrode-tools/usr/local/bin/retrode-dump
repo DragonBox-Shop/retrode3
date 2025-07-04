@@ -1,0 +1,37 @@
+#!/bin/bash -p
+# retrode-dump slot - dump cart header
+
+case "$1" in
+	headers )	# MD
+		if [ xxd -l 1 /dev/slot-md >/dev/null 2>&1 ]
+		then
+			echo MD header:
+			xxd -s 256 -l 256 $DEVICE
+		else
+			echo MD slot empty
+		fi
+
+		if [ xxd -l 1 /dev/slot-snes >/dev/null 2>&1 ]
+		then
+			echo "SNES LoROM header: (unreliable)"
+			xxd -s 0x7fc0 -l 0x20 /dev/slot-snes
+			echo "SNES HiROM header: (unreliable)"
+			xxd -s 0xffc0 -l 0x20 /dev/slot-snes
+		else
+			echo SNES slot empty
+		fi
+
+		if [ xxd -l 1 /dev/slot-nes >/dev/null 2>&1 ]
+		then
+			echo "NES header: (unreliable)"
+			xxd -s 0xffe0 -l 0x20 /dev/slot-nes
+		else
+			echo NES slot empty
+		fi
+		
+		;;
+	* )
+		echo unknown command "$1"
+		exit 1
+		;;
+esac

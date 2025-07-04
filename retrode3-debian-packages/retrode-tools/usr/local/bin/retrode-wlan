@@ -1,0 +1,30 @@
+#!/bin/bash -p
+# retrode-wlan - control WLAN
+
+case "$1" in
+	status )
+		shift
+		read -t 5 WLAN OTHER < <(iwconfig 2>&1 | fgrep 'wlan')
+		[ "$WLAN" ] || WLAN=wlan0
+
+		SSID=$(iwconfig $WLAN | fgrep "Access Point: " | sed 's/.*Access Point: \([^ ]*\).*/\1/g')
+		MAC=$(ifconfig $WLAN | fgrep "HWaddr " | sed 's/.*HWaddr \([^ ]*\).*/\1/g')
+		IP4=
+		IP6=$(ifconfig $WLAN | fgrep "inet6 addr " | sed 's/.*inet6 addr \([^ ]*\).*/\1/g')	# may be missing
+		STATUS=disconnected
+
+		echo $STATUS $SSID $MAC $IP4 $IP6
+		;;
+	list )
+		shift
+		/root/wlan-scan "$@"
+		;;
+	connect )
+		shift
+		/root/wlan-on "$@" && echo Connected. || echo failed.
+		;;
+	* )
+		echo unknown command "$1"
+		exit 1
+		;;
+esac
