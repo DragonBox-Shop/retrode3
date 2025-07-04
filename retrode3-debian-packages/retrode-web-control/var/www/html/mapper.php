@@ -3,8 +3,6 @@
 include("header.inc.php");
 
 ?>
-<h3>Cart Doctor</h3>
-Add tools to detect card contents
 <h3>Select Mapper</h3>
 Manually select mapper: <input name="mapper" type="text" width="20">
 <p>
@@ -15,18 +13,23 @@ Manually select mapper: <input name="mapper" type="text" width="20">
 
 <h3>Raw Read</h3>
 <p>
-<a href="?raw=slot0">Slot 0</a>
-<a href="?raw=slot1">Slot 1</a>
-<a href="?raw=slot2">Slot 2</a>
+<a href="?action=headers">Dump Headers</a>
 </p>
 <?php
-$slot=getvar("raw");
-if($slot)
+$action=getvar("action");
+if($action)
 	{
-	$slot=str_replace("/..", "", "/dev/".$slot);
-	callcmd("(xxd $slot | head -32) 2>&1");
+	html("<pre>");
+	text(callcmd("sudo /usr/local/bin/retrode-dump $action"));
+	html("</pre>");
 	}
 ?>
+
+<h3>Cart Doctor</h3>
+Add tools to detect card contents. Like calling ucon64.
+
+<h3>RAM Toolsr</h3>
+Add tools to read/write RAM.
 
 <h3>Cart Flasher</h3>
 Flash Carts with EEPROM.

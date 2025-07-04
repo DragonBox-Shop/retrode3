@@ -9,6 +9,11 @@ if(true)
 	error_reporting(E_ALL);
 }
 
+// print_r($_SERVER);
+global $here;
+$here=strtok($_SERVER["REQUEST_URI"], '?');	// without query part
+// echo $here;
+
 /* general helper functions */
 
 function getvar($name)
@@ -44,26 +49,45 @@ function text($text)
 	html(_htmlentities($text));
 	}
 
+function section($level, $text)
+	{
+	html("<h$level>");
+	html(_htmlentities($text));
+	html("</h$level>");
+	}
+
+function weblink($title, $destination)
+	{
+	// rawurlencode is too heavy...
+	html("<a href=".$destination.">");
+	html(_htmlentities($title));
+	html("</a");
+	}
+
+function table($arrayofarray, $columns)
+	{
+	html("<table border=\1\">");
+// table header? how to define if array is empty
+	foreach($arrayofarray as $row)
+		{
+		html("<tr>");
+		foreach($arrayofarray as $column => $value)
+			{
+			html("<td>");
+			html(_htmlentities($value));
+			html("</td>");
+			}
+		html("</tr>");
+		}
+	html("</table>");
+	}
+
 function callcmd($command)
-{ // call command with sudo environment
-
-// FIXME: poweroff: must run as superuser.
-// see: https://stackoverflow.com/questions/67292960/how-to-run-a-shell-as-root-from-php-apache
-
-	system($command);
-	return;
-
-	$p=popen($command, "r");
-	$result=stream_get_contents($p);
-	$exit=pclose($p);
-	text($result);
+{ // call shell command and return result
+	return shell_exec("$command 2>&1");
 }
 
 /* download manager */
-
-// print_r($_SERVER);
-$here=strtok($_SERVER["REQUEST_URI"], '?');	// without query part
-// echo $here;
 
 if($dlpath=getvar('download'))
 	{ // handle file download
@@ -108,6 +132,10 @@ if($dlpath=getvar('delete'))
 		text("delete $dlpath - not implemented");
 		exit;
 	}
+
+/* standard header and menu */
+
+// FIXME: menu should show visually which page we are on
 ?>
 <html>
 <head>

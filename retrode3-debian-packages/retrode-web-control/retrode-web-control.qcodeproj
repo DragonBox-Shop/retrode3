@@ -22,5 +22,8 @@ export SOURCES+=" var/www/html/header.inc.php"
 export SOURCES+=" var/www/html/index.php"
 export SOURCES+=" var/www/html/mapper.php"
 export SOURCES+=" var/www/html/settings.php"
+export SOURCES+=" var/www/html/index.html"
+export SOURCES+=" var/www/html/retrode+md.jpg"
+export SOURCES+=" var/www/html/retrode.jpg"
 
 cd "$(dirname "${BASH_SOURCE[0]}")" && "$QuantumSTEP/System/Sources/Frameworks/mySTEP.make" $ACTION

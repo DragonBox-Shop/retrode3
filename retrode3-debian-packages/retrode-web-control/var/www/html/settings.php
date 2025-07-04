@@ -7,55 +7,44 @@ include("header.inc.php");
 html("<p><font color=\"red\">");
 switch(getvar("update"))
 	{
-	case "yes":
-		$cmd="(
-			wget -qO /tmp/cart_reader.zip https://codeload.github.com/sanni/cartreader/zip/refs/heads/master &&
-			unzip -q /tmp/cart_reader.zip 'cartreader-master/sd/*' -d /tmp &&
-			mv /tmp/cartreader-master/sd/* /usr/local/games/retrode/test &&
-			echo Cart database updated. || echo failed.) 2>&1"
-			;
-		callcmd($cmd);
+	case "database":
+		text(callcmd("sudo /usr/local/bin/retrode-admin update-database"));
 		break;
 	case "system":
-
-// FIXME: E: Could not open lock file /var/lib/apt/lists/lock - open (13: Permission denied) E: Unable to lock directory /var/lib/apt/lists/ E: Could not open lock file /var/lib/dpkg/lock - open (13: Permission denied) E: Unable to lock the administration directory (/var/lib/dpkg/), are you root?
-
-		$cmd="(
-			apt-get update && apt-get upgrade &&
-			echo System updated. Now rebooting... &&
-			reboot || echo failed.) 2>&1;";
-		callcmd($cmd);
+		text(callcmd("sudo /usr/local/bin/retrode-admin apt-get-update"));
 		break;
 	case "poweroff":
-		$cmd="(poweroff && echo Will power off now... || echo failed.) 2>&1";
-		callcmd($cmd);
+		text(callcmd("sudo /usr/local/bin/retrode-admin poweroff"));
 		break;
 	}
 html("</font></p>");
 
+// table?
 html("<p>");
 text("Device Model: ".str_replace(chr(0), '', file_get_contents("/proc/device-tree/model"))); html("</br>");
-text("Current Linux Version: "); callcmd("fgrep VERSION= /etc/os-release | sed 's/VERSION=//' | sed 's/\"//g'"); html("</br>");
-text("Current Kernel Version: "); callcmd("uname -a"); html("</br>");
+text("Current Linux Version: "); text(callcmd("fgrep VERSION= /etc/os-release | sed 's/VERSION=//' | sed 's/\"//g'")); html("</br>");
+text("Current Kernel Version: "); text(callcmd("uname -a")); html("</br>");
 html("</p>");
 
 html("<p>");
-echo "<a href=\"$here?update=yes\">Update Game Database</a> ";
+echo "<a href=\"$here?update=database\">Update Game Database</a> ";
 echo "<a href=\"$here?update=system\">Update Linux</a> ";
 echo "<a href=\"$here?update=poweroff\">Power Off</a> ";
 html("</p>");
 
 // WLAN
 
-$ssid=trim(getvar('SSID'));		// from <input> or connect link
-$password=trim(getvar("PASSWORD"));	// from <input>
+$ssid=trim(getvar('ssid'));		// from <input> or connect link
+$password=trim(getvar("password"));	// from <input>
 
 if (true)
 {
 // check if wlan exists (e.g. /sys/class/net/wlan* or search ifconfig -a)
 // find interface number through e.g. iwconfig 2>&1 | fgrep 'wlan'
 
-html("<h3>"); text("WLAN Configuration"); html("</h3>");
+section(3, "WLAN Configuration");
+
+html("<p><font color=\"red\">");
 switch(getvar("wlan"))
 {
 	case "Connect":
@@ -64,23 +53,33 @@ switch(getvar("wlan"))
 			text("Missing SSID");
 			break;
 			}
-		$cmd="(/root/wlan-on".($password?" -p '$password'":"")." '$ssid' && echo Successfully connected. || echo failed.) 2>&1";
-		callcmd($cmd);
+		$cmd="sudo /usr/local/bin/retrode-wlan connect".($password?" -p '$password'":"")." $ssid'";
+		text(callcmd($cmd));
 		break;
 }
+html("</font></p>");
+
+$str=callcmd("sudo /usr/local/bin/retrode-wlan status");	// STATUS SSID MAC IP4 IP6
+$status=explode(' ', $str."     ");
+
 echo "<table border=\"1\">";
-echo "<tr><td>SSID</td><td><input name=\"SSID\" value=\"$ssid\" width=\"20\"></input> <input type=\"submit\" name=\"wlan\" value=\"Connect\"></input></td></tr>";
-
+if($status[0] != "connected")
+	{
+	echo "<tr><td>SSID</td><td><input name=\"ssid\" value=\"$ssid\" width=\"20\"></input>";
+	echo " <input type=\"submit\" name=\"wlan\" value=\"Connect\"></input></td></tr>";
 // add java script to toggle type between "password" and "text" to unhide the password
+	echo "<tr><td>WPA-Key</td><td><input type=\"password\" name=\"password\" value=\"$password\" width=\"20\"></input></td></tr>";
+	}
+else
+	{
+	echo "<tr><td>SSID</td><td>"; text($status[1]);
+	echo " <input type=\"submit\" name=\"wlan\" value=\"Disconnect\"></input></td></tr>";
+	}
 
-echo "<tr><td>WPA-Key</td><td><input type=\"password\" name=\"PASSWORD\" value=\"$password\" width=\"20\"></input></td></tr>";
-
-// find out information about ifconfig or iwconfig
-
-// associated? // iwconfig -> Access Point: Not-Associated
-echo "<tr><td>IP Address</td><td>192.168.178...</td></tr>";	// ifconfig -> inet6 addr: fe80::f2f5:bdff:fe02:313c/64
-echo "<tr><td>MAC Address</td><td>xx.xx.xx.xx.xx</td></tr>";	// ifconfig -> HWaddr
-echo "<tr><td>Frequency</td><td>2.4 GHz</td></tr>";		// ?
+echo "<tr><td>IP4 Address</td><td>"; text($status[3]); echo "</td></tr>";
+echo "<tr><td>IP6 Address</td><td>"; text($status[4]); echo "</td></tr>";
+echo "<tr><td>MAC Address</td><td>"; text($status[2]); echo "</td></tr>";
+// echo "<tr><td>Frequency</td><td>2.4 GHz</td></tr>";		// ?
 echo "</table>";
 }
 
@@ -88,15 +87,32 @@ if (true)
 {
 // this also needs root permissions!
 // see: https://stackoverflow.com/questions/67292960/how-to-run-a-shell-as-root-from-php-apache
-html("<h3>"); text("WLAN Networks"); html("</h3>");
-callcmd("/root/wlan-scan");
+section(3, "WLAN Networks");
+$str=callcmd("sudo /usr/local/bin/retrode-wlan list");
+// text($str);
 
-echo "<table border=\"1\">";
-echo "<tr><th>SSID</th><th>Band</th><th>dBm</th></tr>";
-// Tabelle aus dem Ergebnis bauen und jeweils eine Zeile anlegen:
-echo "<tr><td><a href=\"?SSID=TheNetwork\">TheNetwork</a></td><td>2.4GHz</td><td>-50</td></tr>";
-echo "<tr><td><a href=\"?SSID=BeamMeUp\">BeamMeUp</a></td><td>2.4GHz</td><td>-50</td></tr>";
-echo "</table>";
+html("<table border=\"1\">");
+html("<tr><th>SSID</th><th>Frequency</th><th>dBm</th></tr>");
+
+// potentially sort by dBm
+$line=strtok($str, "\n");
+while($line !== false)
+{
+	// text($line);
+	// split: 2c:91:ab:e2:ce:d6 SSID 2437 -68.00 dBm 1.0* 2.0* 5.5* 11.0* 6.0* 9.0 12.0* 18.0
+	$matches=explode(" ", $line);
+	$mac=$matches[0];
+	$ssid=$matches[1];
+	$mhz=$matches[2];
+	$dbm=$matches[3];
+	html("<tr>");
+	html("<td>"); weblink($ssid, "?ssid=$ssid"); html("</td>");
+	html("<td>"); text(sprintf("%.3f GHz", $mhz/1000.0)); html("</td>");
+	html("<td>"); text(sprintf("%.0f dBm", $dbm)); html("</td>");
+	html("</tr>");
+	$line = strtok("\n");
+}
+html("</table>");
 
 // Buttons:
 //   Scan

@@ -2,9 +2,20 @@
 
 include("header.inc.php");
 
+if($slot=getvar('slot'))
+	{ // read out cart
+	$slot="/dev/slot-".$slot;
+	$slot=str_replace("/..", "", $slot);
+	echo "<p>Reading ".getvar('name')."</p>";
+	echo "<p>Please wait...";
+	flush();
+	text(callcmd("sudo /usr/local/bin/retrode-read $slot"));
+	echo " ...done.</p>";
+	flush();
+	}
+
 ?>
 <p>
-This is just a demo of what is possible with a HTML GUI.
 Alternative methods of access (depends on host OS):
 </ul>
 <li>serial console login on USB (works like an FTDI adapter)</li>
@@ -12,76 +23,86 @@ Alternative methods of access (depends on host OS):
 <li>mount smb <a href="smb://192.168.0.202/media">192.168.0.202/media</a></li>
 </ul>
 </p>
-<h2>Slot Status</h2>
 <?php
+section(2, "Slot Status");
 
-text("Idea: There could be an animated Graphics showing the Retrode and game ports and the slots e.g. in 3D. With virtual Carts showing the game title that was detected...");
-
-echo "<table border=\"1\">";
-// this is not universal in the sense that there is a different assignment between 2.9.3 and 2.9.4
-foreach(array(0 => "MegaDrive", 1 => "SNES", 2 => "NES") as $SLOT => $NAME)
-	{
-	echo "<tr>";
-	echo "<td>".htmlentities($NAME)."</td>";
-	$status=trim(file_get_contents("/sys/class/retrode3/slot$SLOT/sense"));
-	echo "<td>";
-	if($status == "active")
-		{ // there is a Cart inserted
-		$file=popen("sh -vc '/usr/local/bin/retrode-info /dev/slot$SLOT'", "r");
-		$str=stream_get_contents($file);
-		fclose($file);
-		if(!$str)
-			$str="unidentified";
-		echo "<a href=\"$here?slot=$SLOT&name=$NAME\">".htmlentities($str)."</a>";
-		}
-	else
-		echo "empty";
-	echo "</td>";
-// fails:	system("/root/copyrom /dev/slot$SLOT /tmp/slot.bin; wc -c </tmp/slot.bin");
-	// besser: ein slot-info.sh aufrufen das den retrode-Befehl benutzt
-	echo "</tr>";
-	}
-
-if(isset($_GET['slot']))
-	{ // read out cart
-	$slot="/dev/slot".$_GET['slot'];	// check for tampering with slot name e.g. 0/../..
-	echo "<p>Reading ".$_GET['name']."</p>";
-	echo "<p>Please wait...";
-	flush();
-	fclose(popen("/usr/local/bin/retrode-read $slot", "r"));
-	echo " ...done.</p>";
-	flush();
-	}
-
-foreach(array("left", "right") as $NAME)
+function show_status_as_table()
 {
+	global $here;
+	$image="retrode";
+	echo "<table border=\"1\">";
+	foreach(array("md" => "MegaDrive", "snes" => "SNES", "nes" => "NES") as $slot => $name)
+		{
+		echo "<tr>";
+		echo "<td>".htmlentities($name)."</td>";
+		$status=trim(file_get_contents("/sys/class/retrode3/slot-$slot/sense"));
+		echo "<td>";
+		if($status == "active")
+			{ // there is a Cart inserted
+			$str=callcmd("sudo /usr/local/bin/retrode-info /dev/slot-$slot", "r");
+			if(!$str)
+				text("unidentified");
+			else
+				weblink($str, "$here?slot=$slot&name=$name");
+			$image.="+$slot";
+			}
+		else
+			text("empty");
+		echo "</td>";
+// fails:	system("/root/copyrom /dev/slot$SLOT /tmp/slot.bin; wc -c </tmp/slot.bin");
+		// besser: ein slot-info.sh aufrufen das den retrode-Befehl benutzt
+		echo "</tr>";
+		}
+
+	foreach(array("left", "right") as $name)
+		{
+		echo "<tr>";
+		echo "<td>".htmlentities("$name Controller")."</td>";
+		echo "<td>";
+		if(file_exists("/dev/input/$name"))
+			{
+			echo "<font color=\"green\">CONNECTED</font>";
+			$image.="+$name";
+			}
+		else
+			echo "not connected";
+		echo "</td>";
+		echo "</tr>";
+	}
+
 	echo "<tr>";
-	echo "<td>".htmlentities("$NAME Controller")."</td>";
+	echo "<td>SD Card partitions</td>";
 	echo "<td>";
-	if(file_exists("/dev/input/$NAME"))
-		echo "<font color=\"green\">CONNECTED</font>";
-	else
-		echo "not connected";
+	$file=file("/proc/partitions");
+	foreach($file as $str)
+		{
+		//echo $str;
+		if (preg_match ('/(\d+)\s+(\d+)\s+(\d+)\s+(mmcblk.p.+)/', $str, $m))
+			echo sprintf("%s %.1f GB", $m[4], $m[3]/(1024.0*1024))."<br>";	// partition name and size
+//		else echo "not: ".$str."<br>";
+		// could try to extract partition names, types etc.
+		}
 	echo "</td>";
 	echo "</tr>";
+
+	html("</table>");
+
+	return $image;
 }
 
-echo "<tr>";
-echo "<td>SD Card partitions</td>";
-echo "<td>";
-$file=file("/proc/partitions");
-foreach($file as $str)
-	{
-	//echo $str;
-	if (preg_match ('/(\d+)\s+(\d+)\s+(\d+)\s+(mmcblk.p.+)/', $str, $m))
-		echo $m[4]." (".ceil($m[3]/(1024*1024))." MB)<br>";	// partition name and size
-//	else echo "not: ".$str."<br>";
-	// could try to extract partition names, types etc.
-	}
-echo "</td>";
-echo "</tr>";
+function show_status_as_photo($status)
+{
+	// FIXME: use ImageMagick to compose an image from components
+	html("<img src=\"$status.jpg\"></img>");
+}
 
-echo "</table>";
+html("<table width=\"100%\">");
+html("<td><td>");
+$status=show_status_as_table();
+html("</td><td>");
+show_status_as_photo($status);
+html("</td></tr>");
+html("</table>");
 
 ?>
 <h2>Button Status</h2>
