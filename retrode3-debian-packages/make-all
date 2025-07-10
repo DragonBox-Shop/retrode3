@@ -17,25 +17,25 @@ then
 	ROOTDIR=/usr/local/games/retrode/
 
 	cat <<END | con $DEVICE
-[ "$(which g++)" || apt-get install g++
+[ "$(which g++)" ] && echo g++ available || apt-get install g++
 END
 
 	echo remote build retrode-tool
-	mkdir -p ./$BINDIR/ ./$ROOTDIR/
-	(
-		cd $CARTREADER
-		make clean all remote
-	)
 
 	(
 		cd retrode-tools
+		mkdir -p ./$BINDIR/ ./$ROOTDIR/
+		( cd $CARTREADER && make clean all remote )
 		echo fetch retrode binary
 		cp $CARTREADER/retrode ./$BINDIR/retrode
 		cp -R $CARTREADER/../sd/* ./$ROOTDIR
+	)
 
-		echo remote build ucon64
+	echo remote build ucon64
+	(
+		cd retrode-tools
 		SRCDIR=/usr/local/src/ucon64
-		rsync -rltDvzh "retrode-tools/ucon64-2.2.2-src/" "$DEV:$SRCDIR"
+		rsync -rltDvzh "./ucon64-2.2.2-src/" "$DEV:$SRCDIR"
 		cat <<END | con $DEVICE
 cd
 cd $SRCDIR/src
