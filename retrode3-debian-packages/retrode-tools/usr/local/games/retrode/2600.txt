@@ -136,7 +136,13 @@ BMX Air Master
 Bobby Is Going Home
 064
 
+Bogey Blaster
+064
+
 Boing!
+064
+
+Boom Bang
 064
 
 Bowling
@@ -397,6 +403,9 @@ Encounter at L-5
 Enduro
 064
 
+Ente und der Wolf, Die
+064
+
 Entombed
 064
 
@@ -427,10 +436,16 @@ Fatal Run
 Fathom
 248
 
+Feuerwehr im Einsatz
+064
+
 Fighter Pilot
 246
 
 Final Approach
+064
+
+Fire Birds
 064
 
 Fire Fighter
@@ -632,7 +647,7 @@ King Kong
 064
 
 Klax
-246
+006
 
 Knight on the Town
 064
@@ -754,6 +769,9 @@ Mission 3000 A.D.
 Mission Survive
 064
 
+Moderne Ritter, Der
+064
+
 Mogul Maniac
 064
 
@@ -777,6 +795,9 @@ MotoRodeo
 
 Mountain King
 250
+
+Mountain Man
+064
 
 Mouse Trap
 064
@@ -821,7 +842,7 @@ Obelix
 248
 
 Off the Wall
-246
+006
 
 Oink!
 064
@@ -959,7 +980,7 @@ Racquetball
 064
 
 Radar Lock
-246
+006
 
 Raft Rider
 064
@@ -1059,6 +1080,9 @@ Secret Quest
 
 Sentinel
 246
+
+Sesam Offne Dich!
+064
 
 Shark Attack
 064
@@ -1229,7 +1253,7 @@ Star Wars - Jedi Arena
 064
 
 Stargate
-246
+006
 
 Stargunner
 064
@@ -1286,7 +1310,7 @@ Super Cobra
 224
 
 Super Football
-248
+008
 
 Superman
 064
