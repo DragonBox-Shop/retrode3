@@ -58,6 +58,7 @@ echo "Build retrode3.deb (and subpackages)"
 RECURSIVE=true ./retrode3.qcodeproj	# could make others recursively but then we have no clear list
 
 PACKAGES+=" retrode-controller-gadget"
+PACKAGES+=" retrode-smb"
 PACKAGES+=" retrode-tools"
 PACKAGES+=" retrode-udev-rules"
 PACKAGES+=" retrode-web-control"
