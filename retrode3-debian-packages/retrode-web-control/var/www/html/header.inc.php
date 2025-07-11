@@ -150,14 +150,36 @@ $model=str_replace(chr(0), '', file_get_contents("/proc/device-tree/model"));
 echo "<h1>Welcome to $model</h1>";
 echo $_SERVER['REMOTE_ADDR']." ";
 echo date(DATE_RFC822)." ";
+
+html('<input type="submit" value="Refresh"></input>');
+
+html("<p><font size=\"+2\">");
+
+function mainmenu($link, $title)
+{
+	global $here;;
+	html(" <a href=\"".$link."\">");
+	if(basename($here) == $link)
+		{ // underline current choice
+		// use <span class=something> to allow formatting by CSS
+		html("<b>");
+		text($title);
+		html("</b>");
+		}
+	else
+		{ // other choice
+		text($title);
+		}
+	html("</a> ");
+}
+
+mainmenu("index.php", "Main");
+mainmenu("files.php", "Files");
+mainmenu("mapper.php", "Mapper");
+mainmenu("settings.php", "Settings");
+mainmenu("feedback.php", "Feedback");
+mainmenu("https://www.retrode.com", "Info");
+
+html("</font></p>");
 ?>
-<input type="submit" value="Refresh"></input>
-<h2>
-<a href="index.php">Main</a>
-<a href="files.php">Files</a>
-<a href="mapper.php">Mapper</a>
-<a href="settings.php">Settings</a>
-<a href="feedback.php">Feedback</a>
-<a href="https://www.retrode.com">Info</a>
-</h2>
 

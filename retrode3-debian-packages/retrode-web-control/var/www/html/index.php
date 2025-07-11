@@ -20,7 +20,7 @@ Alternative methods of access (depends on host OS):
 </ul>
 <li>serial console login on USB (works like an FTDI adapter)</li>
 <li>ssh root@192.168.0.202</li>
-<li>mount smb <a href="smb://192.168.0.202/media">192.168.0.202/media</a></li>
+<li><a href="smb://192.168.0.202/retrode">mount smb 192.168.0.202/retrode</a></li>
 </ul>
 </p>
 <?php

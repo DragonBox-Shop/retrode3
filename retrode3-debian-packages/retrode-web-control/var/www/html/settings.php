@@ -8,29 +8,75 @@ html("<p><font color=\"red\">");
 switch(getvar("update"))
 	{
 	case "database":
+		text("Started ..."); flush();
 		text(callcmd("sudo /usr/local/bin/retrode-admin update-database"));
 		break;
 	case "system":
+		text("Started ..."); flush();
 		text(callcmd("sudo /usr/local/bin/retrode-admin apt-get-update"));
 		break;
 	case "poweroff":
+		text("Started ..."); flush();
 		text(callcmd("sudo /usr/local/bin/retrode-admin poweroff"));
 		break;
 	}
 html("</font></p>");
 
 // table?
-html("<p>");
-text("Device Model: ".str_replace(chr(0), '', file_get_contents("/proc/device-tree/model"))); html("</br>");
-text("Current Linux Version: "); text(callcmd("fgrep VERSION= /etc/os-release | sed 's/VERSION=//' | sed 's/\"//g'")); html("</br>");
-text("Current Kernel Version: "); text(callcmd("uname -a")); html("</br>");
-html("</p>");
+html("<table border=\"1\">");
+html("<tr><td>");
+text("Device Model:");
+html("</td><td>");
+text(str_replace(chr(0), '', file_get_contents("/proc/device-tree/model")));
+html(" <a href=\"$here?update=poweroff\">Power Off</a> ");
+html("</td></tr>");
 
-html("<p>");
-echo "<a href=\"$here?update=database\">Update Game Database</a> ";
-echo "<a href=\"$here?update=system\">Update Linux</a> ";
-echo "<a href=\"$here?update=poweroff\">Power Off</a> ";
-html("</p>");
+html("<tr><td>");
+text("Current OS Version:");
+html("</td><td>");
+text(callcmd("fgrep VERSION= /etc/os-release | sed 's/VERSION=//' | sed 's/\"//g'; cat /etc/debian_version"));
+// Links auf offizielles Debian Repo
+// oder Link auf ein Wiki
+html("</td></tr>");
+
+html("<tr><td>");
+text("OS Creation Date:");
+html("</td><td>");
+text(callcmd("date -r /makesd.info '+%Y-%m-%d %H:%M:%S'"));
+// Link auf makesd und/oder den Befehl
+// created by '<a ref=...>makesd</a>...'
+html("</td></tr>");
+
+html("<tr><td>");
+text("Last OS Update:");
+html("</td><td>");
+if(false)
+	{ // someone may delete the history.log...
+	text(callcmd("awk '/Commandline:/,/End-Date: /{if(/End-Date: /)print $2, $3}' /var/log/apt/history.log | tail -1"));
+	}
+else
+	text(callcmd("date -r /var/lib/apt/lists/download.goldelico.com_letux-debian-rootfs_debian_dists_jessie_main_binary-mipsel_Packages '+%Y-%m-%d %H:%M:%S'"));
+
+// can we somehow check for potential updates without running apt-get update/upgrade?
+// Links auf die speziellen Repos (Letux und Retrode) und Source-Code
+echo " <a href=\"$here?update=system\">Update OS</a> ";
+html("</td></tr>");
+
+html("<tr><td>");
+text("Current Kernel Version: ");
+html("</td><td>");
+text(callcmd("uname -a"));
+// Links auf kernel Repo
+html("</td></tr>");
+
+html("<tr><td>");
+text("Last Game Database Update: ");
+html("</td><td>");
+text(callcmd("date -r /usr/local/games/retrode/README.md '+%Y-%m-%d %H:%M:%S'"));
+echo " <a href=\"$here?update=database\">Update Game Database</a> ";
+// Links auf Game Database: https://github.com/sanni/cartreader/tree/master/sd
+html("</td></tr>");
+html("</table>");
 
 // WLAN
 

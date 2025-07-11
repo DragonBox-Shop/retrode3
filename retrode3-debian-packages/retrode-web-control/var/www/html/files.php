@@ -2,19 +2,22 @@
 
 include("header.inc.php");
 
-?>
-</p>
-<h2>Files</h2>
-<p>
-<?php
+html("<h2>Files</h2>");
+
 # echo "<p>";
-$link="smb://".$_SERVER['SERVER_ADDR']."/media";
+$link="smb://".$_SERVER['SERVER_ADDR']."/retrode";
 echo "<a href=\"$link\">Open through SMB</a> ";
 echo "</p>";
 
-$path="/usr/local/games/retrode";	// on retrode device
-if(!file_exists($path))
-	$path="/Volumes/Retrode3/retrode-setup/usr/local/games/retrode";	// on development host
+$root="/usr/local/games/retrode";	// path on retrode device
+if(!file_exists($root))
+	$root ="/Volumes/Retrode3/retrode-setup/usr/local/games/retrode";	// on development host
+
+$d=getvar("dir");
+$dir=str_replace("/..", "", "/$d");	// prevent moving to superdirectories..
+$dir=ltrim($dir, "./");			// strip off first / or .
+
+// text("root: $root d: $d dir: $dir");
 
 function scansubdirs($dir)
 {
@@ -34,21 +37,32 @@ function scansubdirs($dir)
 }
 
 echo "<table border=\"1\">";
-foreach(scansubdirs($path) as $item)
+foreach(scandir("$root/$dir") as $item)
 {
+	if($item === '.') continue;
+	// skip files starting with .?
+	if(!$dir && $item === '..') continue;	// not for root
 	echo "<tr>";
-	$file=substr($item, strlen($path));
-	if(is_dir($item))
+	if(is_dir("$root/$dir/$item"))
 		{ // directory
-		echo "<td></td>";
-		echo "<td>".htmlentities($file)."</td>";
+		if($item === '..')
+			{
+			$size="Parent";
+			$file="$here?dir=".ltrim(dirname($dir), "./");	// strip off first / or .
+			}
+		else
+			{
+			$size="Directory";
+			$file="$here?dir=".ltrim("$dir/$item", "./");	// strip off first / or .
+			}
 		}
 	else
 		{ // regular file
-		  // filesize($path) ausgeben
-		echo "<td>".filesize($item)."</td>";
-		echo "<td><a href=\"$here?download=".rawurlencode($file)."\">".htmlentities($file)."</a></td></tr>";
+		$size=filesize("$root/$dir/$item");
+		$file="$here?download=".ltrim("$dir/$item", "./");	// strip off first / or .
 		}
+	echo "<td>".$size."</td>";
+	echo "<td><a href=\"".$file."\">".htmlentities($item)."</a></td></tr>";
 	echo "</tr>";
 }
 echo "<table>";
