@@ -1,6 +1,10 @@
 #!/bin/bash -p
 # retrode-admin cmd - system admin tasks
 
+# Fehlerbehandlung nach PHP verschieben?
+
+set -e
+
 case "$1" in
 	poweroff )
 		shift
@@ -13,9 +17,9 @@ case "$1" in
 		;;
 	update-database )
 		wget -qO /tmp/cart_reader.zip https://codeload.github.com/sanni/cartreader/zip/refs/heads/master &&
-			unzip -q /tmp/cart_reader.zip 'cartreader-master/sd/*' -d /tmp &&
-			mv /tmp/cartreader-master/sd/* /usr/local/games/retrode/test &&
-			echo Cart database updated. || echo failed.
+			unzip -q /tmp/cart_reader.zip 'cartreader-master/sd/*' -d /tmp/$$ &&
+			mv -f /tmp/$$/cartreader-master/sd/* /usr/local/games/retrode &&
+			echo Cart database updated. || echo Update failed.
 		;;
 	* )
 		echo unknown command "$1"
