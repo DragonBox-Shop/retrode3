@@ -12,6 +12,9 @@ if($slot=getvar('slot'))
 	text(callcmd("sudo /usr/local/bin/retrode-read $slot"));
 	echo " ...done.</p>";
 	flush();
+	// needs some logic and scanning to find out what the file name is...
+	$name=getvar('slot');
+	weblink("Show File", "files.html?dir=$name");
 	}
 
 ?>
@@ -43,7 +46,15 @@ function show_status_as_table()
 			if(!$str)
 				text("unidentified");
 			else
-				weblink($str, "$here?slot=$slot&name=$name");
+				{
+				text($str);
+				html(" ");
+				html("<a href=");
+				html("\"$here?slot=".rawurlencode($slot)."&name=".rawurlencode("MD/ROM/$str")."\"");
+				html(">");
+				text("Extract");
+				html("</a>");
+				}
 			$image.="+$slot";
 			}
 		else
