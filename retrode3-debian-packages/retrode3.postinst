@@ -19,8 +19,8 @@ set -e
 
 case "$1" in
     configure)
-	# we need at least 100MB swap
-	/root/swap-on -b 0.1 || : ignore error
+		# we need at least 100MiB swap
+		/root/swap-on -b 100 || : ignore error
     ;;
 
     abort-upgrade|abort-remove|abort-deconfigure)
