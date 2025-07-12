@@ -21,5 +21,6 @@ export SOURCES+=" retrode-tools/ucon64.qcodeproj"
 export SOURCES+=" retrode-tools/retrode-tools.qcodeproj"
 export SOURCES+=" retrode3.postinst"
 export SOURCES+=" retrode3.prerm"
+export SOURCES+=" retrode-smb/retrode-smb.qcodeproj"
 
 cd "$(dirname "${BASH_SOURCE[0]}")" && "$QuantumSTEP/System/Sources/Frameworks/mySTEP.make" $ACTION
