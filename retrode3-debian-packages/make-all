@@ -7,7 +7,23 @@
 
 set -e
 
-if [ "$1" == -b ]
+BUILD_PACKAGES=true
+BUILD_TOOL=false
+INSTALL_PACKAGES=true
+
+while [ "$1" ]
+do
+	case "$1" in
+		-b ) BUILD_TOOL=true;;
+		-p ) BUILD_PACKAGES=false;;
+		-i ) INSTALL_PACKAGES=false;;
+		-* ) echo unknown option "$1"; exit 1;;
+		* ) break;
+	esac
+	shift
+done
+
+if $BUILD_TOOL
 then
 	echo build retrode tool and package
 	export DEPLOY=true DEVICE=otg	# auto-install by .qcodeproj
@@ -16,8 +32,8 @@ then
 	BINDIR=/usr/local/bin/
 	ROOTDIR=/usr/local/games/retrode/
 
-	cat <<END | con $DEVICE
-[ "$(which g++)" ] && echo g++ available || apt-get install g++
+	cat <<'END' | con $DEVICE
+[ "$(which g++)" ] && echo g++ available || apt-get -y --force-yes install g++
 END
 
 	echo remote build retrode-tool
@@ -54,8 +70,15 @@ do
 	php -l $i || exit 1
 done
 
+if $BUILD_PACKAGES
+then
+
 echo "Build retrode3.deb (and subpackages)"
 RECURSIVE=true ./retrode3.qcodeproj	# could make others recursively but then we have no clear list
+fi
+
+if $INSTALL_PACKAGES
+then
 
 PACKAGES+=" retrode-controller-gadget"
 PACKAGES+=" retrode-smb"
@@ -68,4 +91,7 @@ PACKAGES+=" retrode3"
 echo installing Debian Packages: $PACKAGES
 
 ./dl-deb -o $PACKAGES
+
+fi
+
 open http://192.168.0.202
