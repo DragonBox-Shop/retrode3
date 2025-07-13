@@ -22,6 +22,8 @@ switch(getvar("update"))
 	}
 html("</font></p>");
 
+section(3, "Installation");
+
 // table?
 html("<table border=\"1\">");
 html("<tr><td>");
@@ -63,19 +65,32 @@ echo " <a href=\"$here?update=system\">Update OS</a> ";
 html("</td></tr>");
 
 html("<tr><td>");
-text("Current Kernel Version: ");
+text("Current Kernel Version:");
 html("</td><td>");
 text(callcmd("uname -a"));
 // Links auf kernel Repo
 html("</td></tr>");
 
 html("<tr><td>");
-text("Last Game Database Update: ");
+text("Last Game Database Update:");
 html("</td><td>");
 text(callcmd("date -r /usr/local/games/retrode/README.md '+%Y-%m-%d %H:%M:%S'"));
 echo " <a href=\"$here?update=database\">Update Game Database</a> ";
 // Links auf Game Database: https://github.com/sanni/cartreader/tree/master/sd
 html("</td></tr>");
+
+html("<tr><td>");
+text("Internet access:");
+html("</td><td>");
+text("Host PC: ".callcmd("ping -q -c 1 192.168.200 | fgrep PING"));
+html("<br>");
+text("Debian:  ".callcmd("ping -q -c 1 archive.debian.org | fgrep PING"));
+html("<br>");
+text("LetuxOS: ".callcmd("ping -q -c 1 www.letux.org | fgrep PING"));
+html("<br>");
+text("OSCR:    ".callcmd("ping -q -c 1 github.com | fgrep PING"));	// for OSCR Game Database updates
+html("</td></tr>");
+
 html("</table>");
 
 // WLAN
@@ -129,7 +144,7 @@ echo "<tr><td>MAC Address</td><td>"; text($status[2]); echo "</td></tr>";
 echo "</table>";
 }
 
-if (true)
+if (true)	// check if wlan exists...
 {
 // this also needs root permissions!
 // see: https://stackoverflow.com/questions/67292960/how-to-run-a-shell-as-root-from-php-apache
@@ -159,12 +174,16 @@ while($line !== false)
 	$line = strtok("\n");
 }
 html("</table>");
+}
+
+section(3, "Language and Time Zone");
+
+html("... hier sollte der User die Time-Zone und Language dieser Webseiten einstellen können - ausser wir holen d
+(zumindest die Language) aus den Browser-Requestdaten. Alternativ könnte das alles in Cookies gesetzt werden.");
 
 // Buttons:
 //   Scan
 //   Connect
-
-}
 
 include("footer.inc.php");
 ?>
