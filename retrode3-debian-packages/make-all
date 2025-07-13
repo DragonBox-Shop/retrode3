@@ -5,11 +5,21 @@
 # this requires a Retrode3 connected and running RNDIS
 # also needs to have gcc / g++ installed (apt-get install g++) there
 
+function check {
+	if ssh root@192.168.0.202 'ls -ld / /etc /etc/sudoers*' | fgrep letux
+	then
+		echo "!!! $0 FAIL $1 !!!"
+		exit 1
+	fi
+}
+
 set -e
 
 BUILD_PACKAGES=true
 BUILD_TOOL=false
 INSTALL_PACKAGES=true
+
+check 1
 
 while [ "$1" ]
 do
@@ -22,6 +32,8 @@ do
 	esac
 	shift
 done
+
+check 2
 
 if $BUILD_TOOL
 then
@@ -36,6 +48,8 @@ then
 [ "$(which g++)" ] && echo g++ available || apt-get -y --force-yes install g++
 END
 
+check 3
+
 	echo remote build retrode-tool
 
 	(
@@ -46,6 +60,8 @@ END
 		cp $CARTREADER/retrode ./$BINDIR/retrode
 		cp -R $CARTREADER/../sd/* ./$ROOTDIR
 	)
+
+check 4
 
 	echo remote build ucon64
 	(
@@ -64,11 +80,15 @@ END
 	)
 fi
 
+check 5
+
 echo "Check retrode-web-control"
 for i in retrode-web-control/var/www/html/*.php;
 do
 	php -l $i || exit 1
 done
+
+check 6
 
 if $BUILD_PACKAGES
 then
@@ -77,9 +97,12 @@ echo "Build retrode3.deb (and subpackages)"
 RECURSIVE=true ./retrode3.qcodeproj	# could make others recursively but then we have no clear list
 fi
 
+check 7
+
 if $INSTALL_PACKAGES
 then
 
+PACKAGES+=" retrode-hidd"
 PACKAGES+=" retrode-controller-gadget"
 PACKAGES+=" retrode-smb"
 PACKAGES+=" retrode-tools"
@@ -90,7 +113,11 @@ PACKAGES+=" retrode3"
 
 echo installing Debian Packages: $PACKAGES
 
+check 8
+
 ./dl-deb -o $PACKAGES
+
+check 9
 
 fi
 
