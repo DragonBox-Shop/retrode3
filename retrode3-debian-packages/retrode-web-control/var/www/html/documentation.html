@@ -23,6 +23,10 @@
     p.p14 {margin: 0.0px 0.0px 0.0px 0.0px; font: 18.0px Helvetica; -webkit-text-stroke: #000000}
     p.p15 {margin: 0.0px 0.0px 0.0px 0.0px; font: 12.0px Helvetica; color: #0000d3; -webkit-text-stroke: #000000}
     p.p16 {margin: 0.0px 0.0px 0.0px 0.0px; font: 12.0px Helvetica; color: #0000e3; -webkit-text-stroke: #000000}
+    p.p17 {margin: 0.0px 0.0px 0.0px 0.0px; font: 14.0px Helvetica}
+    p.p18 {margin: 0.0px 0.0px 0.0px 0.0px; font: 18.0px Helvetica}
+    p.p19 {margin: 0.0px 0.0px 0.0px 0.0px; font: 12.0px Helvetica; min-height: 14.0px}
+    p.p20 {margin: 0.0px 0.0px 0.0px 0.0px; font: 14.0px Helvetica; min-height: 17.0px}
     span.s1 {font-kerning: none}
     span.s2 {font: 12.0px Helvetica; text-decoration: underline ; font-kerning: none; color: #0000e3; -webkit-text-stroke: 0px #000000}
     span.s3 {font: 12.0px Helvetica; font-kerning: none; -webkit-text-stroke: 0px #000000}
@@ -386,13 +390,17 @@
 <p class="p9"><span class="s1"></span><br></p>
 <p class="p7"><span class="s1">Run (may need to run as root user to have access to the SD reader):</span></p>
 <p class="p9"><span class="s1"></span><br></p>
-<p class="p12"><span class="s10">$ </span><span class="s5">DEV=/dev/sdb /usr/local/bin/makesd -vr jessie lx16e</span></p>
+<p class="p12"><span class="s10">$ </span><span class="s5">DEV=/dev/sdb /usr/local/bin/makesd -vr retrode3 lx16e</span></p>
 <p class="p9"><span class="s1"></span><br></p>
 <p class="p7"><span class="s1">Then plug the µSD into the Retrode3 and power it on.</span></p>
+<p class="p7"><span class="s1">Ideally, you should then run an OS Upgrade from the Settings menu.</span></p>
 <p class="p9"><span class="s1"></span><br></p>
 <p class="p14"><span class="s1"><b>2.5 WLAN</b></span></p>
 <p class="p7"><span class="s1">WLAN (and BLE) is provided by an ESP32-WROOM6.</span></p>
-<p class="p7"><span class="s1">The esp-hosetng driver is included in the LetuxOS kernels.</span></p>
+<p class="p7"><span class="s1">The esp-hosted-ng driver is included in the LetuxOS kernels.</span></p>
+<p class="p9"><span class="s1"></span><br></p>
+<p class="p7"><span class="s1">The retrode boards come with (withoug?) flashed firmware. So</span></p>
+<p class="p7"><span class="s1">there is usually no need to update.</span></p>
 <p class="p9"><span class="s1"></span><br></p>
 <p class="p5"><span class="s1"><b>2.5.1 Installation of the ESP firmware</b></span></p>
 <p class="p7"><span class="s1">There is a special tool letux-esp-serial-flasher that must be</span></p>
@@ -411,5 +419,55 @@
 <p class="p7"><span class="s1">This takes approx. 2 minutes.</span></p>
 <p class="p7"><span class="s1">Afterwards WLAN should work:</span></p>
 <p class="p12"><span class="s5">/root/wlan-scan</span></p>
+<p class="p13"><span class="s1"></span><br></p>
+<p class="p14"><span class="s1"><b>2.6 Web Interface</b></span></p>
+<p class="p5"><span class="s1"><b>2.6.1 Concept</b></span></p>
+<p class="p7"><span class="s1">The Retrode runs an Apache web server with PHP and the user interface</span></p>
+<p class="p7"><span class="s1">is provided through html, php and jpeg files stored in /var/www/html/.</span></p>
+<p class="p7"><span class="s1">&lt;a&gt; tags, &lt;form&gt; and POST/GET parameters are used to control different</span></p>
+<p class="p7"><span class="s1">actions, like menu choice, Extract Cart data, connect to WLAN etc.</span></p>
+<p class="p7"><span class="s1">PHP can run some scripts from /usr/local/bin/retrode. If these scripts</span></p>
+<p class="p7"><span class="s1">need root access (and most do), the binaries must be listed in /etc/sudoers.d</span></p>
+<p class="p9"><span class="s1"></span><br></p>
+<p class="p17"><span class="s1"><b>2.6.2 Room for improvement...</b></span></p>
+<p class="p9"><span class="s1"></span><br></p>
+<p class="p7"><span class="s1">State is stored where for:</span></p>
+<p class="p7"><span class="s1">- default WLAN connections?</span></p>
+<p class="p7"><span class="s1">- User language?</span></p>
+<p class="p7"><span class="s1">- Time Zone of user interface?</span></p>
+<p class="p7"><span class="s1">=&gt; On File System (µSD) or in Cookies (or both)?</span></p>
+<p class="p9"><span class="s1"></span><br></p>
+<p class="p7"><span class="s1">Currenty, JavaScript or CSS are not used.</span></p>
+<p class="p9"><span class="s1"></span><br></p>
+<p class="p7"><span class="s1">To make background activities visible (e.g. the waiting time during Extract</span></p>
+<p class="p7"><span class="s1">or connecting to WLAN), JavaScript could show an animation (e.g. progress bar).</span></p>
+<p class="p7"><span class="s1">And, web pages should self-refresh after activity is completed.</span></p>
+<p class="p9"><span class="s1"></span><br></p>
+<p class="p7"><span class="s1">A really open question is if there is some WebGUI-Toolkit that can be used</span></p>
+<p class="p7"><span class="s1">here instead of plain PHP and HTML.</span></p>
+<p class="p9"><span class="s1"></span><br></p>
+<p class="p7"><span class="s1">How is a <a href="https://fritz.com/service/wissensdatenbank/dok/FRITZ-Box-5491/1_Benutzeroberflache-der-FRITZ-Box-aufrufen/"><span class="s3">FritzBox providing their WebGUI</span></a>? Freetz-NG??</span></p>
+<p class="p9"><span class="s1"></span><br></p>
+<p class="p1"><span class="s1"><b>3. Hardware</b></span></p>
+<p class="p18"><span class="s1"><b>3.1 Schematics</b></span></p>
+<p class="p17"><span class="s1"><b>3.1.1 Background</b></span></p>
+<p class="p2"><span class="s1">The hardware design is a mix of the</span></p>
+<p class="p2"><span class="s1">- LX16 (x1600 controller, USB, µSD, Power regulators, ESP32),</span></p>
+<p class="p2"><span class="s1">- Retrode 2 (connectors, bus concept for carts and game controllers),</span></p>
+<p class="p2"><span class="s1">- OSCR hardware designs (NES control, Si5351 clock generator)</span></p>
+<p class="p2"><span class="s1">plus additions and modifications.</span></p>
+<p class="p19"><span class="s1"></span><br></p>
+<p class="p17"><span class="s1"><b>3.1.2 Room for improvement...</b></span></p>
+<p class="p19"><span class="s1"></span><br></p>
+<p class="p18"><span class="s1"><b>3.2 Hardware hacking</b></span></p>
+<p class="p17"><span class="s1"><b>3.2.1 adding an FTDI console connector</b></span></p>
+<p class="p2"><span class="s1">Solder a 6 pin header (e.g. AdamTech PH1-06-UA or similar)</span></p>
+<p class="p2"><span class="s1">to the left solder holes of the µSD reader.</span></p>
+<p class="p2"><span class="s1">Connect a standard or compatible 6-pin 3.3V FTDI to USB</span></p>
+<p class="p2"><span class="s1">adapter. The small golden Triangle on the PCB shows where</span></p>
+<p class="p2"><span class="s1">the GND pin (black wire) should be connected.</span></p>
+<p class="p2"><span class="s1">&lt;&lt; Foto? &gt;&gt;</span></p>
+<p class="p2"><span class="s1">You get direct root access (user: root, empty password:).</span></p>
+<p class="p20"><span class="s1"></span><br></p>
 </body>
 </html>
