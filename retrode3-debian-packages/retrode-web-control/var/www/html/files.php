@@ -2,7 +2,7 @@
 
 include("header.inc.php");
 
-html("<h2>Files</h2>");
+// html("<h2>Files</h2>");
 
 # echo "<p>";
 $link="smb://".$_SERVER['SERVER_ADDR']."/retrode";
@@ -37,32 +37,42 @@ function scansubdirs($dir)
 }
 
 echo "<table border=\"1\">";
+echo "<r><th>Name</th><th>Last modified</th><th>Size</th><tr>";
 foreach(scandir("$root/$dir") as $item)
 {
 	if($item === '.') continue;
-	// skip files starting with .?
+	// skip other hidden files starting with .?
 	if(!$dir && $item === '..') continue;	// not for root
 	echo "<tr>";
+	$modified=date ("F d Y H:i:s", filemtime("$root/$dir/$item"));
 	if(is_dir("$root/$dir/$item"))
 		{ // directory
 		if($item === '..')
 			{
-			$size="Parent";
+			$name="Parent";
+			$size="-";
 			$file="$here?dir=".ltrim(dirname($dir), "./");	// strip off first / or .
 			}
 		else
 			{
-			$size="Directory";
+			$name="$item/";
+			$size="-";
 			$file="$here?dir=".ltrim("$dir/$item", "./");	// strip off first / or .
 			}
 		}
 	else
 		{ // regular file
+		$name=$item;
 		$size=filesize("$root/$dir/$item");
+		if($size > 1024*1024)
+			$size=str_replace(".0M", "M", sprintf("%.1fM", $size/1024.0*1024));
+		if($size > 1024)
+			$size=str_replace(".0K", "K", sprintf("%.1fK", $size/1024.0));
 		$file="$here?download=".ltrim("$dir/$item", "./");	// strip off first / or .
 		}
-	echo "<td>".$size."</td>";
-	echo "<td><a href=\"".$file."\">".htmlentities($item)."</a></td></tr>";
+	echo "<td width=\"200px\"><a href=\"".$file."\">".rawurlencode($name)."</a></td>";
+	echo "<td align=\"right\">".$modified."</td>";
+	echo "<td align=\"right\">".$size."</td>";
 	echo "</tr>";
 }
 echo "<table>";
