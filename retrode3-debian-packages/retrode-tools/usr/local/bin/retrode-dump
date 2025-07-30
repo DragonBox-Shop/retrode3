@@ -2,7 +2,7 @@
 # retrode-dump slot - dump cart header
 
 case "$1" in
-	headers )	# MD
+	headers )
 		if xxd -l 1 /dev/slot-md >/dev/null 2>&1
 		then
 			echo MD header:
@@ -13,9 +13,9 @@ case "$1" in
 
 		if xxd -l 1 /dev/slot-snes >/dev/null 2>&1
 		then
-			echo "SNES LoROM header: (unreliable)"
+			echo "SNES LoROM header:"
 			xxd -s 0x7fc0 -l 0x20 /dev/slot-snes
-			echo "SNES HiROM header: (unreliable)"
+			echo "SNES HiROM header:"
 			xxd -s 0xffc0 -l 0x20 /dev/slot-snes
 		else
 			echo SNES slot empty
@@ -23,8 +23,11 @@ case "$1" in
 
 		if xxd -l 1 /dev/slot-nes >/dev/null 2>&1
 		then
-			echo "NES header: (unreliable)"
-			xxd -s 0xffe0 -l 0x20 /dev/slot-nes
+			echo "NES PRG:"
+			# 0x0a00 is NES_PRG
+			xxd -s 0x0a008000 -l 0x20 /dev/slot-nes
+
+			# other read modes?
 		else
 			echo NES slot empty
 		fi
