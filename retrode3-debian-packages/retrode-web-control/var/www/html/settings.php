@@ -82,13 +82,25 @@ html("</td></tr>");
 html("<tr><td>");
 text("Internet access:");
 html("</td><td>");
-text("Host PC: ".callcmd("ping -q -c 1 192.168.200 | fgrep PING"));
+
+function ping($message, $address)
+{
+// or should we filter "100% packet loss?" and rtt?
+// ping | fgrep loss | cut -d ' ' -f 6
+	$str=callcmd("timeout 1s ping -q -c 1 $address | fgrep PING");
+	if($str)
+		text("$message".$str);
+	else
+		{ html("<font color=\"red\">"); text("$message"."not reachable"); html("</font>"); }
+}
+
+ping("Host PC: ", "192.168.0.200");
 html("<br>");
-text("Debian:  ".callcmd("ping -q -c 1 archive.debian.org | fgrep PING"));
+ping("Debian:  ", "archive.debian.org");
 html("<br>");
-text("LetuxOS: ".callcmd("ping -q -c 1 www.letux.org | fgrep PING"));
+ping("LetuxOS: ", "www.letux.org");
 html("<br>");
-text("OSCR:    ".callcmd("ping -q -c 1 github.com | fgrep PING"));	// for OSCR Game Database updates
+ping("OSCR:    ", "github.com");	// for OSCR Game Database updates
 html("</td></tr>");
 
 html("</table>");
