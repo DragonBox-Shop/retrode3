@@ -38,7 +38,7 @@ check 2
 if $BUILD_TOOL
 then
 	echo build retrode tool and package
-	export DEPLOY=true DEVICE=otg	# auto-install by .qcodeproj
+	export DEPLOY=false DEVICE=otg	# do not auto-install by .qcodeproj	# DEPLOY will damage the permissions of / or /etc/sudoers.d
 	DEV=root@192.168.0.202	# for ssh and rsync
 	CARTREADER=/Volumes/Retrode3/Retrode3-Software/Cart_Reader
 	BINDIR=/usr/local/bin/
