@@ -13,67 +13,68 @@ $root="/usr/local/games/retrode";	// path on retrode device
 if(!file_exists($root))
 	$root ="/Volumes/Retrode3/retrode-setup/usr/local/games/retrode";	// on development host
 
-$d=getvar("dir");
-$dir=str_replace("/..", "", "/$d");	// prevent moving to superdirectories..
-$dir=ltrim($dir, "./");			// strip off first / or .
+$d=getvar("file");
+$file=str_replace("/..", "", "/$d");	// prevent moving to superdirectories..
+$file=ltrim($file, "./");			// strip off first / or .
 
-// text("root: $root d: $d dir: $dir");
+html("h2"); text("/$file"); html("</h2>");
 
-function scansubdirs($dir)
+$mode=getvar("mode");
+if($mode == "analyse")
 {
-	$root = scandir($dir);
-	foreach($root as $value)
-	{
-		if($value === '.' || $value === '..') continue;
-		if(!is_dir("$dir/$value"))
-			{
-			$result[]="$dir/$value";
-			continue;
-			}
-		foreach(scansubdirs("$dir/$value") as $value)
-			$result[]=$value;
-	}
-	return $result;
+	html("<pre>");
+	text(/*callcmd*/("cd /tmp; /usr/local/bin/ucon64 '/usr/local/games/retrode/$file'"));
+	$file=dirname($file);	// strip off file name
+	html("</pre>");
 }
+// text("root: $root d: $d file: $file");
 
 echo "<table border=\"1\">";
 echo "<r><th>Name</th><th>Last modified</th><th>Size</th><tr>";
-foreach(scandir("$root/$dir") as $item)
+foreach(scandir("$root/$file") as $item)
 {
 	if($item === '.') continue;
 	// skip other hidden files starting with .?
-	if(!$dir && $item === '..') continue;	// not for root
-	echo "<tr>";
-	$modified=date ("F d Y H:i:s", filemtime("$root/$dir/$item"));
-	if(is_dir("$root/$dir/$item"))
+	if(!$file && $item === '..') continue;	// not for root
+	html("<tr>");
+	$modified=date ("F d Y H:i:s", filemtime("$root/$file/$item"));
+	if(is_dir("$root/$file/$item"))
 		{ // directory
 		if($item === '..')
 			{
 			$name="Parent";
 			$size="-";
-			$file="$here?dir=".ltrim(dirname($dir), "./");	// strip off first / or .
+			$link="$here?file=".ltrim(dirname($file), "./");	// strip off first / or .
 			}
 		else
 			{
 			$name="$item/";
 			$size="-";
-			$file="$here?dir=".ltrim("$dir/$item", "./");	// strip off first / or .
+			$link="$here?file=".ltrim("$file/$item", "./");	// strip off first / or .
 			}
 		}
 	else
 		{ // regular file
 		$name=$item;
-		$size=filesize("$root/$dir/$item");
+		$size=filesize("$root/$file/$item");
 		if($size > 1024*1024)
 			$size=str_replace(".0M", "M", sprintf("%.1fM", $size/1024.0*1024));
 		if($size > 1024)
 			$size=str_replace(".0K", "K", sprintf("%.1fK", $size/1024.0));
-		$file="$here?download=".ltrim("$dir/$item", "./");	// strip off first / or .
+		$link="$here?download=".ltrim("$file/$item", "./"); // strip off first / or .
 		}
-	echo "<td width=\"200px\"><a href=\"".$file."\">".rawurlencode($name)."</a></td>";
-	echo "<td align=\"right\">".$modified."</td>";
-	echo "<td align=\"right\">".$size."</td>";
-	echo "</tr>";
+	html("<td width=\"200px\"><a href=\"".$link."\">"); text($name); html("</a></td>");
+	html("<td align=\"right\">"); text($modified); html("</td>");
+	html("<td align=\"right\">");
+	text($size);
+	if($size != "-")
+		{ // include file name in file=
+		$link="$here?file=".ltrim("$file/$item", "./"); // strip off first / or .
+		html("<a href=\"".$link."&mode=analyse"."\"> ");
+		text("Analyse");
+		}
+	html("</td>");
+	html("</tr>");
 }
 echo "<table>";
 
