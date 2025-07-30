@@ -20,6 +20,8 @@ SERVICE=retrode-controller-gadget
 
 # FIXME: how can we start that twice for two separate game controllers?
 # do we simply need two separate controller-gadgets?
+# or do we have @js1 as well?
+# or is there a single joystick USB interface which serves left and right?
 
 DEVICE=ttyHID0
 
@@ -36,7 +38,8 @@ case "$1" in
   start)
 	log_daemon_msg "Starting $SERVICE"
 	/etc/gadget/core/letux-gadget.sh add hid
-	daemon -r --name=$SERVICE -- /bin/mipsel-linux-gnu/hidd /dev/input/event1 /dev/$DEVICE
+	# FIXME: we need two daemons for /dev/input/left and /dev/input/right
+	daemon -r --name=$SERVICE -- /usr/bin/mipsel-linux-gnu/hidd /dev/input/event1 /dev/$DEVICE
 	exit 0
 	;;
   restart|reload|force-reload)
