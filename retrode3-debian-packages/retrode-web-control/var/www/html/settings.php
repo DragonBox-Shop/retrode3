@@ -29,6 +29,7 @@ html("<table border=\"1\">");
 html("<tr><td>");
 text("Device Model:");
 html("</td><td>");
+// FIXME: make this a function of /usr/local/bin/retrode-admin
 text(str_replace(chr(0), '', file_get_contents("/proc/device-tree/model")));
 html(" <a href=\"$here?update=poweroff\">Power Off</a> ");
 html("</td></tr>");
@@ -36,6 +37,7 @@ html("</td></tr>");
 html("<tr><td>");
 text("Current OS Version:");
 html("</td><td>");
+// FIXME: make this a function of /usr/local/bin/retrode-admin
 text(callcmd("fgrep VERSION= /etc/os-release | sed 's/VERSION=//' | sed 's/\"//g'; cat /etc/debian_version"));
 // Links auf offizielles Debian Repo
 // oder Link auf ein Wiki
@@ -44,7 +46,7 @@ html("</td></tr>");
 html("<tr><td>");
 text("OS Creation Date:");
 html("</td><td>");
-text(callcmd("date -r /makesd.info '+%Y-%m-%d %H:%M:%S'"));
+text(callcmd("sudo /usr/local/bin/retrode-admin creation-date"));
 // Link auf makesd und/oder den Befehl
 // created by '<a ref=...>makesd</a>...'
 html("</td></tr>");
@@ -52,21 +54,14 @@ html("</td></tr>");
 html("<tr><td>");
 text("Last OS Update:");
 html("</td><td>");
-if(false)
-	{ // someone may delete the history.log...
-	text(callcmd("awk '/Commandline:/,/End-Date: /{if(/End-Date: /)print $2, $3}' /var/log/apt/history.log | tail -1"));
-	}
-else
-	text(callcmd("date -r /var/lib/apt/lists/download.goldelico.com_letux-debian-rootfs_debian_dists_jessie_main_binary-mipsel_Packages '+%Y-%m-%d %H:%M:%S'"));
-
-// can we somehow check for potential updates without running apt-get update/upgrade?
-// Links auf die speziellen Repos (Letux und Retrode) und Source-Code
+text(callcmd("sudo /usr/local/bin/retrode-admin last-os-update"));
 echo " <a href=\"$here?update=system\">Update OS</a> ";
 html("</td></tr>");
 
 html("<tr><td>");
 text("Current Kernel Version:");
 html("</td><td>");
+// FIXME: make this a function of /usr/local/bin/retrode-admin
 text(callcmd("uname -a"));
 // Links auf kernel Repo
 html("</td></tr>");
@@ -74,6 +69,7 @@ html("</td></tr>");
 html("<tr><td>");
 text("Last Game Database Update:");
 html("</td><td>");
+// FIXME: make this a function of /usr/local/bin/retrode-admin
 text(callcmd("date -r /usr/local/games/retrode/README.md '+%Y-%m-%d %H:%M:%S'"));
 echo " <a href=\"$here?update=database\">Update Game Database</a> ";
 // Links auf Game Database: https://github.com/sanni/cartreader/tree/master/sd
@@ -82,6 +78,8 @@ html("</td></tr>");
 html("<tr><td>");
 text("Internet access:");
 html("</td><td>");
+
+// FIXME: make this a function of /usr/local/bin/retrode-admin
 
 function ping($message, $address)
 {
@@ -114,6 +112,7 @@ if (true)
 {
 // check if wlan exists (e.g. /sys/class/net/wlan* or search ifconfig -a)
 // find interface number through e.g. iwconfig 2>&1 | fgrep 'wlan'
+// FIXME: detect/report this through /usr/local/bin/retrode-wlan status
 
 section(3, "WLAN Configuration");
 
@@ -190,8 +189,7 @@ html("</table>");
 
 section(3, "Language and Time Zone");
 
-html("... hier sollte der User die Time-Zone und Language dieser Webseiten einstellen können - ausser wir holen d
-(zumindest die Language) aus den Browser-Requestdaten. Alternativ könnte das alles in Cookies gesetzt werden.");
+html("... hier sollte der User die Time-Zone und Language dieser Webseiten einstellen können - ausser wir holen das (zumindest die Language) aus den Browser-Request-Daten. Alternativ könnte das alles in Cookies gesetzt werden.");
 
 // Buttons:
 //   Scan
