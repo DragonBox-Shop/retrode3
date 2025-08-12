@@ -61,7 +61,7 @@ function weblink($title, $destination)
 	// rawurlencode is too heavy...
 	html("<a href=".$destination.">");
 	html(_htmlentities($title));
-	html("</a");
+	html("</a>");
 	}
 
 function table($arrayofarray, $columns)
@@ -151,7 +151,9 @@ echo "<h1>Welcome to $model</h1>";
 echo $_SERVER['REMOTE_ADDR']." ";
 echo date(DATE_RFC822)." ";
 
-html('<input type="submit" value="Refresh"></input>');
+html('<input type="submit" value="Refresh"></input> ');
+
+weblink("Documentation", "documentation.html");
 
 html("<p><font size=\"+2\">");
 
