@@ -28,8 +28,8 @@ if($action)
 <h3>Cart Doctor</h3>
 Add tools to detect card contents. Like calling ucon64.
 
-<h3>RAM Toolsr</h3>
-Add tools to read/write RAM.
+<h3>RAM Tools</h3>
+Add tools to read/write RAM content.
 
 <h3>Cart Flasher</h3>
 Flash Carts with EEPROM.
