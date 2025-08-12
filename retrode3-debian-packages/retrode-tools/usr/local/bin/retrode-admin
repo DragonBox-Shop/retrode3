@@ -2,6 +2,8 @@
 # retrode-admin cmd - system admin tasks
 
 # Fehlerbehandlung nach PHP verschieben?
+# zu einem daemon machen den das PHP per REST-API triggern/steuern kann?
+# dann blockieren längere Aktivitäten das PHP nicht
 
 set -e
 
@@ -11,9 +13,24 @@ case "$1" in
 		poweroff && echo Will power off now... || echo failed.
 		;;
 	apt-get-update )
-		apt-get update && apt-get upgrade &&
+		yes | apt-get update && yes | apt-get upgrade &&
 			echo System updated. Now rebooting... &&
 			reboot || echo failed.
+		;;
+	creation-date )
+		date -r /makesd.info '+%Y-%m-%d %H:%M:%S'
+		;;
+	last-os-update )
+		FILE=/var/lib/apt/lists/download.goldelico.com_letux-debian-rootfs_debian_dists_jessie_main_binary-mipsel_Packages
+		if [ -r /var/log/apt/history.log ]
+		then
+			awk '/Commandline:/,/End-Date: /{if(/End-Date: /)print $2, $3}' /var/log/apt/history.log | tail -1
+		elif [ -r $FILE ]
+		then
+			date -r $FILE '+%Y-%m-%d %H:%M:%S'
+		else	# fall back to creation date
+			date -r /makesd.info '+%Y-%m-%d %H:%M:%S'
+		fi
 		;;
 	update-database )
 		wget -qO /tmp/cart_reader.zip https://codeload.github.com/sanni/cartreader/zip/refs/heads/master &&
