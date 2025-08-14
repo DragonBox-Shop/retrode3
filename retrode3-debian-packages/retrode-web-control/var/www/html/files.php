@@ -17,13 +17,13 @@ $d=getvar("file");
 $file=str_replace("/..", "", "/$d");	// prevent moving to superdirectories..
 $file=ltrim($file, "./");			// strip off first / or .
 
-html("h2"); text("/$file"); html("</h2>");
+html("<h2>"); text("Current directory: /$file"); html("</h2>");
 
 $mode=getvar("mode");
 if($mode == "analyse")
 {
 	html("<pre>");
-	text(/*callcmd*/("cd /tmp; /usr/local/bin/ucon64 '/usr/local/games/retrode/$file'"));
+	text(callcmd("cd /tmp; /usr/local/bin/ucon64 '/usr/local/games/retrode/$file'"));
 	$file=dirname($file);	// strip off file name
 	html("</pre>");
 }
