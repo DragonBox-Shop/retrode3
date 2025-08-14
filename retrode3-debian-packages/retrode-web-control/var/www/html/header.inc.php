@@ -146,9 +146,16 @@ if($dlpath=getvar('delete'))
 <a href="https://www.retrode.com"><img style="height: 80px;" src="https://www.retrode.com/wp-content/uploads/2025/03/Retrode-Logo-768x162.webp"/></a>
 
 <?php
+if(date("Y") < 2025)
+	{
+	html("<p><font size=\"+2\" color=\"red\">");
+	text("Date is not reliable. Some functions may be seriously broken. Check your Internet connection.");
+	html("</font></p>");
+	}
 $model=str_replace(chr(0), '', file_get_contents("/proc/device-tree/model"));
 echo "<h1>Welcome to $model</h1>";
-echo $_SERVER['REMOTE_ADDR']." ";
+echo $_SERVER['SERVER_ADDR']." ";
+// echo $_SERVER['REMOTE_ADDR']." ";
 echo date(DATE_RFC822)." ";
 
 html('<input type="submit" value="Refresh"></input> ');
