@@ -1,19 +1,33 @@
 #!/bin/bash -p
 # retrode-wlan - control WLAN
 
+function interface {
+	# take first (with timeout)
+	read -t 5 WLAN OTHER < <(iwconfig 2>&1 | fgrep 'wlan')
+	echo $WLAN
+}
+
 case "$1" in
 	status )
 		shift
-		read -t 5 WLAN OTHER < <(iwconfig 2>&1 | fgrep 'wlan')
-		[ "$WLAN" ] || WLAN=wlan0
 
-		SSID=$(iwconfig $WLAN | fgrep "Access Point: " | sed 's/.*Access Point: \([^ ]*\).*/\1/g')
+		WLAN=$(interface)
+		case "$WLAN" in
+			"" )
+				echo "no WLAN interface";
+				exit;
+		esac
+
+		SSID=$(iwconfig $WLAN | fgrep "ESSID:" | sed 's/.*ESSID:\"\([^" ]*\).*/\1/g')
+		APMAC=$(iwconfig $WLAN | fgrep "Access Point: " | sed 's/.*Access Point: \([^ ]*\).*/\1/g')
 		MAC=$(ifconfig $WLAN | fgrep "HWaddr " | sed 's/.*HWaddr \([^ ]*\).*/\1/g')
-		IP4=
-		IP6=$(ifconfig $WLAN | fgrep "inet6 addr " | sed 's/.*inet6 addr \([^ ]*\).*/\1/g')	# may be missing
+		IP4=$(ifconfig $WLAN | fgrep "inet addr:" | sed 's/.*inet addr:\([^ ]*\).*/\1/g')	# may be missing
+		IP6=$(ifconfig $WLAN | fgrep "inet6 addr:" | sed 's/.*inet6 addr:\([^ ]*\).*/\1/g')	# may be missing
 		STATUS=disconnected
+		[ "$IP4" -o "$IP6" ] && STATUS=connected
+		[ "$APMAC" == "Not-Associated" ] && SSID= APMAC=none STATUS=disconnected
 
-		echo $STATUS $SSID $MAC $IP4 $IP6
+		echo $STATUS,$SSID,$APMAC,$MAC,$IP4,$IP6
 		;;
 	list )
 		shift
@@ -22,6 +36,10 @@ case "$1" in
 	connect )
 		shift
 		/root/wlan-on "$@" && echo Connected. || echo failed.
+		;;
+	disconnect )
+		shift
+		ifconfig $(interface) down
 		;;
 	* )
 		echo unknown command "$1"
