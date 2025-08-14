@@ -22,8 +22,8 @@ if($slot=getvar('slot'))
 Alternative methods of access (depends on host OS):
 </ul>
 <li>serial console login on USB (works like an FTDI adapter)</li>
-<li>ssh root@192.168.0.202</li>
-<li><a href="smb://192.168.0.202/retrode">mount smb 192.168.0.202/retrode</a></li>
+<li>ssh root@<?php echo $_SERVER['SERVER_ADDR']; ?></li>
+<li><a href="smb://<?php echo $_SERVER['SERVER_ADDR']; ?>/retrode">mount smb <?php echo $_SERVER['SERVER_ADDR']; ?>/retrode</a></li>
 </ul>
 </p>
 <?php
@@ -74,6 +74,26 @@ function show_status_as_table()
 			{
 			echo "<font color=\"green\">CONNECTED</font>";
 			$image.="+$name";
+/* here we could loop over all KEYs
+ * and run
+ *    evtest --query /dev/input/right EV_KEY KEY_A && echo no || echo yes
+    Event code 19 (KEY_R)
+    Event code 21 (KEY_Y)
+    Event code 22 (KEY_U)
+    Event code 30 (KEY_A)
+    Event code 31 (KEY_S)
+    Event code 32 (KEY_D)
+    Event code 38 (KEY_L)
+    Event code 44 (KEY_Z)
+    Event code 45 (KEY_X)
+    Event code 46 (KEY_C)
+    Event code 48 (KEY_B)
+    Event code 50 (KEY_M)
+
+	$keys="ABCDLRSUXYZ";
+	foreach($key in $keys)
+		$cmd="evtest --query /dev/input/$name EV_KEY KEY_$key && echo no || echo $key"
+ */
 			}
 		else
 			echo "not connected";
