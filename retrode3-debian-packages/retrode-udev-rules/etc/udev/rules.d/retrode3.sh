@@ -50,23 +50,22 @@ case "$ACTION" in
 
 			case "$CHANNEL" in
 # FIXME: we should add something to the retrode3.rule so that the DEV is passed here
-				0 ) CH=right; DEV=/dev/input/event1;;
-				1 ) CH=left; DEV=/dev/input/event2;;
+				0 ) CH=right; DEV=/dev/input/event1; LEDNAME=$(echo /sys/class/leds/*:programming-4);;
+				1 ) CH=left; DEV=/dev/input/event2; LEDNAME=$(echo /sys/class/leds/*:programming-3);;
 			esac
 
-			LEDNAME=$(echo /sys/class/leds/*:heartbeat)
+			[ -r "$LEDNAME" ] || LEDNAME=$(echo /sys/class/leds/*:heartbeat)	# v2.9.4 has no specific LEDs
 
 			case "$STATE" in	# STATE="connected" / "disconnected"	# (new) state
 				connected )
 					ln -sf "$DEV" "/dev/input/$CH"
-					# make cart visible over USB (configfs)
+					# make controller visible over USB (configfs)
 					# also run C code to handle different addressing magic...
 					echo default-on >$LEDNAME/trigger
 					;;
 				disconnected )
 					rm "/dev/input/$CH"
-					# remove cart from USB (configfs)
-					# FIXME: check other game controller and turn off only if both are disconnected
+					# remove controller from USB (configfs)
 					echo heartbeat >$LEDNAME/trigger
 					;;
 			esac
