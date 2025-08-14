@@ -112,7 +112,7 @@ if (true)
 {
 // check if wlan exists (e.g. /sys/class/net/wlan* or search ifconfig -a)
 // find interface number through e.g. iwconfig 2>&1 | fgrep 'wlan'
-// FIXME: detect/report this through /usr/local/bin/retrode-wlan status
+// FIXME: detect/report this through /usr/local/bin/retrode-wlan status -> "no WiFi"
 
 section(3, "WLAN Configuration");
 
@@ -122,20 +122,36 @@ switch(getvar("wlan"))
 	case "Connect":
 		if(!$ssid)
 			{
-			text("Missing SSID");
+			text("Connect: Missing SSID");
 			break;
 			}
 		$cmd="sudo /usr/local/bin/retrode-wlan connect".($password?" -p '$password'":"")." $ssid'";
+		text(callcmd($cmd));
+		break;
+	case "Disconnect":
+		$cmd="sudo /usr/local/bin/retrode-wlan disconnect";
+		text(callcmd($cmd));
+		break;
+	case "Access Point Mode":
+		$cmd="sudo /usr/local/bin/retrode-wlan connect -a";
 		text(callcmd($cmd));
 		break;
 }
 html("</font></p>");
 
 $str=callcmd("sudo /usr/local/bin/retrode-wlan status");	// STATUS SSID MAC IP4 IP6
-$status=explode(' ', $str."     ");
+// text($str);
+$status=explode(',', $str);
+
+$connected=trim($status[0]);
+$thessid=trim($status[1]);
+$apmac=trim($status[2]);
+$mac=trim($status[3]);
+$ip4=trim($status[4]);
+$ip6=trim($status[5]);
 
 echo "<table border=\"1\">";
-if($status[0] != "connected")
+if($connected != "connected")
 	{
 	echo "<tr><td>SSID</td><td><input name=\"ssid\" value=\"$ssid\" width=\"20\"></input>";
 	echo " <input type=\"submit\" name=\"wlan\" value=\"Connect\"></input></td></tr>";
@@ -144,13 +160,13 @@ if($status[0] != "connected")
 	}
 else
 	{
-	echo "<tr><td>SSID</td><td>"; text($status[1]);
+	echo "<tr><td>SSID</td><td>"; text($thessid);
 	echo " <input type=\"submit\" name=\"wlan\" value=\"Disconnect\"></input></td></tr>";
 	}
 
-echo "<tr><td>IP4 Address</td><td>"; text($status[3]); echo "</td></tr>";
-echo "<tr><td>IP6 Address</td><td>"; text($status[4]); echo "</td></tr>";
-echo "<tr><td>MAC Address</td><td>"; text($status[2]); echo "</td></tr>";
+echo "<tr><td>IP4 Address</td><td>"; text($ip4); echo "</td></tr>";
+echo "<tr><td>IP6 Address</td><td>"; text($ip6); echo "</td></tr>";
+echo "<tr><td>MAC Address</td><td>"; text($mac); echo " <input type=\"submit\" name=\"wlan\" value=\"Access Point Mode\"></input></td></tr>";
 // echo "<tr><td>Frequency</td><td>2.4 GHz</td></tr>";		// ?
 echo "</table>";
 }
