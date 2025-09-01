@@ -13,9 +13,15 @@ case "$1" in
 		poweroff && echo Will power off now... || echo failed.
 		;;
 	apt-get-update )
-		yes | apt-get update && yes | apt-get upgrade &&
-			echo System updated. Now rebooting... &&
-			reboot || echo failed.
+		if [ "$(date "+%Y") -ge 2025 ]
+		then
+			yes | apt-get update && yes | apt-get upgrade &&
+				echo System updated. Now rebooting... &&
+				reboot || echo failed.
+		else
+			echo "Refusing to update OS with bad system time."
+			exit 1
+		fi
 		;;
 	creation-date )
 		date -r /makesd.info '+%Y-%m-%d %H:%M:%S'
@@ -33,10 +39,16 @@ case "$1" in
 		fi
 		;;
 	update-database )
-		wget -qO /tmp/cart_reader.zip https://codeload.github.com/sanni/cartreader/zip/refs/heads/master &&
-			unzip -q /tmp/cart_reader.zip 'cartreader-master/sd/*' -d /tmp/$$ &&
-			mv -f /tmp/$$/cartreader-master/sd/* /usr/local/games/retrode &&
-			echo Cart database updated. || echo Update failed.
+		if [ "$(date "+%Y") -ge 2025 ]
+		then
+			wget -qO /tmp/cart_reader.zip https://codeload.github.com/sanni/cartreader/zip/refs/heads/master &&
+				unzip -q /tmp/cart_reader.zip 'cartreader-master/sd/*' -d /tmp/$$ &&
+				mv -f /tmp/$$/cartreader-master/sd/* /usr/local/games/retrode &&
+				echo Cart database updated. || echo Update failed.
+		else
+			echo "Refusing to update database with bad system time."
+			exit 1
+		fi
 		;;
 	* )
 		echo unknown command "$1"
