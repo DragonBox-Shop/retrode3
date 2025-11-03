@@ -39,7 +39,7 @@ case "$1" in
 	log_daemon_msg "Starting $SERVICE"
 	/etc/gadget/core/letux-gadget.sh add hid
 	# FIXME: we need two daemons for /dev/input/left and /dev/input/right
-	daemon -r --name=$SERVICE -- /usr/bin/mipsel-linux-gnu/hidd /dev/input/event1 /dev/$DEVICE
+	daemon -r --name=$SERVICE -- /usr/bin/mipsel-linux-gnu/hidd /dev/input/left /dev/$DEVICE
 	exit 0
 	;;
   restart|reload|force-reload)

@@ -12,7 +12,8 @@ After=systemd-user-sessions.service rc-local.service usb-gadget.service
 
 [Service]
 ExecStartPre=/etc/gadget/core/letux-gadget.sh add hid
-Exec=/bin/mipsel-linux-gnu/hidd /dev/input/event1 /dev/ttyHID0
+# FIXME: make this dynamic
+Exec=/usr/bin/mipsel-linux-gnu/hidd /dev/input/left /dev/ttyHID0
 ExecStopPost=/etc/gadget/core/letux-gadget.sh remove hid
 Type=idle
 Restart=always
