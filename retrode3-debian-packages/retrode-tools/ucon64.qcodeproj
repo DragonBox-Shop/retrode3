@@ -5,6 +5,7 @@ export DEBIAN_ARCHITECTURES="mipsel"
 export DEBIAN_DESCRIPTION="ucon64 tool (https://ucon64.sourceforge.io)"
 export DEBIAN_PACKAGE_NAME="ucon64"
 export DEBIAN_RAW_FILES="./usr/local/bin/ucon64"
+export DEBIAN_RAW_FILES+=" ./usr/local/man/man1/ucon64.1.gz"
 export INSTALL_PATH="//"
 export PRODUCT_NAME="ucon64"
 
