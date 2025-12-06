@@ -65,7 +65,7 @@ function show_status_as_table()
 		echo "</tr>";
 		}
 
-	foreach(array("left", "right") as $name)
+	foreach(array("SEGA Left", "SEGA Right", "SNES Left", "SNES Right") as $name)
 		{
 		echo "<tr>";
 		echo "<td>".htmlentities("$name Controller")."</td>";
@@ -77,18 +77,20 @@ function show_status_as_table()
 /* here we could loop over all KEYs
  * and run
  *    evtest --query /dev/input/right EV_KEY KEY_A && echo no || echo yes
-    Event code 19 (KEY_R)
+    Event code 19 (KEY_RIGHT)
+    Event code 22 (KEY_UP)
+    Event code 32 (KEY_DOWN)
+    Event code 38 (KEY_LEFT)
     Event code 21 (KEY_Y)
-    Event code 22 (KEY_U)
     Event code 30 (KEY_A)
     Event code 31 (KEY_S)
-    Event code 32 (KEY_D)
-    Event code 38 (KEY_L)
     Event code 44 (KEY_Z)
     Event code 45 (KEY_X)
     Event code 46 (KEY_C)
     Event code 48 (KEY_B)
     Event code 50 (KEY_M)
+    Event code 48 (KEY_L)
+    Event code 50 (KEY_R)
 
 	$keys="ABCDLRSUXYZ";
 	foreach($key in $keys)
