@@ -6,7 +6,7 @@ case "$1" in
 	/dev/slot-md )	# MD
 		LOG=/usr/local/games/retrode/MD/
 		mkdir -p $LOG
-		echo "200" | /usr/local/bin/retrode >$LOG/stdout.txt 2>$LOG/stderr.txt
+		echo "200" | /usr/local/bin/oscr >$LOG/stdout.txt 2>$LOG/stderr.txt
 		FILENAME=$(fgrep "CRC32..." $LOG/stdout.txt | sed 's/CRC32... [0-9a-zA-Z]* -> \(.*\).md/\1/')
 		# genauer Pfad!?
 		echo $FILENAME
@@ -14,13 +14,13 @@ case "$1" in
 	/dev/slot-snes )	# SNES
 		LOG=/usr/local/games/retrode/SNES/
 		mkdir -p $LOG
-		echo "100 " | /usr/local/bin/retrode >$LOG/stdout.txt 2>$LOG/stderr.txt
+		echo "100 " | /usr/local/bin/oscr >$LOG/stdout.txt 2>$LOG/stderr.txt
 		echo $LOG
 		;;
 	/dev/slot-nes )	# NES
 		LOG=/usr/local/games/retrode/NES/
 		mkdir -p $LOG
-		echo  "00 0 " | /usr/local/bin/retrode >$LOG/stdout.txt 2>$LOG/stderr.txt
+		echo  "00 0 " | /usr/local/bin/oscr >$LOG/stdout.txt 2>$LOG/stderr.txt
 		fgrep "Saving to NES/ROM" $LOG/stdout.txt
 		echo $LOG
 		;;

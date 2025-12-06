@@ -3,17 +3,17 @@
 
 case "$1" in
 	/dev/slot-md )	# MD
-	# echo 200 | /usr/local/bin/retrode | fgrep "CRC32..." | sed 's/CRC32... [0-9a-zA-Z]* -> \(.*\).md/\1/'
-		echo 205 | /usr/local/bin/retrode 2>/dev/null >/tmp/$$
+	# echo 200 | /usr/local/bin/oscr | fgrep "CRC32..." | sed 's/CRC32... [0-9a-zA-Z]* -> \(.*\).md/\1/'
+		echo 205 | /usr/local/bin/oscr 2>/dev/null >/tmp/$$
 	NAME="$(fgrep "Name: " </tmp/$$ | sed 's/Name: //')"
 	ID="$(fgrep "Id: " </tmp/$$ | sed 's/Name: //')"
 	[ "$NAME" -a "$ID" ] && echo "$NAME ($ID)" || echo unidentified
 		;;
 	/dev/slot-snes )	# SNES
-		echo 10 | /usr/local/bin/retrode 2>/dev/null | fgrep "Name: " | sed 's/Name: //'
+		echo 10 | /usr/local/bin/oscr 2>/dev/null | fgrep "Name: " | sed 's/Name: //'
 		;;
 	/dev/slot-nes )	# NES
-		echo 0 | /usr/local/bin/retrode 2>/dev/null | fgrep .nes | sed 's/.nes//'
+		echo 0 | /usr/local/bin/oscr 2>/dev/null | fgrep .nes | sed 's/.nes//'
 		;;
 	* )
 		echo unknown device "$1"
