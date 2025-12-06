@@ -1,7 +1,3 @@
 # Rules for detecting game controller insertion/removal
 
-# FIXME: kernel should send a special subsystem note
-# FIXME: add rules for creating symlinks for /dev/input/left & right here?
-
 SUBSYSTEM=="input", KERNEL=="event[0-9]*", ATTRS{modalias}=="input:*-e0*,5,kramlsfw", RUN+="/etc/udev/rules.d/retrode3.sh"
-
