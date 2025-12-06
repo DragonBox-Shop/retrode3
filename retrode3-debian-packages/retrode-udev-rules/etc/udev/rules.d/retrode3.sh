@@ -7,7 +7,7 @@
 # ACTION="change"		# currently we only have change events
 # DEVNAME=/dev/slot-md		# the device name of the slot (for slots)
 # DEVNAME=""			# for game controller slot
-# CHANNEL=0 / 1			# for game controller
+# CHANNEL=0/1/2/3		# for game controllers
 # PWD=/				# script runs in root directory
 # STATE=			# new device state
 #
@@ -46,12 +46,13 @@ case "$ACTION" in
 					;;
 			esac
 		else # game controller
-			# decode CHANNEL 0 -> right, 1 -> left
 
-			case "$CHANNEL" in
+			case "$CHANNEL" in	# CHANNEL=0 .. 3 as by sequence in device tree
 # FIXME: we should add something to the retrode3.rule so that the DEV is passed here
-				0 ) CH=right; DEV=/dev/input/event1; LEDNAME=$(echo /sys/class/leds/*:programming-4);;
-				1 ) CH=left; DEV=/dev/input/event2; LEDNAME=$(echo /sys/class/leds/*:programming-3);;
+				0 ) CH="SEGA Right"; DEV=/dev/input/event1; LEDNAME=$(echo /sys/class/leds/*:programming-4);;
+				1 ) CH="SEGA Left"; DEV=/dev/input/event2; LEDNAME=$(echo /sys/class/leds/*:programming-3);;
+				2 ) CH="SNES Right"; DEV=/dev/input/event3; LEDNAME=$(echo /sys/class/leds/*:programming-4);;
+				3 ) CH="SNES Left; DEV=/dev/input/event4; LEDNAME=$(echo /sys/class/leds/*:programming-3);;
 			esac
 
 			[ -r "$LEDNAME" ] || LEDNAME=$(echo /sys/class/leds/*:heartbeat)	# v2.9.4 has no specific LEDs
