@@ -21,6 +21,9 @@ case "$1" in
     configure)
 		# we need at least 100MiB swap
 		/root/swap-on -b 100 || : ignore error
+		# make sure we have repo access
+		CODENAME=$(cut -d ' ' -f 3 </etc/apt/sources.list)
+		echo "deb [check-valid-until=no] https://download.goldelico.com/quantumstep/debian+retrode $CODENAME main" >/etc/apt/sources.list.d/retrode.list
     ;;
 
     abort-upgrade|abort-remove|abort-deconfigure)
