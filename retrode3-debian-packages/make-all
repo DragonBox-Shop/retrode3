@@ -5,8 +5,10 @@
 # this requires a Retrode3 connected and running RNDIS
 # also needs to have gcc / g++ installed (apt-get install g++) there
 
+DEV=root@192.168.0.202	# for ssh and rsync
+
 function check {
-	if ssh root@192.168.0.202 'ls -ld / /etc /etc/sudoers*' | fgrep letux
+	if ssh $DEV 'ls -ld / /etc /etc/sudoers*' | fgrep letux
 	then
 		echo "!!! $0 FAIL $1 !!!"
 		exit 1
@@ -37,27 +39,26 @@ check 2
 
 if $BUILD_TOOL
 then
-	echo build retrode tool and package
-	export DEPLOY=false DEVICE=otg	# do not auto-install by .qcodeproj	# DEPLOY will damage the permissions of / or /etc/sudoers.d
-	DEV=root@192.168.0.202	# for ssh and rsync
-	CARTREADER=/Volumes/Retrode3/Retrode3-Software/Cart_Reader
+	echo build retrode tools and packages
+	export DEPLOY=false # do not auto-install by .qcodeproj	# DEPLOY will damage the permissions of / or /etc/sudoers.d
+	CARTREADER=$(cd ../Cart_Reader; pwd)
 	BINDIR=/usr/local/bin/
 	ROOTDIR=/usr/local/games/retrode/
 
-	cat <<'END' | con $DEVICE
-[ "$(which g++)" ] && echo g++ available || apt-get -y --force-yes install g++
-END
-
 check 3
 
-	echo remote build retrode-tool
+	echo remote build oscr command line tool
 
 	(
 		cd retrode-tools
-		mkdir -p ./$BINDIR/ ./$ROOTDIR/
-		( cd $CARTREADER && make clean all remote )
-		echo fetch retrode binary
-		cp $CARTREADER/retrode ./$BINDIR/retrode
+		mkdir -p ./$BINDIR/ ./$ROOTDIR/ ./$BINDIR/../include ./$BINDIR/../lib ./$BINDIR/../man/man1 ./$BINDIR/../man/man3
+		( cd $CARTREADER && make clean all remote )	# makes local version with HOSTCC to find bugs early and then remote
+		echo fetch oscr binary
+		cp $CARTREADER/oscr ./$BINDIR/oscr
+		cp $CARTREADER/oscr.groff ./$BINDIR/../man/man1/oscr.groff	# man page
+		cp $CARTREADER/retrode-lib.h ./$BINDIR/../include/retrode-lib.h
+		cp $CARTREADER/retrode-lib.o ./$BINDIR/../lib/retrode-lib.o
+		cp $CARTREADER/retrode-lib.groff ./$BINDIR/../man/man3/retrode-lib.groff	# man page
 		cp -R $CARTREADER/../sd/* ./$ROOTDIR
 	)
 
@@ -68,7 +69,7 @@ check 4
 		cd retrode-tools
 		SRCDIR=/usr/local/src/ucon64
 		rsync -rltDvzh "./ucon64-2.2.2-src/" "$DEV:$SRCDIR"
-		cat <<END | con $DEVICE
+		cat <<END | ssh $DEV
 cd
 cd $SRCDIR/src
 ./configure --disable-parallel
@@ -90,6 +91,17 @@ done
 
 check 6
 
+echo "Prepare zipped groff man pages"
+find . -name '*.groff' | while read MANFILE
+do
+	DIR=$(dirname "$MANFILE")/../
+	BASE=$(basename "$MANFILE" .groff)
+	SECTION=$(fgrep '.TH man ' <"$MANFILE" | cut -d ' ' -f 3)
+	[ "$SECTION" ] && mkdir -p $DIR/../man/man$SECTION && gzip <$MANFILE >$DIR/../man/man$SECTION/$BASE.$SECTION.gz
+done
+
+check 7
+
 if $BUILD_PACKAGES
 then
 
@@ -97,27 +109,29 @@ echo "Build retrode3.deb (and subpackages)"
 RECURSIVE=true ./retrode3.qcodeproj	# could make others recursively but then we have no clear list
 fi
 
-check 7
+check 8
 
 if $INSTALL_PACKAGES
 then
 
 PACKAGES+=" retrode-hidd"
 PACKAGES+=" retrode-controller-gadget"
+PACKAGES+=" retrode-storage-gadget"
 PACKAGES+=" retrode-smb"
-PACKAGES+=" retrode-tools"
 PACKAGES+=" retrode-udev-rules"
 PACKAGES+=" retrode-web-control"
+PACKAGES+=" oscr"
 PACKAGES+=" ucon64"
+PACKAGES+=" retrode-tools"
 PACKAGES+=" retrode3"
 
 echo installing Debian Packages: $PACKAGES
 
-check 8
+check 9
 
 ./dl-deb -o $PACKAGES
 
-check 9
+check 10
 
 fi
 
