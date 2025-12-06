@@ -9,11 +9,11 @@ switch(getvar("update"))
 	{
 	case "database":
 		text("Started ..."); flush();
-		text(callcmd("sudo /usr/local/bin/retrode-admin update-database"));
+		text(callcmd("sudo /usr/local/bin/retrode-admin update-game-database"));
 		break;
 	case "system":
 		text("Started ..."); flush();
-		text(callcmd("sudo /usr/local/bin/retrode-admin apt-get-update"));
+		text(callcmd("sudo /usr/local/bin/retrode-admin apt-get-upgrade"));
 		break;
 	case "poweroff":
 		text("Started ..."); flush();
