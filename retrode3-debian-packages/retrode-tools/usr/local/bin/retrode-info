@@ -17,6 +17,7 @@ case "$1" in
 		;;
 	* )
 		echo unknown device "$1"
+		echo "  /dev/slot-md, /dev/slot-snes, /dev/slot-nes"
 		exit 1
 		;;
 esac

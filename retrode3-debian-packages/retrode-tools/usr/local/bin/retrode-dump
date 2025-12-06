@@ -35,6 +35,7 @@ case "$1" in
 		;;
 	* )
 		echo unknown command "$1"
+		echo "  headers"
 		exit 1
 		;;
 esac

@@ -12,8 +12,8 @@ case "$1" in
 		shift
 		poweroff && echo Will power off now... || echo failed.
 		;;
-	apt-get-update )
-		if [ "$(date "+%Y") -ge 2025 ]
+	apt-get-upgrade )
+		if [ "$(date "+%Y")" -ge 2025 ]
 		then
 			yes | apt-get update && yes | apt-get upgrade &&
 				echo System updated. Now rebooting... &&
@@ -38,8 +38,8 @@ case "$1" in
 			date -r /makesd.info '+%Y-%m-%d %H:%M:%S'
 		fi
 		;;
-	update-database )
-		if [ "$(date "+%Y") -ge 2025 ]
+	update-game-database )
+		if [ "$(date "+%Y")" -ge 2025 ]
 		then
 			wget -qO /tmp/cart_reader.zip https://codeload.github.com/sanni/cartreader/zip/refs/heads/master &&
 				unzip -q /tmp/cart_reader.zip 'cartreader-master/sd/*' -d /tmp/$$ &&
@@ -52,6 +52,7 @@ case "$1" in
 		;;
 	* )
 		echo unknown command "$1"
+		echo "  poweroff, apt-get-upgrade, creation-date, last-os-update, update-game-database"
 		exit 1
 		;;
 esac

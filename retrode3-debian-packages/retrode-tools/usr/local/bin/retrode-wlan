@@ -43,6 +43,7 @@ case "$1" in
 		;;
 	* )
 		echo unknown command "$1"
+		echo "  status, list, connect, disconnect"
 		exit 1
 		;;
 esac
