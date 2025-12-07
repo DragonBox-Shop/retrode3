@@ -43,7 +43,7 @@ case "$1" in
 		then
 			wget -qO /tmp/cart_reader.zip https://codeload.github.com/sanni/cartreader/zip/refs/heads/master &&
 				unzip -q /tmp/cart_reader.zip 'cartreader-master/sd/*' -d /tmp/$$ &&
-				mv -f /tmp/$$/cartreader-master/sd/* /usr/local/games/retrode &&
+				mv -f /tmp/$$/cartreader-master/sd/* /usr/local/games/oscr &&
 				echo Cart database updated. || echo Update failed.
 		else
 			echo "Refusing to update database with bad system time."

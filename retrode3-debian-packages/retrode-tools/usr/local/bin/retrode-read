@@ -4,7 +4,7 @@
 
 case "$1" in
 	/dev/slot-md )	# MD
-		LOG=/usr/local/games/retrode/MD/
+		LOG=/usr/local/games/oscr/MD/
 		mkdir -p $LOG
 		echo "200" | /usr/local/bin/oscr >$LOG/stdout.txt 2>$LOG/stderr.txt
 		FILENAME=$(fgrep "CRC32..." $LOG/stdout.txt | sed 's/CRC32... [0-9a-zA-Z]* -> \(.*\).md/\1/')
@@ -12,13 +12,13 @@ case "$1" in
 		echo $FILENAME
 		;;
 	/dev/slot-snes )	# SNES
-		LOG=/usr/local/games/retrode/SNES/
+		LOG=/usr/local/games/oscr/SNES/
 		mkdir -p $LOG
 		echo "100 " | /usr/local/bin/oscr >$LOG/stdout.txt 2>$LOG/stderr.txt
 		echo $LOG
 		;;
 	/dev/slot-nes )	# NES
-		LOG=/usr/local/games/retrode/NES/
+		LOG=/usr/local/games/oscr/NES/
 		mkdir -p $LOG
 		echo  "00 0 " | /usr/local/bin/oscr >$LOG/stdout.txt 2>$LOG/stderr.txt
 		fgrep "Saving to NES/ROM" $LOG/stdout.txt
