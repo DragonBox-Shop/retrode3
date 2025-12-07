@@ -14,7 +14,7 @@
 # check what happens with udevadm monitor --udev --property
 #
 
-echo DATE=$(date) SUBSYSTEM=$SUBSYSTEM ACTION=$ACTION DEVNAME=$DEVNAME STATE=$STATE @: "$@" >>/tmp/udev-retrode3.log
+echo DATE=$(date) SUBSYSTEM=$SUBSYSTEM ACTION=$ACTION DEVNAME=$DEVNAME STATE=$STATE CHANNEL=$CHANNEL @: "$@" >>/tmp/udev-retrode3.log
 # set >>/tmp/udev-retrode3.log
 
 case "$ACTION" in
@@ -45,14 +45,14 @@ case "$ACTION" in
 					echo heartbeat >$LEDNAME/trigger
 					;;
 			esac
-		else # game controller
+		else # game controller - could also check for DEVPATH == /devices/platform/retrode3/retrode3/gamecontroller
 
 			case "$CHANNEL" in	# CHANNEL=0 .. 3 as by sequence in device tree
 # FIXME: we should add something to the retrode3.rule so that the DEV is passed here
-				0 ) CH="SEGA Right"; DEV=/dev/input/event1; LEDNAME=$(echo /sys/class/leds/*:programming-4);;
-				1 ) CH="SEGA Left"; DEV=/dev/input/event2; LEDNAME=$(echo /sys/class/leds/*:programming-3);;
-				2 ) CH="SNES Right"; DEV=/dev/input/event3; LEDNAME=$(echo /sys/class/leds/*:programming-4);;
-				3 ) CH="SNES Left; DEV=/dev/input/event4; LEDNAME=$(echo /sys/class/leds/*:programming-3);;
+				0 ) CH="sega-right"; DEV=/dev/input/event1; LEDNAME=$(echo /sys/class/leds/*:programming-4);;
+				1 ) CH="sega-left"; DEV=/dev/input/event2; LEDNAME=$(echo /sys/class/leds/*:programming-3);;
+				2 ) CH="snes-right"; DEV=/dev/input/event3; LEDNAME=$(echo /sys/class/leds/*:programming-4);;
+				3 ) CH="snes-left"; DEV=/dev/input/event4; LEDNAME=$(echo /sys/class/leds/*:programming-3);;
 			esac
 
 			[ -r "$LEDNAME" ] || LEDNAME=$(echo /sys/class/leds/*:heartbeat)	# v2.9.4 has no specific LEDs
