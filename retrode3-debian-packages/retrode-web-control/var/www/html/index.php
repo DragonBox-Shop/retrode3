@@ -65,15 +65,15 @@ function show_status_as_table()
 		echo "</tr>";
 		}
 
-	foreach(array("SEGA Left", "SEGA Right", "SNES Left", "SNES Right") as $name)
+	foreach(array("sega-left" => "SEGA Left", "sega-right" => "SEGA Right", "snes-left" => "SNES Left", "snes-right" => "SNES Right") as $device => $name)
 		{
 		echo "<tr>";
 		echo "<td>".htmlentities("$name Controller")."</td>";
 		echo "<td>";
-		if(file_exists("/dev/input/$name"))
+		if(file_exists("/dev/input/$device"))
 			{
 			echo "<font color=\"green\">CONNECTED</font>";
-			$image.="+$name";
+			$image.="+$device";
 /* here we could loop over all KEYs
  * and run
  *    evtest --query /dev/input/right EV_KEY KEY_A && echo no || echo yes
