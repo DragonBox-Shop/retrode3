@@ -9,7 +9,7 @@ $link="smb://".$_SERVER['SERVER_ADDR']."/retrode";
 echo "<a href=\"$link\">Open through SMB</a> ";
 echo "</p>";
 
-$root="/usr/local/games/retrode";	// path on retrode device
+$root="/usr/local/games/oscr";	// path on retrode device
 if(!file_exists($root))
 	$root ="/Volumes/Retrode3/Retrode3-Software/retrode3-debian-packages/retrode-tools/$root";	// a copy on development host
 
@@ -23,7 +23,7 @@ $mode=getvar("mode");
 if($mode == "analyse")
 {
 	html("<pre>");
-	text(callcmd("cd /tmp; /usr/local/bin/ucon64 '/usr/local/games/retrode/$file'"));
+	text(callcmd("cd /tmp; /usr/local/bin/ucon64 '$root/$file'"));
 	$file=dirname($file);	// strip off file name
 	html("</pre>");
 }

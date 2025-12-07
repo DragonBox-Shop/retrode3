@@ -70,7 +70,7 @@ html("<tr><td>");
 text("Last Game Database Update:");
 html("</td><td>");
 // FIXME: make this a function of /usr/local/bin/retrode-admin
-text(callcmd("date -r /usr/local/games/retrode/README.md '+%Y-%m-%d %H:%M:%S'"));
+text(callcmd("date -r /usr/local/games/oscr/README.md '+%Y-%m-%d %H:%M:%S'"));
 echo " <a href=\"$here?update=database\">Update Game Database</a> ";
 // Links auf Game Database: https://github.com/sanni/cartreader/tree/master/sd
 html("</td></tr>");
