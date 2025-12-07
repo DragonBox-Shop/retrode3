@@ -43,7 +43,7 @@ then
 	export DEPLOY=false # do not auto-install by .qcodeproj	# DEPLOY will damage the permissions of / or /etc/sudoers.d
 	CARTREADER=$(cd ../Cart_Reader; pwd)
 	BINDIR=/usr/local/bin/
-	ROOTDIR=/usr/local/games/retrode/
+	ROOTDIR=/usr/local/games/oscr/
 
 check 3
 
