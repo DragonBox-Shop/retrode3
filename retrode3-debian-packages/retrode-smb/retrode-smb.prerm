@@ -19,8 +19,8 @@ set -e
 
 case "$1" in
     remove)
-		# remove [retrode] section from /etc/samba/smb.conf
-		# some awk or sed rule with pattern range
+		# remove share for the Retrode
+		sed -i.bak '/^\[retrode\]/,/^$/d' /etc/samba/smb.conf
 		echo "Restarting smbd..." >&2
 		if [ "$(which systemctl)" ]
 		then

@@ -16,11 +16,10 @@ set -e
 case "$1" in
     configure)
 	rm -rf /media/letux	# comes from letux-smb package
-	if ! fgrep -q "[retrode]" /etc/samba/smb.conf
-	then
-		# add a share for the Retrode
-		cat <<END >>/etc/samba/smb.conf
-
+	# old version that was not automatically removed
+	sed -i.bak '/^\[retrode\]/,/^$/d' /etc/samba/smb.conf
+	# add a share for the Retrode
+	cat <<END >>/etc/samba/smb.conf
 [retrode]
    path = /usr/local/games
    public = yes
@@ -31,17 +30,15 @@ case "$1" in
    read only = no
 
 END
-		echo "Restarting smbd..." >&2
-		if [ "$(which systemctl)" ]
-		then
-			systemctl restart smbd.service
-		else
-			killall smbd
-			/usr/sbin/smbd -D
-		fi
-		echo "... restarted." >&2
-
+	echo "Restarting smbd..." >&2
+	if [ "$(which systemctl)" ]
+	then
+		systemctl restart smbd.service
+	else
+		killall smbd
+		/usr/sbin/smbd -D
 	fi
+	echo "... restarted." >&2
     ;;
 
     abort-upgrade|abort-remove|abort-deconfigure)
