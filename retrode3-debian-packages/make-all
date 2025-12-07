@@ -27,7 +27,7 @@ while [ "$1" ]
 do
 	case "$1" in
 		-b ) BUILD_TOOL=true;;
-		-p ) BUILD_PACKAGES=false;;
+		-p ) BUILD_PACKAGES=false; INSTALL_PACKAGES=false;;
 		-i ) INSTALL_PACKAGES=false;;
 		-* ) echo unknown option "$1"; exit 1;;
 		* ) break;
@@ -133,6 +133,6 @@ check 9
 
 check 10
 
-fi
-
 open http://192.168.0.202
+
+fi
