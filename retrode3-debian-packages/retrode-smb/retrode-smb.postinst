@@ -22,10 +22,10 @@ case "$1" in
 		cat <<END >>/etc/samba/smb.conf
 
 [retrode]
-   path = /usr/local/games/retrode
+   path = /usr/local/games
    public = yes
    writable = yes
-   comment = Retrode reader share
+   comment = Retrode reader games share
    printable = no
    guest ok = yes
    read only = no
