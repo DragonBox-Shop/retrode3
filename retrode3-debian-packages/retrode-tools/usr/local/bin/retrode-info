@@ -1,13 +1,18 @@
 #!/bin/bash
 # retrode-info slot - try to find out Game name
 
-case "$1" in
+SLOTS="$@"
+[ "$SLOTS" ] || SLOTS=$(ls -1 /dev/slot-*)
+
+for SLOT in $SLOTS
+do
+	case "$SLOT" in
 	/dev/slot-md )	# MD
-	# echo 200 | /usr/local/bin/oscr | fgrep "CRC32..." | sed 's/CRC32... [0-9a-zA-Z]* -> \(.*\).md/\1/'
+		# echo 200 | /usr/local/bin/oscr | fgrep "CRC32..." | sed 's/CRC32... [0-9a-zA-Z]* -> \(.*\).md/\1/'
 		echo 205 | /usr/local/bin/oscr 2>/dev/null >/tmp/$$
-	NAME="$(fgrep "Name: " </tmp/$$ | sed 's/Name: //')"
-	ID="$(fgrep "Id: " </tmp/$$ | sed 's/Name: //')"
-	[ "$NAME" -a "$ID" ] && echo "$NAME ($ID)" || echo unidentified
+		NAME="$(fgrep "Name: " </tmp/$$ | sed 's/Name: //')"
+		ID="$(fgrep "Id: " </tmp/$$ | sed 's/Name: //')"
+		[ "$NAME" -a "$ID" ] && echo "$NAME ($ID)" || echo unidentified
 		;;
 	/dev/slot-snes )	# SNES
 		echo 10 | /usr/local/bin/oscr 2>/dev/null | fgrep "Name: " | sed 's/Name: //'
@@ -16,8 +21,9 @@ case "$1" in
 		echo 0 | /usr/local/bin/oscr 2>/dev/null | fgrep .nes | sed 's/.nes//'
 		;;
 	* )
-		echo unknown device "$1"
+		echo unknown device "$SLOT"
 		echo "  /dev/slot-md, /dev/slot-snes, /dev/slot-nes"
 		exit 1
 		;;
-esac
+	esac
+done

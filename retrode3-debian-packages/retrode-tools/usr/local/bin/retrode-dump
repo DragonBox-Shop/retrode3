@@ -1,7 +1,10 @@
 #!/bin/bash -p
 # retrode-dump slot - dump cart header
 
-case "$1" in
+CMD="$1"
+[ "$CMD" ] || CMD=headers
+
+case "$CMD" in
 	headers )
 		if xxd -l 1 /dev/slot-md >/dev/null 2>&1
 		then
@@ -34,7 +37,7 @@ case "$1" in
 		
 		;;
 	* )
-		echo unknown command "$1"
+		echo unknown command "$CMD"
 		echo "  headers"
 		exit 1
 		;;
