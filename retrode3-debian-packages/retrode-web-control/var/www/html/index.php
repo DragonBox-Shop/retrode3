@@ -12,9 +12,9 @@ if($slot=getvar('slot'))
 	text(callcmd("sudo /usr/local/bin/retrode-read $slot"));
 	echo " ...done.</p>";
 	flush();
-	// needs some logic and scanning to find out what the file name is...
+	// needs some logic and scanning to find out what the real file name is...
 	$name=getvar('slot');
-	weblink("Show File", "files.html?dir=$name");
+	weblink("Show File", "files.php?dir=oscr/$name");
 	}
 
 ?>
