@@ -28,11 +28,12 @@ if($mode == "analyse")
 	html("</pre>");
 }
 // text("root: $root d: $d file: $file");
-
-echo "<table border=\"1\">";
-echo "<r><th>Name</th><th>Last modified</th><th>Size</th><tr>";
-foreach(scandir("$root/$file") as $item)
+if(file_exists("$root/$file"))
 {
+	echo "<table border=\"1\">";
+	echo "<r><th>Name</th><th>Last modified</th><th>Size</th><tr>";
+	foreach(scandir("$root/$file") as $item)
+		{
 	if($item === '.') continue;
 	// skip other hidden files starting with .?
 	if(!$file && $item === '..') continue;	// not for root
@@ -63,7 +64,9 @@ foreach(scandir("$root/$file") as $item)
 			$size=str_replace(".0K", "K", sprintf("%.1fK", $size/1024.0));
 		$link="$here?download=".ltrim("$file/$item", "./"); // strip off first / or .
 		}
-	html("<td width=\"200px\"><a href=\"".$link."\">"); text($name); html("</a></td>");
+	html("<td width=\"200px\">");
+	html("<a href=\"".$link."\">"); text($name); html("</a>");
+	html("</td>");
 	html("<td align=\"right\">"); text($modified); html("</td>");
 	html("<td align=\"right\">");
 	text($size);
@@ -72,11 +75,20 @@ foreach(scandir("$root/$file") as $item)
 		$link="$here?file=".ltrim("$file/$item", "./"); // strip off first / or .
 		html("<a href=\"".$link."&mode=analyse"."\"> ");
 		text("Analyse");
+		html("</a>");
 		}
 	html("</td>");
 	html("</tr>");
+		}
+	echo "<table>";
 }
-echo "<table>";
+else
+{
+	text("Not found: $file ");
+	$name="Parent directory";
+	$link="$here?file=".ltrim(dirname($file), "./");	// strip off first / or .
+	html("<a href=\"".$link."\">"); text($name); html("</a>");
+}
 
 include("footer.inc.php");
 ?>
