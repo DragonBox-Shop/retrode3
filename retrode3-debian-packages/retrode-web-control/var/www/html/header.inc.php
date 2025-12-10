@@ -91,7 +91,7 @@ function callcmd($command)
 
 if($dlpath=getvar('download'))
 	{ // handle file download
-	$dlpath="/usr/local/games/oscr/".$dlpath;
+	$dlpath="/usr/local/games/".$dlpath;
 	$dlpath=str_replace("/..", "", $dlpath);
 	if(!file_exists($dlpath))
 		{
