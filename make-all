@@ -7,21 +7,11 @@
 
 DEV=root@192.168.0.202	# for ssh and rsync
 
-function check {
-	if ssh $DEV 'ls -ld / /etc /etc/sudoers*' | fgrep letux
-	then
-		echo "!!! $0 FAIL $1 !!!"
-		exit 1
-	fi
-}
-
 set -e
 
 BUILD_PACKAGES=true
 BUILD_TOOL=false
 INSTALL_PACKAGES=true
-
-check 1
 
 while [ "$1" ]
 do
@@ -35,17 +25,13 @@ do
 	shift
 done
 
-check 2
-
 if $BUILD_TOOL
 then
 	echo build retrode tools and packages
 	export DEPLOY=false # do not auto-install by .qcodeproj	# DEPLOY will damage the permissions of / or /etc/sudoers.d
-	CARTREADER=$(cd ../Cart_Reader; pwd)
+	CARTREADER=$(cd ../Retrode3-OSCR; pwd)
 	BINDIR=/usr/local/bin/
 	ROOTDIR=/usr/local/games/oscr/
-
-check 3
 
 	echo remote build oscr command line tool
 
@@ -59,10 +45,8 @@ check 3
 		cp $CARTREADER/retrode-lib.h ./$BINDIR/../include/retrode-lib.h
 		cp $CARTREADER/retrode-lib.o ./$BINDIR/../lib/retrode-lib.o
 		cp $CARTREADER/retrode-lib.groff ./$BINDIR/../man/man3/retrode-lib.groff	# man page
-		cp -R $CARTREADER/../sd/* ./$ROOTDIR
+		cp -R $CARTREADER/sd/* ./$ROOTDIR
 	)
-
-check 4
 
 	echo remote build ucon64
 	(
@@ -81,15 +65,11 @@ END
 	)
 fi
 
-check 5
-
 echo "Check retrode-web-control"
 for i in retrode-web-control/var/www/html/*.php;
 do
 	php -l $i || exit 1
 done
-
-check 6
 
 echo "Prepare zipped groff man pages"
 find . -name '*.groff' | while read MANFILE
@@ -100,16 +80,12 @@ do
 	[ "$SECTION" ] && mkdir -p $DIR/../man/man$SECTION && gzip <$MANFILE >$DIR/../man/man$SECTION/$BASE.$SECTION.gz
 done
 
-check 7
-
 if $BUILD_PACKAGES
 then
 
 echo "Build retrode3.deb (and subpackages)"
 RECURSIVE=true ./retrode3.qcodeproj	# could make others recursively but then we have no clear list
 fi
-
-check 8
 
 if $INSTALL_PACKAGES
 then
@@ -127,11 +103,7 @@ PACKAGES+=" retrode3"
 
 echo installing Debian Packages: $PACKAGES
 
-check 9
-
 ./dl-deb -o $PACKAGES
-
-check 10
 
 open http://192.168.0.202
 
