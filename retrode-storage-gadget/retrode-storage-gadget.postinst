@@ -40,6 +40,7 @@ case "$1" in
 	rm -rf "$FILES/"*
 	# echo test data >"$FILES/test"
 	cp /media/usb-storage/* $FILES
+	chmod -R a-wx $FILES/*
 	sync
 	umount "$FILES"
 	rm -rf "$FILES"
