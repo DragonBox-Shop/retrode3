@@ -5,6 +5,8 @@
 # zu einem daemon machen den das PHP per REST-API triggern/steuern kann?
 # dann blockieren längere Aktivitäten das PHP nicht
 
+# sollte als sudo ausgeführt werden
+
 set -e
 
 case "$1" in
@@ -50,9 +52,14 @@ case "$1" in
 			exit 1
 		fi
 		;;
+	restart-ntpd )
+		service ntp stop
+		ntpd -gq
+		service ntp start
+		;;
 	* )
 		echo unknown command "$1"
-		echo "  poweroff, apt-get-upgrade, creation-date, last-os-update, update-game-database"
+		echo "  poweroff, apt-get-upgrade, creation-date, last-os-update, update-game-database, restart-ntpd"
 		exit 1
 		;;
 esac
