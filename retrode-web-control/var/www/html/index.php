@@ -4,9 +4,10 @@ include("header.inc.php");
 
 if($slot=getvar('slot'))
 	{ // read out cart
+	$mode=getvar('mode');	// ROM, RAM etc.
 	$slot="/dev/slot-".$slot;
 	$slot=str_replace("/..", "", $slot);
-	echo "<p>Reading ".getvar('name')."</p>";
+	echo "<p>Reading ".getvar('slot')."</p>";
 	echo "<p>Please wait...";
 	flush();
 	$result=trim(callcmd("sudo /usr/local/bin/retrode-read $slot"));
@@ -58,12 +59,15 @@ function show_status_as_table()
 			else
 				{
 				text($str);
-				html(" ");
+				echo "</td>";
+				echo "<td>";
 				html("<a href=");
-				html("\"$here?slot=".rawurlencode($slot)."&name=".rawurlencode("MD/ROM/$str")."\"");
+				html("\"$here?slot=".urlencode($slot)."&name=".urlencode("ROM")."\"");
 				html(">");
-				text("Extract");
+				text("Extract ROM");
 				html("</a>");
+				text(" ");
+				text("[Extract RAM]");
 				}
 			$image.="+$slot";
 			}
