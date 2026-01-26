@@ -4,7 +4,7 @@
 export DEBIAN_ARCHITECTURES="all"
 export DEBIAN_DEPENDS="letux-httpd"
 export DEBIAN_DEPENDS+=", unzip"
-export DEBIAN_DESCRIPTION="setup web configuration for Retrode3"
+export DEBIAN_DESCRIPTION="Web GUI for Retrode3"
 export DEBIAN_PACKAGE_NAME="retrode-web-control"
 export DEBIAN_RAW_FILES="."
 export DEBIAN_RAW_PREFIX="var/www/html/"

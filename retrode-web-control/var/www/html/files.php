@@ -31,7 +31,7 @@ if($mode == "analyse")
 if(file_exists("$root/$file"))
 {
 	echo "<table border=\"1\">";
-	echo "<r><th>Name</th><th>Last modified</th><th>Size</th><tr>";
+	echo "<r><th>Name</th><th>Last modified</th><th>Size</th><th>Command</th<tr>";
 	foreach(scandir("$root/$file") as $item)
 		{
 	if($item === '.') continue;
@@ -73,6 +73,7 @@ if(file_exists("$root/$file"))
 	if($size != "-")
 		{ // include file name in file=
 		$link="$here?file=".ltrim("$file/$item", "./"); // strip off first / or .
+		html("</td><td>");
 		html("<a href=\"".$link."&mode=analyse"."\"> ");
 		text("Analyse");
 		html("</a>");

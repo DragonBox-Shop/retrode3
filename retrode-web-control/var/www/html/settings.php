@@ -35,7 +35,8 @@ text("Device Model:");
 html("</td><td>");
 // FIXME: make this a function of /usr/local/bin/retrode-admin
 text(str_replace(chr(0), '', file_get_contents("/proc/device-tree/model")));
-html(" <a href=\"$here?update=poweroff\">Power Off</a> ");
+html("</td><td>");
+html("<a href=\"$here?update=poweroff\">Power Off</a> ");
 html("</td></tr>");
 
 html("<tr><td>");
@@ -59,6 +60,7 @@ html("<tr><td>");
 text("Last OS Update:");
 html("</td><td>");
 text(callcmd("sudo /usr/local/bin/retrode-admin last-os-update"));
+html("</td><td>");
 echo " <a href=\"$here?update=system\">Update OS</a> ";
 html("</td></tr>");
 
@@ -75,8 +77,9 @@ text("Last Game Database Update:");
 html("</td><td>");
 // FIXME: make this a function of /usr/local/bin/retrode-admin
 text(callcmd("date -r /usr/local/games/oscr/README.md '+%Y-%m-%d %H:%M:%S'"));
-echo " <a href=\"$here?update=database\">Update Game Database</a> ";
-// Links auf Game Database: https://github.com/sanni/cartreader/tree/master/sd
+html("</td><td>");
+echo "<a href=\"$here?update=database\">Update Game Database</a>";
+// Link auf Game Database: https://github.com/sanni/cartreader/tree/master/sd
 html("</td></tr>");
 
 html("<tr><td>");
@@ -158,7 +161,8 @@ echo "<table border=\"1\">";
 if($connected != "connected")
 	{
 	echo "<tr><td>SSID</td><td><input name=\"ssid\" value=\"$ssid\" width=\"20\"></input>";
-	echo " <input type=\"submit\" name=\"wlan\" value=\"Connect\"></input></td></tr>";
+html("</td><td>");
+	echo "<input type=\"submit\" name=\"wlan\" value=\"Connect\"></input></td></tr>";
 // add java script to toggle type between "password" and "text" to unhide the password
 	echo "<tr><td>WPA-Key</td><td><input type=\"password\" name=\"password\" value=\"$password\" width=\"20\"></input></td></tr>";
 	}
@@ -170,7 +174,9 @@ else
 
 echo "<tr><td>IP4 Address</td><td>"; text($ip4); echo "</td></tr>";
 echo "<tr><td>IP6 Address</td><td>"; text($ip6); echo "</td></tr>";
-echo "<tr><td>MAC Address</td><td>"; text($mac); echo " <input type=\"submit\" name=\"wlan\" value=\"Access Point Mode\"></input></td></tr>";
+echo "<tr><td>MAC Address</td><td>"; text($mac);
+html("</td><td>");
+echo "<input type=\"submit\" name=\"wlan\" value=\"Access Point Mode\"></input></td></tr>";
 // echo "<tr><td>Frequency</td><td>2.4 GHz</td></tr>";		// ?
 echo "</table>";
 }
