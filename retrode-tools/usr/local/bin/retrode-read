@@ -2,27 +2,21 @@
 # retrode-read slot - read game from slot
 # return file name of result (empty if download failed)
 
+LOG=/var/log/oscr/
+GAMES=/usr/local/games/retrode
+
 case "$1" in
 	/dev/slot-md )	# MD
-		LOG=/usr/local/games/oscr/MD/
 		mkdir -p $LOG
-		echo "200" | /usr/local/bin/oscr >$LOG/stdout.txt 2>$LOG/stderr.txt
-		FILENAME=$(fgrep "CRC32..." $LOG/stdout.txt | sed 's/CRC32... [0-9a-zA-Z]* -> \(.*\).md/\1/')
-		# genauer Pfad!?
-		echo $FILENAME
+		echo "200" | /usr/local/bin/oscr >$LOG/stdout.txt 2>$LOG/stderr.txt || exit 1
 		;;
 	/dev/slot-snes )	# SNES
-		LOG=/usr/local/games/oscr/SNES/
 		mkdir -p $LOG
-		echo "100 " | /usr/local/bin/oscr >$LOG/stdout.txt 2>$LOG/stderr.txt
-		echo $LOG
+		echo "100 " | /usr/local/bin/oscr >$LOG/stdout.txt 2>$LOG/stderr.txt || exit 1
 		;;
 	/dev/slot-nes )	# NES
-		LOG=/usr/local/games/oscr/NES/
 		mkdir -p $LOG
-		echo  "00 0 " | /usr/local/bin/oscr >$LOG/stdout.txt 2>$LOG/stderr.txt
-		fgrep "Saving to NES/ROM" $LOG/stdout.txt
-		echo $LOG
+		echo  "00 0 " | /usr/local/bin/oscr >$LOG/stdout.txt 2>$LOG/stderr.txt || exit 1
 		;;
 	* )
 		echo unknown device "$1"
@@ -30,3 +24,9 @@ case "$1" in
 		exit 1
 		;;
 esac
+
+# FIXME: sobald oscr den echten Namen liefert, dann das mit .* und \.\.\. rausnehmen...
+# grep "Saving to .*/ROM" $LOG/stdout.txt
+FILENAME=$(grep "Saving to .*/ROM" $LOG/stdout.txt | sed "s|Saving to \(.*\)/\.\.\.|$GAMES/\1|");
+# echo "$FILENAME"
+[ "$FILENAME" ] && ls -1 "$FILENAME"/* 2>/dev/null
