@@ -19,6 +19,10 @@ switch(getvar("update"))
 		text("Started ..."); flush();
 		text(callcmd("sudo /usr/local/bin/retrode-admin poweroff"));
 		break;
+	case "restart-ntpd":
+		text("Started ..."); flush();
+		text(callcmd("sudo /usr/local/bin/retrode-admin restart-ntpd"));
+		break;
 	}
 html("</font></p>");
 
@@ -206,6 +210,8 @@ html("</table>");
 section(3, "Language and Time Zone");
 
 html("... hier sollte der User die Time-Zone und Language dieser Webseiten einstellen können - ausser wir holen das (zumindest die Language) aus den Browser-Request-Daten. Alternativ könnte das alles in Cookies gesetzt werden.");
+
+html(" <a href=\"$here?update=restart-ntpd\">Restart NTP daemon</a> ");
 
 // Buttons:
 //   Scan

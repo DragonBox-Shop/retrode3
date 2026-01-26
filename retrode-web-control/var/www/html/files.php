@@ -45,13 +45,13 @@ if(file_exists("$root/$file"))
 			{
 			$name="Parent";
 			$size="-";
-			$link="$here?file=".ltrim(dirname($file), "./");	// strip off first / or .
+			$link="$here?file=".urlencode(ltrim(dirname($file), "./"));	// strip off first / or .
 			}
 		else
 			{
 			$name="$item/";
 			$size="-";
-			$link="$here?file=".ltrim("$file/$item", "./");	// strip off first / or .
+			$link="$here?file=".urlencode(ltrim("$file/$item", "./"));	// strip off first / or .
 			}
 		}
 	else
@@ -62,7 +62,7 @@ if(file_exists("$root/$file"))
 			$size=str_replace(".0M", "M", sprintf("%.1fM", $size/1024.0*1024));
 		if($size > 1024)
 			$size=str_replace(".0K", "K", sprintf("%.1fK", $size/1024.0));
-		$link="$here?download=".ltrim("$file/$item", "./"); // strip off first / or .
+		$link="$here?download=".urlencode(ltrim("$file/$item", "./")); // strip off first / or .
 		}
 	html("<td width=\"200px\">");
 	html("<a href=\"".$link."\">"); text($name); html("</a>");
@@ -86,7 +86,7 @@ else
 {
 	text("Not found: $file ");
 	$name="Parent directory";
-	$link="$here?file=".ltrim(dirname($file), "./");	// strip off first / or .
+	$link="$here?file=".urlencode(ltrim(dirname($file), "./"));	// strip off first / or .
 	html("<a href=\"".$link."\">"); text($name); html("</a>");
 }
 

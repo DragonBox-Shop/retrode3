@@ -57,9 +57,8 @@ function section($level, $text)
 	}
 
 function weblink($title, $destination)
-	{
-	// rawurlencode is too heavy...
-	html("<a href=".$destination.">");
+	{ // $destination must already be urlencoded where necessary!
+	html("<a href=\"".$destination."\">");
 	html(_htmlentities($title));
 	html("</a>");
 	}
@@ -150,13 +149,23 @@ if(date("Y") < 2025)
 	{
 	html("<p><font size=\"+2\" color=\"red\">");
 	text("Date is not reliable. Some functions may be seriously broken. Check your Internet connection.");
+	text(" Or restart the NTP daemon through the Settings page.");
 	html("</font></p>");
 	}
 $model=str_replace(chr(0), '', file_get_contents("/proc/device-tree/model"));
 echo "<h1>Welcome to $model</h1>";
 echo $_SERVER['SERVER_ADDR']." ";
 // echo $_SERVER['REMOTE_ADDR']." ";
-echo date(DATE_RFC822)." ";
+
+if(date("Y") < 2025)
+	{
+	html("<font color=\"red\">");
+	text(date(DATE_RFC822)." ");
+	html(" <a href=\"settings.php?update=restart-ntpd\">Restart NTP daemon</a> ");
+	html("</font>");
+	}
+else
+	text(date(DATE_RFC822)." ");
 
 html('<input type="submit" value="Refresh"></input> ');
 
