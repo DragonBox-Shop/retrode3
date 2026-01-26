@@ -103,7 +103,7 @@ PACKAGES+=" retrode3"
 
 echo installing Debian Packages: $PACKAGES
 
-./dl-deb -o $PACKAGES
+dl-deb -o $PACKAGES
 
 open http://192.168.0.202
 
