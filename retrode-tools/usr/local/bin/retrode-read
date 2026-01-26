@@ -3,30 +3,43 @@
 # return file name of result (empty if download failed)
 
 LOG=/var/log/oscr/
-GAMES=/usr/local/games/retrode
+MODE=oscr-read
+GAMES=/usr/local/games/oscr
 
-case "$1" in
-	/dev/slot-md )	# MD
-		mkdir -p $LOG
+mkdir -p $LOG $GAMES
+
+while [ "$1" ]
+do
+	case "$1" in
+	md | /dev/slot-md )	# MD
 		echo "200" | /usr/local/bin/oscr >$LOG/stdout.txt 2>$LOG/stderr.txt || exit 1
 		;;
-	/dev/slot-snes )	# SNES
-		mkdir -p $LOG
+	snes | /dev/slot-snes )	# SNES
 		echo "100 " | /usr/local/bin/oscr >$LOG/stdout.txt 2>$LOG/stderr.txt || exit 1
 		;;
-	/dev/slot-nes )	# NES
-		mkdir -p $LOG
+	nes | /dev/slot-nes )	# NES
 		echo  "00 0 " | /usr/local/bin/oscr >$LOG/stdout.txt 2>$LOG/stderr.txt || exit 1
+		;;
+	-read | -write | -ram )
+		MODE=oscr$1
+		shift
+		continue
+		;;
+	# add other modes here - can call other tools, e.g. based in libretrode and adapters
+	-* )
+		echo unknown option "$1"
+		exit 1
 		;;
 	* )
 		echo unknown device "$1"
 		echo "  /dev/slot-md, /dev/slot-snes, /dev/slot-nes"
 		exit 1
 		;;
-esac
-
+	esac
 # FIXME: sobald oscr den echten Namen liefert, dann das mit .* und \.\.\. rausnehmen...
-# grep "Saving to .*/ROM" $LOG/stdout.txt
-FILENAME=$(grep "Saving to .*/ROM" $LOG/stdout.txt | sed "s|Saving to \(.*\)/\.\.\.|$GAMES/\1|");
+# grep "Saving to .*/.*/" $LOG/stdout.txt
+	FILENAME=$(grep "Saving to .*/.*/" $LOG/stdout.txt | sed "s|Saving to \(.*\)/\.\.\.|$GAMES/\1|");
 # echo "$FILENAME"
-[ "$FILENAME" ] && ls -1 "$FILENAME"/* 2>/dev/null
+	[ "$FILENAME" ] && ls -1 "$FILENAME"/* 2>/dev/null
+	shift
+done
