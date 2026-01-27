@@ -3,43 +3,95 @@
 # return file name of result (empty if download failed)
 
 LOG=/var/log/oscr/
-MODE=oscr-read
 GAMES=/usr/local/games/oscr
 
 mkdir -p $LOG $GAMES
+
+function filter_filename {
+# FIXME: sobald oscr den echten Namen liefert, dann das mit .* und \.\.\. rausnehmen...
+# grep "Saving to .*/.*/" $LOG/stdout.txt
+	FILENAME=$(grep "Saving to .*/.*/" $LOG/stdout.txt | sed "s|Saving to \(.*\)/\.\.\.|$GAMES/\1|");
+# echo "$FILENAME"
+	[ "$FILENAME" ] && ls -1 "$FILENAME"/* 2>/dev/null
+}
 
 while [ "$1" ]
 do
 	case "$1" in
 	md | /dev/slot-md )	# MD
 		echo "200" | /usr/local/bin/oscr >$LOG/stdout.txt 2>$LOG/stderr.txt || exit 1
+		filter_filename
+		;;
+	md-read-ram )	# MD read RAM
+		echo  "201  " | /usr/local/bin/oscr >$LOG/stdout.txt 2>$LOG/stderr.txt || exit 1
+		# may need different filter to derive file name
+		filter_filename
+		;;
+	md-write-ram )	# MD write RAM
+		echo "not working (how to pass file name?)"
+		exit 1
+		echo  "202 " | /usr/local/bin/oscr >$LOG/stdout.txt 2>$LOG/stderr.txt || exit 1
 		;;
 	snes | /dev/slot-snes )	# SNES
 		echo "100 " | /usr/local/bin/oscr >$LOG/stdout.txt 2>$LOG/stderr.txt || exit 1
+		filter_filename
+		;;
+	snes-read-ram )	# SNES read RAM
+		echo  "101  " | /usr/local/bin/oscr >$LOG/stdout.txt 2>$LOG/stderr.txt || exit 1
+		# may need different filter to derive file name
+		filter_filename
+		;;
+	ses-write-ram )	# SNES write RAM
+		echo "not working (how to pass file name?)"
+		exit 1
+		echo  "102 " | /usr/local/bin/oscr >$LOG/stdout.txt 2>$LOG/stderr.txt || exit 1
+		;;
+	snes-test-ram )	# SNES test RAM
+		echo  "104  " | /usr/local/bin/oscr >$LOG/stdout.txt 2>$LOG/stderr.txt || exit 1
+		# may need different filter to derive result
+		filter_filename
 		;;
 	nes | /dev/slot-nes )	# NES
 		echo  "00 0 " | /usr/local/bin/oscr >$LOG/stdout.txt 2>$LOG/stderr.txt || exit 1
+		filter_filename
 		;;
-	-read | -write | -ram )
-		MODE=oscr$1
-		shift
-		continue
+	nes-prg+chr )	# NES save PRG+CHR
+		echo  "00 10 " | /usr/local/bin/oscr >$LOG/stdout.txt 2>$LOG/stderr.txt || exit 1
+		# may need different filter to derive file name
+		filter_filename
 		;;
-	# add other modes here - can call other tools, e.g. based in libretrode and adapters
+	nes-prg )	# NES save PRG
+		echo  "00 11 " | /usr/local/bin/oscr >$LOG/stdout.txt 2>$LOG/stderr.txt || exit 1
+		# may need different filter to derive file name
+		filter_filename
+		;;
+	nes-chr )	# NES save CHR
+		echo  "00 12 " | /usr/local/bin/oscr >$LOG/stdout.txt 2>$LOG/stderr.txt || exit 1
+		# may need different filter to derive file name
+		filter_filename
+		;;
+	nes-read-ram )	# NES read RAM
+		echo  "00 2 " | /usr/local/bin/oscr >$LOG/stdout.txt 2>$LOG/stderr.txt || exit 1
+		filter_filename
+		# may need different filter to derive file name
+		;;
+	nes-write-ram )	# NES write RAM
+		echo "not working (how to pass file name?)"
+		exit 1
+		echo  "00 3 " | /usr/local/bin/oscr >$LOG/stdout.txt 2>$LOG/stderr.txt || exit 1
+		;;
+	# add other cart types and modes here - can call other tools, e.g. based on libretrode and adapters
 	-* )
 		echo unknown option "$1"
 		exit 1
 		;;
 	* )
 		echo unknown device "$1"
-		echo "  /dev/slot-md, /dev/slot-snes, /dev/slot-nes"
+		echo "  use /dev/slot-$type for read"
+		echo "  or $type[-read|-write][-ram|prg|chr]"
+		echo "  or others if they are implemented"
 		exit 1
 		;;
 	esac
-# FIXME: sobald oscr den echten Namen liefert, dann das mit .* und \.\.\. rausnehmen...
-# grep "Saving to .*/.*/" $LOG/stdout.txt
-	FILENAME=$(grep "Saving to .*/.*/" $LOG/stdout.txt | sed "s|Saving to \(.*\)/\.\.\.|$GAMES/\1|");
-# echo "$FILENAME"
-	[ "$FILENAME" ] && ls -1 "$FILENAME"/* 2>/dev/null
 	shift
 done
