@@ -18,13 +18,13 @@
  */
 
 #include <fcntl.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/ioctl.h>
 #include <sys/select.h>
 #include <unistd.h>
-#include <stdint.h>
 
 /* from asm-generic/posix_types.h> */
 typedef unsigned long	__kernel_ulong_t;
@@ -95,6 +95,26 @@ fprintf(stderr, "sent %d bytes for shift %x and code %x\n", n, hid_data[0], hid_
 	return 0;
 }
 
+#define BITS_PER_LONG (sizeof(unsigned long) * 8)
+#define NBITS(x) ((((x) - 1) / BITS_PER_LONG) + 1)
+
+#define test_bit(bit, array) \
+	((array[(bit) / BITS_PER_LONG] >> ((bit) % BITS_PER_LONG)) & 1)
+
+static int has_key(const unsigned long *keybits, int code)
+{
+	return test_bit(code, keybits);
+}
+
+static int has_any_key_in_range(const unsigned long *keybits, int start, int end)
+{
+	for (int i = start; i <= end; i++) {
+		if (has_key(keybits, i))
+			return 1;
+	}
+	return 0;
+}
+
 int hid(char *device, char *hid_file)
 {
 	int event_fd, hid_fd;
@@ -104,6 +124,51 @@ int hid(char *device, char *hid_file)
 		perror(device);
 		return 1;
 	}
+
+	unsigned long evbit[NBITS(EV_MAX)] = {0};
+	unsigned long keybit[NBITS(KEY_MAX)] = {0};
+	unsigned long relbit[NBITS(REL_MAX)] = {0};
+	unsigned long absbit[NBITS(ABS_MAX)] = {0};
+
+	ioctl(event_fd, EVIOCGBIT(0, sizeof(evbit)), evbit);
+
+	if (test_bit(EV_KEY, evbit))
+		ioctl(event_fd, EVIOCGBIT(EV_KEY, sizeof(keybit)), keybit);
+
+	if (test_bit(EV_REL, evbit))
+		ioctl(event_fd, EVIOCGBIT(EV_REL, sizeof(relbit)), relbit);
+
+	if (test_bit(EV_ABS, evbit))
+		ioctl(event_fd, EVIOCGBIT(EV_ABS, sizeof(absbit)), absbit);
+
+	/* ---- Classification ---- */
+
+	int is_keyboard =
+		has_key(keybit, KEY_A) &&
+		(has_key(keybit, KEY_X) || has_key(keybit, KEY_Z));
+
+	int is_mouse =
+		test_bit(EV_REL, evbit) &&
+		test_bit(REL_X, relbit) &&
+		test_bit(REL_Y, relbit) &&
+		has_key(keybit, BTN_LEFT);
+
+	int is_gamepad =
+		test_bit(EV_ABS, evbit) &&
+		(has_any_key_in_range(keybit, BTN_GAMEPAD, BTN_GAMEPAD + 15) ||
+		 has_any_key_in_range(keybit, BTN_JOYSTICK, BTN_JOYSTICK + 15));
+
+	/* ---- Output ---- */
+
+	if (is_keyboard)
+		printf("Device type: KEYBOARD\n");
+	else if (is_mouse)
+		printf("Device type: MOUSE\n");
+	else if (is_gamepad)
+		printf("Device type: GAMEPAD / JOYSTICK\n");
+	else
+		printf("Device type: UNKNOWN\n");
+
 	hid_fd = open(hid_file, O_WRONLY);
 	if (hid_fd < 0) {
 		perror(hid_file);
@@ -131,6 +196,8 @@ int hid(char *device, char *hid_file)
 				return 0;	/* EOF */
 
 fprintf(stderr, "type=%d code=%d value=%d\n", event.type, event.code, event.value);
+
+			// FIXME: handle different translations of keyboard, mouse, gamepad here
 
 			// geht! type=1 code=158/143 value=0/1 (loslassen/drücken)
 			// dazwischen noch type=0 code=0 value=0?
