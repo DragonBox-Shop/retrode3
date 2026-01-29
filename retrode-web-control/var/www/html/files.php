@@ -23,7 +23,13 @@ $mode=getvar("mode");
 if($mode == "analyse")
 {
 	html("<pre>");
-	text(callcmd("cd /tmp; /usr/local/bin/ucon64 '$root/$file'"));
+	$analyse=callcmd("cd /tmp; /usr/local/bin/ucon64 '$root/$file'");
+	/* FIXME: detect checksum errors and mark with <font color=\"red\">
+Checksum: Bad, 0x1728 (calculated) != 0x4749 (internal)
+Checksum: OK, 0xf5aa (calculated) == 0xf5aa (internal)
+Checksum: OK, 0xebd8 (calculated) == 0xebd8 (internal)
+	*/
+	text($analyse);
 	$file=dirname($file);	// strip off file name
 	html("</pre>");
 }
