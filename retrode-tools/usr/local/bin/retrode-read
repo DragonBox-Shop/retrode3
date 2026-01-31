@@ -3,14 +3,15 @@
 # return file name of result (empty if download failed)
 
 LOG=/var/log/oscr/
-GAMES=/usr/local/games/oscr
+# GAMES=/usr/local/games/oscr
 
 mkdir -p $LOG $GAMES
 
 function filter_filename {
 # FIXME: sobald oscr den echten Namen liefert, dann das mit .* und \.\.\. rausnehmen...
 # grep "Saving to .*/.*/" $LOG/stdout.txt
-	FILENAME=$(grep "Saving to .*/.*/" $LOG/stdout.txt | sed "s|Saving to \(.*\)/\.\.\.|$GAMES/\1|");
+#	FILENAME=$(grep "Saving to .*/.*/" $LOG/stdout.txt | sed "s|Saving to \(.*\)/\.\.\.|$GAMES/\1|");
+	FILENAME=$(grep "Saving to " $LOG/stdout.txt | sed "s|Saving to \(.*\)/\.\.\.|\1|");
 # echo "$FILENAME"
 	[ "$FILENAME" ] && ls -1 "$FILENAME"/* 2>/dev/null
 }
