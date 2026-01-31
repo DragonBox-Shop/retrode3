@@ -19,6 +19,7 @@ set -e
 
 case "$1" in
     configure)
+	[ -x /bin/systemctl ] && /bin/systemctl daemon-reload || : ignore
 	/usr/sbin/service retrode-controller-gadget@js0 start
     ;;
 

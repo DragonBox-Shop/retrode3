@@ -7,13 +7,16 @@
 
 [Unit]
 Description=USB HID Game Controller service
-Documentation=man:agetty(8) man:systemd-getty-generator(8)
+Documentation=THIS IS BROKEN
 After=systemd-user-sessions.service rc-local.service usb-gadget.service
 
 [Service]
-ExecStartPre=/etc/gadget/core/letux-gadget.sh add hid
-# FIXME: make this dynamic
-Exec=/usr/bin/mipsel-linux-gnu/hidd /dev/input/left /dev/ttyHID0
+# ExecStartPre=/etc/gadget/core/letux-gadget.sh add hid keyboard
+# ExecStartPre=/etc/gadget/core/letux-gadget.sh add hid gamepad
+ExecStartPre=/etc/gadget/core/letux-gadget.sh add hid joystick
+ExecStartPre=/etc/gadget/core/letux-gadget.sh add hid mouse
+# FIXME: make this dynamic and handle 2-4 hid channels
+# Exec=/usr/bin/mipsel-linux-gnu/hidd /dev/input/left /dev/ttyHID0
 ExecStopPost=/etc/gadget/core/letux-gadget.sh remove hid
 Type=idle
 Restart=always
