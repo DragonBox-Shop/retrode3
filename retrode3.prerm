@@ -19,7 +19,8 @@ set -e
 
 case "$1" in
     remove)
-	sed -i.bak '/swapfile/d' /etc/fstab
+	rm -f /etc/apt/sources.list.d/retrode.list
+	/root/swap-on -r
 	;;
 
     upgrade|deconfigure)
