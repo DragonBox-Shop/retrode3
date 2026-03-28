@@ -18,6 +18,8 @@ case "$1" in
 				exit;
 		esac
 
+	# check for access point mode	iwconfig | fgrep Mode:Managed oder Mode:Master
+
 		SSID=$(iwconfig $WLAN | fgrep "ESSID:" | sed 's/.*ESSID:\"\([^" ]*\).*/\1/g')
 		APMAC=$(iwconfig $WLAN | fgrep "Access Point: " | sed 's/.*Access Point: \([^ ]*\).*/\1/g')
 		MAC=$(ifconfig $WLAN | fgrep "HWaddr " | sed 's/.*HWaddr \([^ ]*\).*/\1/g')
@@ -30,6 +32,7 @@ case "$1" in
 		echo $STATUS,$SSID,$APMAC,$MAC,$IP4,$IP6
 		;;
 	list )
+	# does not work in access point mode!
 		shift
 		/root/wlan-scan "$@"
 		;;
@@ -39,6 +42,7 @@ case "$1" in
 		;;
 	disconnect )
 		shift
+		/root/wlan-on -f 0 dummy	# turn off access point mode
 		ifconfig $(interface) down
 		;;
 	* )
