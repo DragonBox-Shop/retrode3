@@ -17,7 +17,24 @@ $d=getvar("file");
 $file=str_replace("/..", "", "/$d");	// prevent moving to superdirectories..
 $file=ltrim($file, "./");			// strip off first / or .
 
-html("<h2>"); text("Current directory: /$file"); html("</h2>");
+html("<h2>");
+text("Current directory: ");
+$path="";
+foreach(explode("/", $file) as $segment)
+	{
+	$path.="/$segment";
+	$link="$here?file=".urlencode("$path");
+	if($path == "/$segment")
+		{ // special rule for first entry ("root")
+		html("<a href=\""."$here?file="."\">"); text("/"); html("</a>");
+		html(" <a href=\"".$link."\">"); text($segment); html("</a>");
+		}
+	else
+		{
+		html(" / <a href=\"".$link."\">"); text($segment); html("</a>");
+		}
+	}
+html("</h2>");
 
 $mode=getvar("mode");
 if($mode == "analyse")
