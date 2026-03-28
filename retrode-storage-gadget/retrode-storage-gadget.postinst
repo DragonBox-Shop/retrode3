@@ -20,31 +20,10 @@ set -e
 case "$1" in
     configure)
 	DEVICE=/var/storage0.img
-	BLOCKS=100 # increase block count if we need more space
-	NAME=RETRODE3
-	FILES=/tmp/$$
 
-	[ -x /bin/systemctl ] && /bin/systemctl daemon-reload || : ignore
-	/usr/sbin/service letux-storage-gadget@storage0 stop
-
-	if [ ! -f "$DEVICE" ]
-	then
-		/sbin/mkfs.vfat -C -n "$NAME" "$DEVICE" $BLOCKS
-	fi
-	# rename
-	/sbin/fatlabel "$DEVICE" "$NAME"
-
-	# fill disk with data
-	mkdir -p "$FILES"
-	mount -o loop "$DEVICE" "$FILES"
-	rm -rf "$FILES/"*
-	# echo test data >"$FILES/test"
-	cp /media/usb-storage/* $FILES
-	sync
-	umount "$FILES"
-	rm -rf "$FILES"
-
-	/usr/sbin/service letux-storage-gadget@storage0 start
+	[ -x /bin/systemctl ] && /bin/systemctl daemon-reload || : echo ignore error
+	rm -f "$DEVICE"	# force content rebuild after install or update
+	/usr/sbin/service retrode-storage-gadget@storage0 start
    ;;
 
     abort-upgrade|abort-remove|abort-deconfigure)
