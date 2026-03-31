@@ -3,17 +3,31 @@
 # return file name of result (empty if download failed)
 
 LOG=/var/log/oscr/
-# GAMES=/usr/local/games/oscr
 
 mkdir -p $LOG $GAMES
 
 function filter_filename {
-# FIXME: sobald oscr den echten Namen liefert, dann das mit .* und \.\.\. rausnehmen...
-# grep "Saving to .*/.*/" $LOG/stdout.txt
-#	FILENAME=$(grep "Saving to .*/.*/" $LOG/stdout.txt | sed "s|Saving to \(.*\)/\.\.\.|$GAMES/\1|");
-	FILENAME=$(grep "Saving to " $LOG/stdout.txt | sed "s|Saving to \(.*\)/\.\.\.|\1|");
+	FILENAME=$(grep "Saving to " $LOG/stdout.txt | sed "s|Saving to \(.*\)/\.\.\.|\1|")	# MD or NES ROM
 # echo "$FILENAME"
-	[ "$FILENAME" ] && ls -1 "$FILENAME"/* 2>/dev/null
+	if [ -d "$FILENAME" ]
+	then
+		ls -1 "$FILENAME"/* 2>/dev/null
+		return
+	fi
+	FILENAME=$(grep "Saved to " $LOG/stdout.txt | sed "s|Saved to \(.*\)/|\1|")	# NES RAM
+# echo "$FILENAME"
+	if [ -d "$FILENAME" ]
+	then
+		ls -1 "$FILENAME"/* 2>/dev/null
+		return
+	fi
+	FILENAME=$(grep "Storing in " $LOG/stdout.txt | sed "s|Storing in \(.*\)/|\1|")	# NES CHR/PRG
+# echo "$FILENAME"
+	if [ -f "$FILENAME" ]
+	then
+		ls -1 "$FILENAME" 2>/dev/null
+		return
+	fi
 }
 
 while [ "$1" ]
@@ -25,7 +39,6 @@ do
 		;;
 	md-read-ram )	# MD read RAM
 		echo  "201  " | /usr/local/bin/oscr >$LOG/stdout.txt 2>$LOG/stderr.txt || exit 1
-		# may need different filter to derive file name
 		filter_filename
 		;;
 	md-write-ram )	# MD write RAM
@@ -39,10 +52,9 @@ do
 		;;
 	snes-read-ram )	# SNES read RAM
 		echo  "101  " | /usr/local/bin/oscr >$LOG/stdout.txt 2>$LOG/stderr.txt || exit 1
-		# may need different filter to derive file name
 		filter_filename
 		;;
-	ses-write-ram )	# SNES write RAM
+	snes-write-ram )	# SNES write RAM
 		echo "not working (how to pass file name?)"
 		exit 1
 		echo  "102 " | /usr/local/bin/oscr >$LOG/stdout.txt 2>$LOG/stderr.txt || exit 1
@@ -58,17 +70,15 @@ do
 		;;
 	nes-prg+chr )	# NES save PRG+CHR
 		echo  "00 10 " | /usr/local/bin/oscr >$LOG/stdout.txt 2>$LOG/stderr.txt || exit 1
-		# may need different filter to derive file name
 		filter_filename
 		;;
 	nes-prg )	# NES save PRG
 		echo  "00 11 " | /usr/local/bin/oscr >$LOG/stdout.txt 2>$LOG/stderr.txt || exit 1
-		# may need different filter to derive file name
 		filter_filename
 		;;
 	nes-chr )	# NES save CHR
 		echo  "00 12 " | /usr/local/bin/oscr >$LOG/stdout.txt 2>$LOG/stderr.txt || exit 1
-		# may need different filter to derive file name
+		# may check for "CHR SIZE 0K"
 		filter_filename
 		;;
 	nes-read-ram )	# NES read RAM
