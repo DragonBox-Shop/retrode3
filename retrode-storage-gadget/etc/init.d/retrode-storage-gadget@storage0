@@ -19,7 +19,7 @@ fi
 SERVICE=retrode-storage-gadget
 DEVICE=/var/storage0.img
 BLOCKS=100 # increase block count if we need more space
-NAME=RETRODE3
+NAME=RETRODE
 FILES=/tmp/$$
 
 do_status () {
