@@ -13,15 +13,17 @@ Manually select mapper: <input name="mapper" type="text" width="20">
 
 <h3>Raw Read</h3>
 <p>
-<a href="?action=headers">Dump Headers</a>
+<a href="?dump=headers">Dump Headers</a>
 </p>
 <?php
-$action=getvar("action");
-if($action)
+$dump=getvar("dump");
+switch($dump)
 	{
-	html("<pre>");
-	text(callcmd("sudo /usr/local/bin/retrode-dump $action"));
-	html("</pre>");
+	case "headers":
+		html("<pre>");
+		text(callcmd("sudo /usr/local/bin/retrode-dump $dump"));
+		html("</pre>");
+		break;
 	}
 ?>
 

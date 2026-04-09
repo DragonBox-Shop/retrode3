@@ -86,7 +86,7 @@ function callcmd($command)
 	return shell_exec("$command 2>&1");
 }
 
-/* download manager */
+/* actions */
 
 if($dlpath=getvar('download'))
 	{ // handle file download
@@ -124,11 +124,11 @@ if($dlpath=getvar('download'))
 	exit;
 	}
 
-if($dlpath=getvar('delete'))
+if($delpath=getvar('delete'))
 	{ // handle file delete
 	// check if permitted...
 	// if yes, delete file
-		text("delete $dlpath - not implemented");
+		text("delete $delpath - not implemented");
 		exit;
 	}
 
@@ -142,44 +142,56 @@ if($dlpath=getvar('delete'))
 </head>
 <body>
 <form method="POST" action="<?php echo $here;?>">
-<a href="https://www.retrode.com"><img style="height: 80px;" src="https://www.retrode.com/wp-content/uploads/2025/03/Retrode-Logo-768x162.webp"/></a>
+<p><a href="https://www.retrode.com"><img style="height: 80px;" src="https://www.retrode.com/wp-content/uploads/2025/03/Retrode-Logo-768x162.webp"/></a></p>
 
 <?php
-if(date("Y") < 2025)
-	{
-	html("<p><font size=\"+2\" color=\"red\">");
-	text("Date is not reliable. Some functions may be seriously broken. Check your Internet connection.");
-	text(" Or restart the NTP daemon through the Settings page.");
-	html("</font></p>");
+html('<input type="submit" name="action" value="Power Off"></input> ');
+html('<input type="submit" name="action" value="Refresh"></input> ');
+
+if($action=getvar('action'))
+	{ // handle action buttons
+	switch($action)
+		{
+		case "Power Off":
+			text("Power Off Started ..."); flush();
+			text(callcmd("sudo /usr/local/bin/retrode-admin poweroff"));
+			break;
+		case "Refresh":
+			/* NOOP */
+			break;
+		}
 	}
-$model=str_replace(chr(0), '', file_get_contents("/proc/device-tree/model"));
-echo "<h1>Welcome to $model</h1>";
+
 echo $_SERVER['SERVER_ADDR']." ";
 // echo $_SERVER['REMOTE_ADDR']." ";
 
 if(date("Y") < 2025)
 	{
-	html("<font color=\"red\">");
-	text(date(DATE_RFC822)." ");
-	html(" <a href=\"settings.php?update=restart-ntpd\">Restart NTP daemon</a> ");
+	html("<p><font size=\"+2\" color=\"red\">");
+	text("Date is not reliable:");
+	text(" ".date(DATE_RFC822));
+	text(" Some functions may be seriously broken. Check your Internet connection.");
+	html("<br>");
+	text(" Or restart the NTP daemon: ");
+	html(" <a href=\"settings.php?update=restart-ntpd\">Restart</a>");
 	html("</font>");
+	html("</p>");
 	}
 else
-	text(date(DATE_RFC822)." ");
+	text(date(DATE_RFC822));
 
-html('<input type="submit" value="Refresh"></input> ');
-
-weblink("Documentation", "documentation.html");
+$model=str_replace(chr(0), '', file_get_contents("/proc/device-tree/model"));
+echo "<h1>Welcome to $model</h1>";
 
 html("<p><font size=\"+2\">");
 
 function mainmenu($link, $title)
 {
 	global $here;;
+	// use <span class=something> to allow formatting by CSS
 	html(" <a href=\"".$link."\">");
 	if(basename($here) == $link)
 		{ // underline current choice
-		// use <span class=something> to allow formatting by CSS
 		html("<b>");
 		text($title);
 		html("</b>");
@@ -196,7 +208,8 @@ mainmenu("files.php", "Files");
 mainmenu("mapper.php", "Mapper");
 mainmenu("settings.php", "Settings");
 mainmenu("feedback.php", "Feedback");
-mainmenu("https://www.retrode.com", "Info");
+mainmenu("documentation.html", "Documentation");
+mainmenu("https://www.retrode.com", "Web-Info");
 
 html("</font></p>");
 ?>
