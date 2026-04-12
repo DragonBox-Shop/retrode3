@@ -57,6 +57,9 @@ case "$1" in
 		ntpd -gq
 		service ntp start
 		;;
+	version )
+		oscr -v
+		;;
 	* )
 		echo unknown command "$1"
 		echo "  poweroff, apt-get-upgrade, creation-date, last-os-update, update-game-database, restart-ntpd"
