@@ -28,7 +28,7 @@ case "$CMD" in
 		then
 			echo "NES PRG:"
 			# 0x0a00 is NES_PRG
-			xxd -s 0x0a008000 -l 0x20 /dev/slot-nes
+			xxd -s 0x0a008000 -l 0x80 /dev/slot-nes
 
 			# other read modes?
 		else
