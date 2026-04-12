@@ -31,10 +31,9 @@ section(3, "Installation");
 // table?
 html("<table border=\"1\">");
 html("<tr><td>");
-text("Device Model:");
+text("Device Model and OSCR Firmware:");
 html("</td><td>");
-// FIXME: make this a function of /usr/local/bin/retrode-admin
-text(str_replace(chr(0), '', file_get_contents("/proc/device-tree/model")));
+text(callcmd("sudo /usr/local/bin/retrode-admin version"));
 html("</td><td>");
 html("<a href=\"$here?update=poweroff\">Power Off</a> ");
 html("</td></tr>");
