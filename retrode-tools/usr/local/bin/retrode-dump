@@ -4,11 +4,17 @@
 CMD="$1"
 [ "$CMD" ] || CMD=headers
 
+md_ram() {
+	# write mapper with TIME impulse
+	printf "\x$1" | dd of=/dev/slot-md bs=1 seek="$((0x03a13000))" count=1 status=none
+}
+
 case "$CMD" in
 	headers )
 		if xxd -l 1 /dev/slot-md >/dev/null 2>&1
 		then
-			echo MD header:
+			md_ram 0
+			echo MD ROM Header:
 			xxd -s 256 -l 256 /dev/slot-md
 		else
 			echo MD slot empty
@@ -16,9 +22,9 @@ case "$CMD" in
 
 		if xxd -l 1 /dev/slot-snes >/dev/null 2>&1
 		then
-			echo "SNES LoROM header:"
+			echo "SNES LoROM Header:"
 			xxd -s 0x7fc0 -l 0x20 /dev/slot-snes
-			echo "SNES HiROM header:"
+			echo "SNES HiROM Header:"
 			xxd -s 0xffc0 -l 0x20 /dev/slot-snes
 		else
 			echo SNES slot empty
@@ -35,6 +41,30 @@ case "$CMD" in
 			echo NES slot empty
 		fi
 		
+		;;
+	ram )
+		if xxd -l 1 /dev/slot-md >/dev/null 2>&1
+		then
+			md_ram ff	# 01 would suffice but ff activates LEDs
+			sleep 0.5
+			echo MD RAM:
+			xxd -s 0x00200000 -l 256 /dev/slot-md
+			md_ram 0
+		else
+			echo MD slot empty
+		fi
+if false; then
+		if xxd -l 1 /dev/slot-nes >/dev/null 2>&1
+		then
+			echo "NES PRG:"
+			# 0x0a00 is NES_PRG
+			xxd -s 0x0a008000 -l 0x80 /dev/slot-nes
+
+			# other read modes?
+		else
+			echo NES slot empty
+		fi
+fi
 		;;
 	* )
 		echo unknown command "$CMD"
