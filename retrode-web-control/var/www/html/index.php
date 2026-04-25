@@ -87,7 +87,7 @@ function show_status_as_table()
 		if(file_exists("/dev/input/$device"))
 			{
 			echo "<font color=\"green\">CONNECTED</font>";
-			$image.="+$device";
+	//		$image.="+$device";
 /* here we could loop over all KEYs
  * and run
  *    evtest --query /dev/input/right EV_KEY KEY_A && echo no || echo yes

@@ -24,5 +24,11 @@ export SOURCES+=" var/www/html/index.html"
 export SOURCES+=" var/www/html/retrode+md.jpg"
 export SOURCES+=" var/www/html/retrode.jpg"
 export SOURCES+=" var/www/html/documentation.html"
+export SOURCES+=" var/www/html/retrode+md+nes.jpg"
+export SOURCES+=" var/www/html/retrode+md+snes+nes.jpg"
+export SOURCES+=" var/www/html/retrode+md+snes.jpg"
+export SOURCES+=" var/www/html/retrode+nes.jpg"
+export SOURCES+=" var/www/html/retrode+snes+nes.jpg"
+export SOURCES+=" var/www/html/retrode+snes.jpg"
 
 cd "$(dirname "${BASH_SOURCE[0]}")" && "$QuantumSTEP/System/Sources/Frameworks/mySTEP.make" $ACTION
