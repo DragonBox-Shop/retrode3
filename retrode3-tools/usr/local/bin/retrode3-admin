@@ -1,5 +1,5 @@
 #!/bin/bash -p
-# retrode-admin cmd - system admin tasks
+# retrode3-admin cmd - system admin tasks
 
 # Fehlerbehandlung nach PHP verschieben?
 # zu einem daemon machen den das PHP per REST-API triggern/steuern kann?

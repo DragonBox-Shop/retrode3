@@ -10,8 +10,6 @@ echo "<a href=\"$link\">Open through SMB</a> ";
 echo "</p>";
 
 $root="/usr/local/games";	// "chroot" on retrode device
-if(!file_exists($root))
-	$root ="/Volumes/Retrode3/Retrode3-Software/retrode3-debian-packages/retrode-tools/$root";	// a copy on development host
 
 $d=getvar("file");
 $file=str_replace("/..", "", "/$d");	// prevent moving to superdirectories..

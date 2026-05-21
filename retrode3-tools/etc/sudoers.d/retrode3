@@ -1,1 +1,1 @@
-www-data ALL=NOPASSWD: /usr/local/bin/oscr, /usr/local/bin/retrode-admin, /usr/local/bin/retrode-dump, /usr/local/bin/retrode-info, /usr/local/bin/retrode-read, /usr/local/bin/retrode-wlan
+www-data ALL=NOPASSWD: /usr/local/bin/oscr, /usr/local/bin/retrode3-admin, /usr/local/bin/retrode3-dump, /usr/local/bin/retrode3-info, /usr/local/bin/retrode3-read, /usr/local/bin/retrode3-wlan

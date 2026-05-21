@@ -1,5 +1,5 @@
 #! /bin/sh
-# postinst script for retrode3-controller-gadget
+# preinst script for retrode3
 #
 # see: dh_installdeb(1)
 
@@ -18,17 +18,20 @@ set -e
 #
 
 case "$1" in
-    configure)
-	[ -x /bin/systemctl ] && /bin/systemctl daemon-reload || : ignore
-	/usr/sbin/service retrode3-controller-gadget@js0 start
+    install)
+		# we need at least 100MiB swap - even during install
+		/root/swap-on -b 100 || echo ignore error
+		# make sure we have repo access
+		CODENAME=$(grep -e '^deb ' /etc/apt/sources.list | head -1 | cut -d ' ' -f 3)
+		echo "deb [check-valid-until=no] https://download.goldelico.com/retrode3/debian $CODENAME main" >/etc/apt/sources.list.d/retrode3.list
     ;;
 
-    abort-upgrade|abort-remove|abort-deconfigure)
+    upgrade|abort-upgrade)
 
     ;;
 
     *)
-        echo "postinst called with unknown argument \`$1'" >&2
+        echo "preinst called with unknown argument \`$1'" >&2
         exit 1
     ;;
 esac

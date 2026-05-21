@@ -3,11 +3,13 @@
 [ "$QuantumSTEP" ] || export QuantumSTEP="/usr/local/QuantumSTEP"
 export DEBIAN_DEPENDS="letux-storage-gadget"
 export DEBIAN_DESCRIPTION="setup USB memory device for Retrode3"
-export DEBIAN_PACKAGE_NAME="retrode-storage-gadget"
+export DEBIAN_PACKAGE_NAME="retrode3-storage-gadget"
 export DEBIAN_RAW_FILES="./media/usb-storage"
 export DEBIAN_RAW_FILES+=" ./etc"
+export DEBIAN_REPLACES="retrode-storage-gadget"
+export INSTALL="false"
 export INSTALL_PATH="//"
-export PRODUCT_NAME="retrode-storage-gadget"
-export SOURCES="retrode-storage-gadget.postinst"
+export PRODUCT_NAME="retrode3-storage-gadget"
+export SOURCES="retrode3-storage-gadget.postinst"
 
 cd "$(dirname "${BASH_SOURCE[0]}")" && "$QuantumSTEP/System/Sources/Frameworks/mySTEP.make" $ACTION

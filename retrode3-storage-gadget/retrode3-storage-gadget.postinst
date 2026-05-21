@@ -1,5 +1,5 @@
 #! /bin/sh
-# postinst script for retrode-storage-gadget
+# postinst script for retrode3-storage-gadget
 #
 # see: dh_installdeb(1)
 
@@ -23,7 +23,7 @@ case "$1" in
 
 	[ -x /bin/systemctl ] && /bin/systemctl daemon-reload || : echo ignore error
 	rm -f "$DEVICE"	# force content rebuild after install or update
-	/usr/sbin/service retrode-storage-gadget@storage0 start
+	/usr/sbin/service retrode3-storage-gadget@storage0 start
    ;;
 
     abort-upgrade|abort-remove|abort-deconfigure)

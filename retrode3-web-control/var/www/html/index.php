@@ -10,7 +10,7 @@ if($slot=getvar('slot'))
 	echo "<p>Reading ".getvar('slot')."</p>";
 	echo "<p>Please wait...";
 	flush();
-	$result=trim(callcmd("sudo /usr/local/bin/retrode-read $slot"));
+	$result=trim(callcmd("sudo /usr/local/bin/retrode3-read $slot"));
 	if($result)
 		{
 		echo " ...done.</p>";
@@ -53,7 +53,7 @@ function show_status_as_table()
 		echo "<td>";
 		if($status == "active")
 			{ // there is a Cart inserted
-			$str=callcmd("sudo /usr/local/bin/retrode-info /dev/slot-$slot", "r");
+			$str=callcmd("sudo /usr/local/bin/retrode3-info /dev/slot-$slot", "r");
 			if(!$str)
 				text("unidentified");
 			else
@@ -75,7 +75,7 @@ function show_status_as_table()
 			text("empty");
 		echo "</td>";
 // fails:	system("/usr/local/bin/copyrom /dev/slot$SLOT /tmp/slot.bin; wc -c </tmp/slot.bin");
-		// besser: ein slot-info.sh aufrufen das den retrode-Befehl benutzt
+		// besser: ein slot-info.sh aufrufen das den retrode3-Befehl benutzt
 		echo "</tr>";
 		}
 

@@ -1,5 +1,5 @@
 #!/bin/bash -p
-# retrode-wlan - control WLAN
+# retrode3-wlan - control WLAN
 
 function interface {
 	# take first (with timeout)

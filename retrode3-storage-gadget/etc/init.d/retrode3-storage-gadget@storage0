@@ -4,7 +4,7 @@ if [ true != "$INIT_D_SCRIPT_SOURCED" ] ; then
     set "$0" "$@"; INIT_D_SCRIPT_SOURCED=true . /lib/init/init-d-script
 fi
 ### BEGIN INIT INFO
-# Provides:          retrode-storage-gadget
+# Provides:          retrode3-storage-gadget
 # Required-Start:    letux-storage-gadget
 # Required-Stop:
 # Default-Start:     
@@ -16,10 +16,10 @@ fi
 
 # Author: H. Nikolaus Schaller <hns@goldelico.com>
 
-SERVICE=retrode-storage-gadget
+SERVICE=retrode3-storage-gadget
 DEVICE=/var/storage0.img
 BLOCKS=100 # increase block count if we need more space
-NAME=RETRODE
+NAME=RETRODE3
 FILES=/tmp/$$
 
 do_status () {

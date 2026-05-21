@@ -1,5 +1,5 @@
 #! /bin/sh
-# prerm script for retrode-smb
+# prerm script for retrode3-smb
 #
 # see: dh_installdeb(1)
 

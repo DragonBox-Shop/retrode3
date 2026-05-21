@@ -154,7 +154,7 @@ if($action=getvar('action'))
 		{
 		case "Power Off":
 			text("Power Off Started ..."); flush();
-			text(callcmd("sudo /usr/local/bin/retrode-admin poweroff"));
+			text(callcmd("sudo /usr/local/bin/retrode3-admin poweroff"));
 			break;
 		case "Refresh":
 			/* NOOP */

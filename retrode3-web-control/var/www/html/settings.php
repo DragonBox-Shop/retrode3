@@ -9,19 +9,19 @@ switch(getvar("update"))
 	{
 	case "database":
 		text("Started ..."); flush();
-		text(callcmd("sudo /usr/local/bin/retrode-admin update-game-database"));
+		text(callcmd("sudo /usr/local/bin/retrode3-admin update-game-database"));
 		break;
 	case "system":
 		text("Started ..."); flush();
-		text(callcmd("sudo /usr/local/bin/retrode-admin apt-get-upgrade"));
+		text(callcmd("sudo /usr/local/bin/retrode3-admin apt-get-upgrade"));
 		break;
 	case "poweroff":
 		text("Started ..."); flush();
-		text(callcmd("sudo /usr/local/bin/retrode-admin poweroff"));
+		text(callcmd("sudo /usr/local/bin/retrode3-admin poweroff"));
 		break;
 	case "restart-ntpd":
 		text("Started ..."); flush();
-		text(callcmd("sudo /usr/local/bin/retrode-admin restart-ntpd"));
+		text(callcmd("sudo /usr/local/bin/retrode3-admin restart-ntpd"));
 		break;
 	}
 html("</font></p>");
@@ -33,7 +33,7 @@ html("<table border=\"1\">");
 html("<tr><td>");
 text("Device Model and OSCR Firmware:");
 html("</td><td>");
-text(callcmd("sudo /usr/local/bin/retrode-admin version"));
+text(callcmd("sudo /usr/local/bin/retrode3-admin version"));
 html("</td><td>");
 html("<a href=\"$here?update=poweroff\">Power Off</a> ");
 html("</td></tr>");
@@ -41,7 +41,7 @@ html("</td></tr>");
 html("<tr><td>");
 text("Current OS Version:");
 html("</td><td>");
-// FIXME: make this a function of /usr/local/bin/retrode-admin
+// FIXME: make this a function of /usr/local/bin/retrode3-admin
 text(callcmd("fgrep VERSION= /etc/os-release | sed 's/VERSION=//' | sed 's/\"//g'; cat /etc/debian_version"));
 // Links auf offizielles Debian Repo
 // oder Link auf ein Wiki
@@ -50,7 +50,7 @@ html("</td></tr>");
 html("<tr><td>");
 text("OS Creation Date:");
 html("</td><td>");
-text(callcmd("sudo /usr/local/bin/retrode-admin creation-date"));
+text(callcmd("sudo /usr/local/bin/retrode3-admin creation-date"));
 // Link auf makesd und/oder den Befehl
 // created by '<a ref=...>makesd</a>...'
 html("</td></tr>");
@@ -58,7 +58,7 @@ html("</td></tr>");
 html("<tr><td>");
 text("Last OS Update:");
 html("</td><td>");
-text(callcmd("sudo /usr/local/bin/retrode-admin last-os-update"));
+text(callcmd("sudo /usr/local/bin/retrode3-admin last-os-update"));
 html("</td><td>");
 echo " <a href=\"$here?update=system\">Update OS</a> ";
 html("</td></tr>");
@@ -66,7 +66,7 @@ html("</td></tr>");
 html("<tr><td>");
 text("Current Kernel Version:");
 html("</td><td>");
-// FIXME: make this a function of /usr/local/bin/retrode-admin
+// FIXME: make this a function of /usr/local/bin/retrode3-admin
 text(callcmd("uname -a"));
 // Links auf kernel Repo
 html("</td></tr>");
@@ -74,7 +74,7 @@ html("</td></tr>");
 html("<tr><td>");
 text("Last Game Database Update:");
 html("</td><td>");
-// FIXME: make this a function of /usr/local/bin/retrode-admin
+// FIXME: make this a function of /usr/local/bin/retrode3-admin
 text(callcmd("date -r /usr/local/games/oscr/README.md '+%Y-%m-%d %H:%M:%S'"));
 html("</td><td>");
 echo "<a href=\"$here?update=database\">Update Game Database</a>";
@@ -85,7 +85,7 @@ html("<tr><td>");
 text("Internet access:");
 html("</td><td>");
 
-// FIXME: make this a function of /usr/local/bin/retrode-admin
+// FIXME: make this a function of /usr/local/bin/retrode3-admin
 
 function ping($message, $address)
 {
@@ -118,7 +118,7 @@ if (true)
 {
 // check if wlan exists (e.g. /sys/class/net/wlan* or search ifconfig -a)
 // find interface number through e.g. iwconfig 2>&1 | fgrep 'wlan'
-// FIXME: detect/report this through /usr/local/bin/retrode-wlan status -> "no WiFi"
+// FIXME: detect/report this through /usr/local/bin/retrode3-wlan status -> "no WiFi"
 
 section(3, "WLAN Configuration");
 
@@ -131,21 +131,21 @@ switch(getvar("wlan"))
 			text("Connect: Missing SSID");
 			break;
 			}
-		$cmd="sudo /usr/local/bin/retrode-wlan connect".($password?" -p '$password'":"")." $ssid'";
+		$cmd="sudo /usr/local/bin/retrode3-wlan connect".($password?" -p '$password'":"")." $ssid'";
 		text(callcmd($cmd));
 		break;
 	case "Disconnect":
-		$cmd="sudo /usr/local/bin/retrode-wlan disconnect";
+		$cmd="sudo /usr/local/bin/retrode3-wlan disconnect";
 		text(callcmd($cmd));
 		break;
 	case "Access Point Mode":
-		$cmd="sudo /usr/local/bin/retrode-wlan connect -a";
+		$cmd="sudo /usr/local/bin/retrode3-wlan connect -a";
 		text(callcmd($cmd));
 		break;
 }
 html("</font></p>");
 
-$str=callcmd("sudo /usr/local/bin/retrode-wlan status");	// STATUS SSID MAC IP4 IP6
+$str=callcmd("sudo /usr/local/bin/retrode3-wlan status");	// STATUS SSID MAC IP4 IP6
 // text($str);
 $status=explode(',', $str);
 
@@ -185,7 +185,7 @@ if (true)	// check if wlan exists...
 // this also needs root permissions!
 // see: https://stackoverflow.com/questions/67292960/how-to-run-a-shell-as-root-from-php-apache
 section(3, "WLAN Networks");
-$str=callcmd("sudo /usr/local/bin/retrode-wlan list");
+$str=callcmd("sudo /usr/local/bin/retrode3-wlan list");
 // text($str);
 
 html("<table border=\"1\">");

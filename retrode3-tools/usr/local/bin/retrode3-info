@@ -1,5 +1,5 @@
 #!/bin/bash
-# retrode-info slot - try to find out Game name
+# retrode3-info slot - try to find out Game name
 
 SLOTS="$@"
 [ "$SLOTS" ] || SLOTS=$(ls -1 /dev/slot-*)

@@ -5,7 +5,7 @@ if [ true != "$INIT_D_SCRIPT_SOURCED" ] ; then
     set "$0" "$@"; INIT_D_SCRIPT_SOURCED=true . /lib/init/init-d-script
 fi
 ### BEGIN INIT INFO
-# Provides:          retrode-controller-gadget
+# Provides:          retrode3-controller-gadget
 # Required-Start:    letux-gadget
 # Required-Stop:
 # Default-Start:     
@@ -17,7 +17,7 @@ fi
 
 # Author: H. Nikolaus Schaller <hns@goldelico.com>
 
-SERVICE=retrode-controller-gadget
+SERVICE=retrode3-controller-gadget
 
 # FIXME: how can we start that twice for two separate game controllers?
 # do we simply need two separate controller-gadgets?

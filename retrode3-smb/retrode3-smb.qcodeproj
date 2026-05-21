@@ -4,10 +4,12 @@
 export DEBIAN_ARCHITECTURES="all"
 export DEBIAN_DEPENDS="letux-smb"
 export DEBIAN_DESCRIPTION="SMB sever reconfigured for Retrode3"
-export DEBIAN_PACKAGE_NAME="retrode-smb"
+export DEBIAN_PACKAGE_NAME="retrode3-smb"
+export DEBIAN_REPLACES="retrode-smb"
+export INSTALL="false"
 export INSTALL_PATH="//"
-export PRODUCT_NAME="retrode-smb"
-export SOURCES="retrode-smb.postinst"
-export SOURCES+=" retrode-smb.prerm"
+export PRODUCT_NAME="retrode3-smb"
+export SOURCES="retrode3-smb.postinst"
+export SOURCES+=" retrode3-smb.prerm"
 
 cd "$(dirname "${BASH_SOURCE[0]}")" && "$QuantumSTEP/System/Sources/Frameworks/mySTEP.make" $ACTION

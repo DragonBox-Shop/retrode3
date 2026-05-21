@@ -1,5 +1,5 @@
 #!/bin/bash -p
-# retrode-dump slot - dump cart header
+# retrode3-dump slot - dump cart header
 
 CMD="$1"
 [ "$CMD" ] || CMD=headers

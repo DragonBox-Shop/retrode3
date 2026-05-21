@@ -3,7 +3,8 @@
 include("header.inc.php");
 
 ?>
-<h3>Raw Access</h3>
+<h2>Raw Access</h2>
+<h3>ROM Tools</h3>
 <p>
 <a href="?dump=headers">Dump ROM Headers</a>
 </p>
@@ -13,7 +14,7 @@ switch($dump)
 	{
 	case "headers":
 		html("<pre>");
-		text(callcmd("sudo /usr/local/bin/retrode-dump $dump"));
+		text(callcmd("sudo /usr/local/bin/retrode3-dump $dump"));
 		html("</pre>");
 		break;
 	}
@@ -29,7 +30,7 @@ switch($dump)
 	{
 	case "ram":
 		html("<pre>");
-		text(callcmd("sudo /usr/local/bin/retrode-dump $dump"));
+		text(callcmd("sudo /usr/local/bin/retrode3-dump $dump"));
 		html("</pre>");
 		break;
 	}

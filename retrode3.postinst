@@ -23,7 +23,7 @@ case "$1" in
 		/root/swap-on -b 100 || echo ignore error
 		# make sure we have repo access
 		CODENAME=$(grep -e '^deb ' /etc/apt/sources.list | head -1 | cut -d ' ' -f 3)
-		echo "deb [check-valid-until=no] https://download.goldelico.com/retrode3/debian $CODENAME main" >/etc/apt/sources.list.d/retrode.list
+		echo "deb [check-valid-until=no] https://download.goldelico.com/retrode3/debian $CODENAME main" >/etc/apt/sources.list.d/retrode3.list
     ;;
 
     abort-upgrade|abort-remove|abort-deconfigure)

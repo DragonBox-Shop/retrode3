@@ -1,5 +1,5 @@
 #! /bin/sh
-# prerm script for retrode3
+# postrm script for retrode3
 #
 # see: dh_installdeb(1)
 
@@ -19,18 +19,21 @@ set -e
 
 case "$1" in
     remove)
-	rm -f /etc/apt/sources.list.d/retrode.list
+	;;
+
+    purge)	# only if really purged
+	rm -f /etc/apt/sources.list.d/retrode3.list
 	/root/swap-on -r
 	;;
 
-    upgrade|deconfigure)
+    upgrade|disappear|abort-install|abort-upgrade)
     ;;
 
     failed-upgrade)
     ;;
 
     *)
-        echo "prerm called with unknown argument \`$1'" >&2
+        echo "postrm called with unknown argument \`$1'" >&2
         exit 1
     ;;
 esac

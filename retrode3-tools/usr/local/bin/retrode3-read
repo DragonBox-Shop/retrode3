@@ -1,5 +1,5 @@
 #!/bin/bash
-# retrode-read slot - read game from slot
+# retrode3-read slot - read game from slot
 # return file name of result (empty if download failed)
 
 LOG=/var/log/oscr/
