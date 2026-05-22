@@ -16,5 +16,24 @@
 	<li>If you can't access <a href="http://192.168.0.202">http://192.168.0.202</a>, make sure that your computer has RNDIS or NCM protocols (Internet over USB) enabled.
 	<li>This should be automatic on Windows and macOS. On Linux you may have to install/load some kernel modules (rndis_host or cdc_ncm) and/or configure in a Network manager.</li>
 	<li>A special consideration to be checked is IP forwarding from the Retrode to the Internet of the PC</li>
-	<ul>
+	</ul>
+	<h2>WLAN</h2>
+	The Retrode3 has a built-in WLAN access point.
+	How to use...
+	<h2>Setting up drivers for IP forwarding through USB</h2>
+	<h3>Linux</h3>
+	...
+	<h3>Windows</h3>
+	plug the retrode to the Windows machine.
+	it should be recognised on USB.
+	Open "Systemsteuerung" (?)
+	Locate Network - ...
+	selectinstall driver
+	choose local
+	browse the list of drivers to find NCM
+	install (it will tell that it is from an unreliable source - Microsoft - so confirm)
+	not, the retrode should be accessible through <a href="http://192.168.0.202">http://192.168.0.202</a>
+	was braucht man für IP-Weiterleitung (Logo + NTP + Updates) über den Internetanschluss des PCs?
+	<h3>macOS</h3>
+	...
 </body>
