@@ -35,12 +35,11 @@ then
 	BINDIR=/usr/local/bin/
 	ROOTDIR=/usr/local/games/oscr/
 
-	echo remote build oscr command line tool
-
+	echo build oscr command line tool &&
 	(
 		cd retrode3-tools
 		mkdir -p ./$BINDIR/ ./$ROOTDIR/ ./$BINDIR/../include ./$BINDIR/../lib ./$BINDIR/../man/man1 ./$BINDIR/../man/man3
-		( cd $CARTREADER && make clean all remote )	# makes local version with HOSTCC to find bugs early and then remote
+		( cd $CARTREADER && make clean all && make clean all ARCH=mipsel )	# makes local version with HOSTCC to find bugs early and then remote
 		echo fetch oscr binary
 		cp $CARTREADER/oscr ./$BINDIR/oscr
 		cp $CARTREADER/oscr.groff ./$BINDIR/../man/man1/oscr.groff	# man page
@@ -50,7 +49,8 @@ then
 		cp -R $CARTREADER/sd/* ./$ROOTDIR
 	)
 
-	echo remote build ucon64
+	false &&	# no longer needed since we can cross-compile ucon64 now
+	echo remote build ucon64 &&
 	(
 		cd retrode3-tools
 		SRCDIR=/usr/local/src/ucon64
