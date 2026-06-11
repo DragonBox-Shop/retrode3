@@ -26,6 +26,7 @@ export DEBIAN_REPLACES="letux-config-etc"
 export DEBIAN_REPLACES+=", retrode-tools"
 export INSTALL_PATH="//"
 export PRODUCT_NAME="retrode3-tools"
-export SOURCES="retrode3-tools.postinst"
+export SOURCES="oscr.qcodeproj"
+export SOURCES+=" ucon64.qcodeproj"
 
 cd "$(dirname "${BASH_SOURCE[0]}")" && "$QuantumSTEP/System/Sources/Frameworks/mySTEP.make" $ACTION
