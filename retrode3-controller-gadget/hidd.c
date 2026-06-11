@@ -119,7 +119,7 @@ int hid(char *device, char *hid_file)
 {
 	int event_fd, hid_fd;
 
-	event_fd  =open(device, O_RDONLY);
+	event_fd=open(device, O_RDONLY);
 	if (event_fd < 0) {
 		perror(device);
 		return 1;
@@ -130,6 +130,7 @@ int hid(char *device, char *hid_file)
 	unsigned long relbit[NBITS(REL_MAX)] = {0};
 	unsigned long absbit[NBITS(ABS_MAX)] = {0};
 
+#ifdef __linux__
 	ioctl(event_fd, EVIOCGBIT(0, sizeof(evbit)), evbit);
 
 	if (test_bit(EV_KEY, evbit))
@@ -140,6 +141,11 @@ int hid(char *device, char *hid_file)
 
 	if (test_bit(EV_ABS, evbit))
 		ioctl(event_fd, EVIOCGBIT(EV_ABS, sizeof(absbit)), absbit);
+#else
+
+	fprintf(stderr, "This tool does not work on your platform\n");
+	exit(2);
+#endif
 
 	/* ---- Classification ---- */
 
