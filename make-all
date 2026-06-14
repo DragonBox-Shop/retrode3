@@ -12,6 +12,7 @@ set -e
 BUILD_PACKAGES=true
 BUILD_TOOL=false
 INSTALL_PACKAGES=true
+[ "$DEV" ] || DEV=-o
 
 # default is not to build tools from source but pack current version (incl. other files) and install
 
@@ -105,7 +106,7 @@ PACKAGES+=" retrode3"
 
 echo installing Debian Packages: $PACKAGES
 
-dl-deb -o $PACKAGES
+dl-deb $DEV $PACKAGES
 
 open http://192.168.0.202
 
