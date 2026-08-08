@@ -203,13 +203,20 @@ function mainmenu($link, $title)
 	html("</a> ");
 }
 
-mainmenu("index.php", "Main");
-mainmenu("files.php", "Files");
-mainmenu("mapper.php", "Mapper");
-mainmenu("settings.php", "Settings");
-mainmenu("feedback.php", "Feedback");
-mainmenu("documentation.html", "Documentation");
-mainmenu("https://www.retrode.com", "Web-Info");
+$menuFolder = __DIR__ . '/menu';
+
+if (is_dir($menuFolder))
+	{
+	$menuFiles = glob($menuFolder . '/*.ini');
+
+	foreach ($menuFiles as $file)
+		{
+		$config = parse_ini_file($file);
+
+		if (isset($config['text']) && isset($config['target']))
+			mainmenu($config['target'], $config['text']);
+		}
+	}
 
 html("</font></p>");
 ?>
