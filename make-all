@@ -12,7 +12,6 @@ set -e
 BUILD_PACKAGES=true
 BUILD_TOOL=false
 INSTALL_PACKAGES=true
-[ "$DEV" ] || DEV=-o
 
 # default is not to build tools from source but pack current version (incl. other files) and install
 
