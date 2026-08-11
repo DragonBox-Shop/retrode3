@@ -35,6 +35,7 @@ do_status () {
 case "$1" in
   start)
         log_daemon_msg "Starting $SERVICE"
+        do_status && exit 0	# already running
 
 	if [ ! -r "$DEVICE" ]
 	then
@@ -56,11 +57,10 @@ case "$1" in
 		umount "$FILES"
 		rm -rf "$FILES"
 
-		/usr/sbin/service letux-storage-gadget@storage0 start
-
 		echo done creating "$DEVICE"
 
 	fi
+	/usr/sbin/service letux-storage-gadget@storage0 start
 
         exit 0
         ;;
@@ -70,6 +70,8 @@ case "$1" in
         ;;
   stop)
         log_daemon_msg "Stopping $SERVICE"
+        do_status || exit 0	# not running
+        /usr/sbin/service letux-storage-gadget@storage0 stop
         log_progress_msg "disabled."
         log_end_msg 0
         exit 0
