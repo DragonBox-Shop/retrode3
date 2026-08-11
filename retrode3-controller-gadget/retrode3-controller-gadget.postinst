@@ -20,6 +20,7 @@ set -e
 case "$1" in
     configure)
 	[ -x /bin/systemctl ] && /bin/systemctl daemon-reload || : ignore
+## we should use /usr/sbin/invoke-rc.d
 	/usr/sbin/service retrode3-controller-gadget@js0 start
     ;;
 

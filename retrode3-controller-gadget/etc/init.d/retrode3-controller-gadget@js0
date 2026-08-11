@@ -41,10 +41,16 @@ do_status () {
 case "$1" in
   start)
 	log_daemon_msg "Starting $SERVICE"
+	do_status && exit 0	# already running
 #	/etc/gadget/core/letux-gadget.sh add hid keyboard
 #	/etc/gadget/core/letux-gadget.sh add hid gamepad
 	/etc/gadget/core/letux-gadget.sh add hid joystick
 	/etc/gadget/core/letux-gadget.sh add hid mouse
+
+# FIXME: how can we start that twice for two separate game controllers?
+# do we simply need two separate controller-gadgets?
+# or do we have @HID1 as well?
+# or is there a single joystick USB interface which serves left and right?
 
 #	daemon -r --name=$SERVICE -- /usr/bin/mipsel-linux-gnu/hidd /dev/input/snes-left /dev/$DEVICE0
 #	daemon -r --name=$SERVICE -- /usr/bin/mipsel-linux-gnu/hidd /dev/input/snes-right /dev/$DEVICE1
@@ -58,6 +64,7 @@ case "$1" in
 	;;
   stop)
 	log_daemon_msg "Stopping $SERVICE"
+	do_status || exit 0	# not running
 #	daemon --name=$SERVICE --stop 2>/dev/null
 	/etc/gadget/core/letux-gadget.sh remove hid
 	log_progress_msg "disabled."
