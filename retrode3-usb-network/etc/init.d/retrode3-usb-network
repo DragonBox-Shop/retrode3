@@ -41,7 +41,7 @@ stop_legacy_letux_dhcp() {
     [ -r "/proc/$OTHER_PID/comm" ] || return 0
     [ "$(cat "/proc/$OTHER_PID/comm")" = dhcpd ] || return 0
 
-    CMDLINE=$(tr '\\000' ' ' <"/proc/$OTHER_PID/cmdline")
+    CMDLINE=$(tr '\000' ' ' <"/proc/$OTHER_PID/cmdline")
     case "$CMDLINE" in
         *"/etc/gadget/scripts/letux-ip-over-usb-gadget-dhcpd.conf"*)
             echo "Stopping legacy Letux USB DHCP daemon ($OTHER_PID)"
