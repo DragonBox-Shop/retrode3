@@ -1,0 +1,18 @@
+#!/bin/sh
+set -e
+
+case "$1" in
+    configure)
+        # Register for SysV runlevels; DO NOT restart the running gadget or
+        # network during package installation (SSH may use USB-NCM).
+        update-rc.d retrode3-usb-network defaults
+        ;;
+    abort-upgrade|abort-remove|abort-deconfigure)
+        ;;
+    *)
+        echo "retrode3-usb-network.postinst: unexpected argument $1" >&2
+        exit 1
+        ;;
+esac
+
+exit 0
