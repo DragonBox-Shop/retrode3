@@ -1,0 +1,103 @@
+#!/bin/sh
+### BEGIN INIT INFO
+# Provides:          retrode3-usb-network
+# Required-Start:    $local_fs letux-gadget
+# Required-Stop:     $local_fs letux-gadget
+# Default-Start:     2 3 4 5
+# Default-Stop:      0 1 6
+# Short-Description: Configure Retrode3 USB-NCM network after gadget startup
+# Description:       Bring up usb0 and serve an isolated /30 DHCP lease
+### END INIT INFO
+
+# The generic Letux parent creates and binds the USB gadget.
+# Never touch ConfigFS or rebind the UDC here: Mass Storage, ACM and HID
+# must stay connected. This service runs AFTER letux-gadget@usb0.
+
+IFACE=usb0
+ADDRESS=172.31.255.1/30
+CONFIG=/etc/retrode3/usb-dhcpd.conf
+LEASES=/var/lib/dhcp/retrode3-usb.leases
+PIDFILE=/run/retrode3-usb-dhcpd.pid
+
+own_dhcp_running() {
+    [ -r "$PIDFILE" ] || return 1
+    PID=$(cat "$PIDFILE")
+    case "$PID" in
+        ''|*[!0-9]*) return 1 ;;
+    esac
+    [ -r "/proc/$PID/comm" ] || return 1
+    [ "$(cat "/proc/$PID/comm")" = dhcpd ]
+}
+
+other_dhcp_running() {
+    [ -r /run/dhcpd.pid ] || return 1
+    OTHER_PID=$(cat /run/dhcpd.pid)
+    case "$OTHER_PID" in
+        ''|*[!0-9]*) return 1 ;;
+    esac
+    [ -r "/proc/$OTHER_PID/comm" ] || return 1
+    [ "$(cat "/proc/$OTHER_PID/comm")" = dhcpd ]
+}
+
+do_start() {
+    if [ ! -d "/sys/class/net/$IFACE" ]; then
+        echo "Retrode3: $IFACE not present after Letux gadget startup" >&2
+        return 1
+    fi
+
+    # Apply the product-specific address only AFTER the final UDC bind.
+    ip -4 addr replace "$ADDRESS" dev "$IFACE" || return 1
+    ip link set "$IFACE" up || return 1
+
+    # Remove the legacy Letux gadget address if a preceding service set it.
+    ip -4 addr del 192.168.0.202/26 dev "$IFACE" 2>/dev/null || :
+
+    if own_dhcp_running; then
+        echo "Retrode3 USB DHCP already running"
+        return 0
+    fi
+
+    if other_dhcp_running; then
+        echo "Retrode3: another DHCP daemon is already running; not starting a second one" >&2
+        return 1
+    fi
+
+    mkdir -p /var/lib/dhcp || return 1
+    [ -e "$LEASES" ] || : >"$LEASES"
+    /usr/sbin/dhcpd -4 -t -cf "$CONFIG" || return 1
+    /usr/sbin/dhcpd -4 -q -cf "$CONFIG" -lf "$LEASES" -pf "$PIDFILE" "$IFACE"
+}
+
+do_stop() {
+    # Do not bring down usb0: users may still have SSH/SMB open.
+    # Stop only the daemon started by this script.
+    if own_dhcp_running; then
+        PID=$(cat "$PIDFILE")
+        kill -TERM "$PID" || return 1
+    fi
+    rm -f "$PIDFILE"
+}
+
+case "$1" in
+    start)
+        do_start
+        ;;
+    stop)
+        do_stop
+        ;;
+    restart|force-reload)
+        do_stop && do_start
+        ;;
+    status)
+        if own_dhcp_running; then
+            echo "Retrode3 USB DHCP is running"
+            exit 0
+        fi
+        echo "Retrode3 USB DHCP is not running"
+        exit 3
+        ;;
+    *)
+        echo "Usage: $0 {start|stop|restart|force-reload|status}" >&2
+        exit 3
+        ;;
+esac
