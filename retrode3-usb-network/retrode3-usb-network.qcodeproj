@@ -1,0 +1,14 @@
+#!/bin/bash
+# Retrode3-specific USB network configuration; no Letux files replaced.
+[ "$QuantumSTEP" ] || export QuantumSTEP="/usr/local/QuantumSTEP"
+export DEBIAN_ARCHITECTURES="all"
+export DEBIAN_DEPENDS="letux-gadget-core, letux-ip-over-usb-gadget, isc-dhcp-server, iproute2"
+export DEBIAN_DESCRIPTION="Retrode3 CDC-NCM address and DHCP after Letux composite gadget startup"
+export DEBIAN_PACKAGE_NAME="retrode3-usb-network"
+export DEBIAN_RAW_FILES="./etc"
+export INSTALL_PATH="//"
+export PRODUCT_NAME="retrode3-usb-network"
+export SOURCES="retrode3-usb-network.postinst"
+export SOURCES+=" retrode3-usb-network.postrm"
+
+cd "$(dirname "${BASH_SOURCE[0]}")" && "$QuantumSTEP/System/Sources/Frameworks/mySTEP.make" $ACTION
