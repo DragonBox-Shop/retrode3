@@ -1,0 +1,17 @@
+#!/bin/sh
+set -e
+
+case "$1" in
+    remove|purge)
+        # No running network interfaces or DHCP processes are touched here.
+        update-rc.d retrode3-usb-network remove
+        ;;
+    upgrade|failed-upgrade|abort-install|abort-upgrade|disappear)
+        ;;
+    *)
+        echo "retrode3-usb-network.postrm: unexpected argument $1" >&2
+        exit 1
+        ;;
+esac
+
+exit 0
