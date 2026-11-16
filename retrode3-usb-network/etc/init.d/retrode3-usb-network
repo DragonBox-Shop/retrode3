@@ -29,14 +29,39 @@ own_dhcp_running() {
     [ "$(cat "/proc/$PID/comm")" = dhcpd ]
 }
 
-other_dhcp_running() {
-    [ -r /run/dhcpd.pid ] || return 1
+stop_legacy_letux_dhcp() {
+    # The upstream NCM child may have started ISC DHCP with its 192.168.x
+    # configuration before this Retrode-specific service is called.
+    # Stop only that identified daemon, never an unrelated DHCP server.
+    [ -r /run/dhcpd.pid ] || return 0
     OTHER_PID=$(cat /run/dhcpd.pid)
     case "$OTHER_PID" in
-        ''|*[!0-9]*) return 1 ;;
+        ''|*[!0-9]*) return 0 ;;
     esac
-    [ -r "/proc/$OTHER_PID/comm" ] || return 1
-    [ "$(cat "/proc/$OTHER_PID/comm")" = dhcpd ]
+    [ -r "/proc/$OTHER_PID/comm" ] || return 0
+    [ "$(cat "/proc/$OTHER_PID/comm")" = dhcpd ] || return 0
+
+    CMDLINE=$(tr '\\000' ' ' <"/proc/$OTHER_PID/cmdline")
+    case "$CMDLINE" in
+        *"/etc/gadget/scripts/letux-ip-over-usb-gadget-dhcpd.conf"*)
+            echo "Stopping legacy Letux USB DHCP daemon ($OTHER_PID)"
+            kill -TERM "$OTHER_PID" || return 1
+            ATTEMPTS=0
+            while [ -d "/proc/$OTHER_PID" ] && [ "$ATTEMPTS" -lt 20 ]; do
+                sleep 1
+                ATTEMPTS=$((ATTEMPTS + 1))
+            done
+            if [ -d "/proc/$OTHER_PID" ]; then
+                echo "Legacy Letux DHCP daemon did not stop" >&2
+                return 1
+            fi
+            rm -f /run/dhcpd.pid
+            ;;
+        *)
+            echo "Other DHCP daemon is active (PID $OTHER_PID); refusing to conflict" >&2
+            return 1
+            ;;
+    esac
 }
 
 do_start() {
@@ -51,16 +76,14 @@ do_start() {
 
     # Remove the legacy Letux gadget address if a preceding service set it.
     ip -4 addr del 192.168.0.202/26 dev "$IFACE" 2>/dev/null || :
+    ip -4 route del default via 192.168.0.200 dev "$IFACE" 2>/dev/null || :
 
     if own_dhcp_running; then
         echo "Retrode3 USB DHCP already running"
         return 0
     fi
 
-    if other_dhcp_running; then
-        echo "Retrode3: another DHCP daemon is already running; not starting a second one" >&2
-        return 1
-    fi
+    stop_legacy_letux_dhcp || return 1
 
     mkdir -p /var/lib/dhcp || return 1
     [ -e "$LEASES" ] || : >"$LEASES"
