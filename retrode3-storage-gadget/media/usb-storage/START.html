@@ -1,39 +1,80 @@
-<html>
+<!doctype html>
+<html lang="en">
 <head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Retrode 3 - Quick start and USB network help</title>
+<style>
+:root {color-scheme:light;}
+*{box-sizing:border-box}
+body{font-family:Arial,Helvetica,sans-serif;line-height:1.55;color:#222;background:#f5f7f9;margin:0;padding:24px}
+main{max-width:840px;margin:auto;background:white;border:1px solid #dce2e8;border-radius:12px;padding:28px 34px}
+header{border-bottom:2px solid #c93030;padding-bottom:14px;margin-bottom:24px}
+header strong{font-size:1.7em;color:#ae2626}
+nav{float:right;font-size:.9em}
+a{color:#0959a7}h1{font-size:1.65em;margin-bottom:.3em}h2{margin-top:1.5em}
+code,pre{font-family:Consolas,Monaco,monospace}code{background:#f0f3f5;padding:1px 4px}
+pre{background:#f0f3f5;padding:12px;white-space:pre-wrap;overflow-wrap:anywhere;border-radius:6px}
+.address{font-size:1.13em;background:#f1f7ff;border:1px solid #bbd2ee;padding:14px;border-radius:7px}
+.note{border-left:4px solid #ad7c13;padding:8px 12px;background:#fffbef}
+footer{border-top:1px solid #ddd;margin-top:30px;padding-top:12px;color:#555;font-size:.85em}
+@media(max-width:600px){body{padding:0}main{border:0;border-radius:0;padding:18px}nav{float:none;display:block}}
+</style>
 </head>
-<body>
-<a href="https://www.retrode.com"><img style="height: 80px;" src="https://www.retrode.com/wp-content/uploads/2025/03/Retrode-Logo-768x162.webp"></a>
-	<h1>Welcome to Openpandora Retrode3</h1>
-	<h2>Getting started</h2>
-	<ul>
-		<li>connect Retrode 3 to some USB port (you must already have done if you have opened this file)</li>
-			<li>open the Web interface built into the Retrode3: <a href="http://192.168.0.202">http://192.168.0.202</a></li>
-				<li>follow the instructions you will find there.</li>
-	</ul>
-	<h2>Troubleshooting</h2>
-	<ul>
-	<li>If you see this page but no logo, enable Internet access in your Host-PC and Browser.</li>
-	<li>If you can't access <a href="http://192.168.0.202">http://192.168.0.202</a>, make sure that your computer has RNDIS or NCM protocols (Internet over USB) enabled.
-	<li>This should be automatic on Windows and macOS. On Linux you may have to install/load some kernel modules (rndis_host or cdc_ncm) and/or configure in a Network manager.</li>
-	<li>A special consideration to be checked is IP forwarding from the Retrode to the Internet of the PC</li>
-	</ul>
-	<h2>WLAN</h2>
-	The Retrode3 has a built-in WLAN access point.
-	How to use...
-	<h2>Setting up drivers for IP forwarding through USB</h2>
-	<h3>Linux</h3>
-	...
-	<h3>Windows</h3>
-	plug the retrode to the Windows machine.
-	it should be recognised on USB.
-	Open "Systemsteuerung" (?)
-	Locate Network - ...
-	selectinstall driver
-	choose local
-	browse the list of drivers to find NCM
-	install (it will tell that it is from an unreliable source - Microsoft - so confirm)
-	not, the retrode should be accessible through <a href="http://192.168.0.202">http://192.168.0.202</a>
-	was braucht man für IP-Weiterleitung (Logo + NTP + Updates) über den Internetanschluss des PCs?
-	<h3>macOS</h3>
-	...
-</body>
+<body><main>
+<header><nav><a href="START.de.html" lang="de">Deutsch</a></nav><strong>RETRODE 3</strong><div>Quick start &amp; troubleshooting</div></header>
+<h1>Welcome to Retrode 3</h1>
+<p>This page is stored on the Retrode 3 USB drive and works offline. Your Retrode provides a local web interface over its USB network connection. Internet access is <strong>not</strong> required to use it.</p>
+<h2>Get started</h2>
+<ol>
+<li>Connect Retrode 3 to your computer with a data-capable USB cable and let it finish booting.</li>
+<li>Wait for your computer to set up the USB network interface automatically. The USB drive and USB network are separate functions of the same device.</li>
+<li>Open the built-in web interface using either address:</li>
+</ol>
+<div class="address"><strong>Recommended:</strong> <a href="http://retrode.local/">http://retrode.local/</a><br>
+<strong>Alternative:</strong> <a href="http://172.31.255.1/">http://172.31.255.1/</a></div>
+<p>The <code>.local</code> name uses mDNS/Bonjour and might not work on every computer. The numeric address does not depend on name discovery.</p>
+<h2>What should happen automatically?</h2>
+<p>Retrode 3 uses USB CDC-NCM (USB Ethernet). It has address <code>172.31.255.1</code>; the connected computer should receive <code>172.31.255.2</code> with subnet mask <code>255.255.255.252</code> via DHCP.</p>
+<p><strong>No gateway and no DNS server are supplied over USB.</strong> This is intentional: your normal Wi-Fi/Ethernet internet connection should remain unchanged. A message such as "Unidentified network" or "No internet" for the Retrode USB adapter does not by itself indicate a problem.</p>
+<h2>If the web interface does not open</h2>
+<ol>
+<li>Try <a href="http://172.31.255.1/">http://172.31.255.1/</a> first. Enter the address in the browser's address bar, not in a search box. Use <code>http://</code>, not <code>https://</code>.</li>
+<li>Wait for the Retrode to boot and reconnect the USB cable if necessary. Check that it is a data cable rather than a charge-only cable.</li>
+<li>Check whether a <strong>USB NCM/Ethernet</strong> network adapter appeared on your computer and is configured for automatic IPv4 (DHCP).</li>
+<li>If the adapter has no IPv4 address, renew its DHCP lease or disconnect/reconnect the adapter.</li>
+<li>If DHCP still fails, manually assign the <strong>computer's USB adapter</strong> IPv4 address <code>172.31.255.2</code>, subnet mask <code>255.255.255.252</code> (prefix <code>/30</code>). Leave gateway and DNS empty. Do not change your normal internet adapter.</li>
+<li>VPNs, firewalls or an overlapping local subnet may interfere. If <code>retrode.local</code> alone fails, use the numeric address.</li>
+</ol>
+<h2>Windows 11</h2>
+<p>Windows 11 includes a USB-NCM class driver (<code>UsbNcm.sys</code>). Normally no driver download is required.</p>
+<ol>
+<li>Open <strong>Settings &gt; Network &amp; internet &gt; Advanced network settings</strong> and identify the newly connected Ethernet/USB adapter.</li>
+<li>Open its properties and ensure IPv4 is set to <strong>Obtain an IP address automatically</strong>.</li>
+<li>For a manual fallback, press <code>Win+R</code>, enter <code>ncpa.cpl</code>, open the new adapter's <strong>Properties &gt; Internet Protocol Version 4 (TCP/IPv4) &gt; Properties</strong> and enter the values above. Leave default gateway and DNS empty.</li>
+<li>If no USB network adapter appears, inspect <strong>Device Manager</strong> for an NCM or unrecognized device. Reconnect the device and check Windows Update.</li>
+</ol>
+<p class="note"><strong>Windows 10 and earlier:</strong> Microsoft's standard USB-NCM class driver is listed for Windows 11, not Windows 10. Automatic networking is therefore not guaranteed on older Windows versions. Do not install random third-party drivers to force it.</p>
+<h2>Linux</h2>
+<p>Most current distributions automatically load the <code>cdc_ncm</code> driver. NetworkManager normally acquires the address by DHCP.</p>
+<pre>ip link
+ip -4 addr show
+ping -c 3 172.31.255.1</pre>
+<p>If you can identify the new USB adapter but it does not connect, enable DHCP for that adapter in your network settings. Advanced manual fallback (replace <code>USB_IFACE</code> with its real interface name):</p>
+<pre>sudo ip link set USB_IFACE up
+sudo ip addr replace 172.31.255.2/30 dev USB_IFACE
+ping -c 3 172.31.255.1</pre>
+<p>These <code>ip</code> commands are temporary and do not change persistent network settings. Do not add a default route via Retrode 3.</p>
+<h2>macOS</h2>
+<ol>
+<li>Open <strong>System Settings &gt; Network</strong> and select the USB/Ethernet service corresponding to Retrode 3.</li>
+<li>Under <strong>Details &gt; TCP/IP</strong>, set <strong>Configure IPv4</strong> to <strong>Using DHCP</strong>. Renew the DHCP lease if necessary.</li>
+<li>If automatic configuration fails, select <strong>Manually</strong> and enter IP address <code>172.31.255.2</code> and subnet mask <code>255.255.255.252</code>. Leave the router field empty.</li>
+<li>Use the numeric web address if <code>retrode.local</code> does not resolve.</li>
+</ol>
+<h2>Internet access and Wi-Fi</h2>
+<p>The Retrode web interface, USB network and local file transfer <strong>do not require internet access</strong>. Providing the Retrode with internet through your computer for updates, time synchronization or online images is an <strong>optional, separate configuration</strong>, requiring host routing/NAT and DNS. The USB DHCP connection alone does not enable that.</p>
+<p class="note">Internet Connection Sharing on Windows or macOS may change the USB adapter's addresses and conflict with the fixed <code>172.31.255.0/30</code> network. Do not enable it blindly. Wi-Fi configuration is independent of the USB connection; this quick-start guide does not assume a Wi-Fi access point is active.</p>
+<footer>Retrode 3 USB quick start · Local document · Product information: <a href="https://www.retrode.com/">retrode.com</a> (requires internet)</footer>
+</main></body>
+</html>
