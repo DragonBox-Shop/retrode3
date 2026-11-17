@@ -5,6 +5,9 @@ case "$1" in
     remove|purge)
         # No running network interfaces or DHCP processes are touched here.
         update-rc.d retrode3-usb-network remove
+        dpkg-divert --local --rename --remove \
+            --divert /etc/retrode3/letux-usb0.legacy \
+            /etc/network/interfaces.d/letux-usb0
         ;;
     upgrade|failed-upgrade|abort-install|abort-upgrade|disappear)
         ;;
