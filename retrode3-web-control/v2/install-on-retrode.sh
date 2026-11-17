@@ -27,6 +27,27 @@ python3 -m py_compile "$BASE/backend/service.py" || fail "Backend syntax error."
 for f in "$BASE"/web/*.php; do php -l "$f" >/dev/null || fail "PHP syntax error $f"; done
 info "Preflight checks passed."
 
+# Avoid orphaning a native child while the web backend is replaced.
+if [ -f /etc/init.d/retrode3-web-v2 ]; then
+    if python3 -c '
+import json, sys
+try:
+    import urllib.request
+    r = urllib.request.urlopen("http://127.0.0.1:8765/api/jobs/active", timeout=3)
+    state = json.load(r).get("status", "unknown")
+except Exception:
+    sys.exit(2)
+sys.exit(1 if state in ("queued", "running", "cancelling") else 0)
+'; then
+        :
+    else
+        CODE=$?
+        [ "$CODE" -eq 1 ] && fail "A cartridge job is running; finish or cancel it before installing."
+        fail "Cannot verify backend is idle; not restarting it."
+    fi
+fi
+
+
 if [ ! -e /usr/local/bin/oscr-snes-native ]; then
     if [ -x /usr/local/src/retrode3-oscr/build/migration/oscr-snes-native ]; then
         ln -s /usr/local/src/retrode3-oscr/build/migration/oscr-snes-native /usr/local/bin/oscr-snes-native
@@ -150,3 +171,21 @@ info "Check service: service retrode3-web-v2 status"
 info "Read logs: tail -n 50 /var/log/retrode3-web-v2.log"
 info "Rollback: /usr/local/sbin/retrode3-web-v2-rollback"
 info "Admin username: admin."
+
+# Only a private checkout is pulled. Do not expose a .git directory to HTTP.
+if command -v git >/dev/null 2>&1; then
+    SRC=$(git -C "$BASE" rev-parse --show-toplevel 2>/dev/null || true)
+    if [ -n "$SRC" ] && [ -f "$SRC/retrode3-web-control/v2/update-on-retrode.sh" ]; then
+        ( umask 077; printf '%s\n' "$SRC" > /etc/retrode3-web-v2-source )
+        cat > /usr/local/sbin/retrode3-web-v2-update <<'EOF'
+#!/bin/sh
+set -eu
+[ "$(id -u)" -eq 0 ] || { echo "Run as root" >&2; exit 1; }
+IFS= read -r SOURCE < /etc/retrode3-web-v2-source
+exec /bin/sh "$SOURCE/retrode3-web-control/v2/update-on-retrode.sh"
+EOF
+        chmod 0755 /usr/local/sbin/retrode3-web-v2-update
+        chown root:root /usr/local/sbin/retrode3-web-v2-update
+        info "Next updates: retrode3-web-v2-update (Git pull + deploy + backup)"
+    fi
+fi

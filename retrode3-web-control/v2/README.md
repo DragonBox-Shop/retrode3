@@ -41,46 +41,62 @@ Submit a probe with JSON {"system":"snes","command":"probe"}. Submit a dump with
 The current v2 branch is a starting implementation, not a production release.
 
 
-## Direct on-device development install (replaces old web UI)
 
-The user authorized replacing the current development Retrode3 webroot, with full backup.
-Use an Arch Linux workstation that can SSH to the USB-network address 192.168.0.202:
+## Install and update directly from Git on the Retrode
 
-    git clone --depth 1 --branch feature/web-control-v2 https://github.com/DragonBox-Shop/retrode3.git
-    cd retrode3
-    ssh root@192.168.0.202 'mkdir -p /root/retrode3-web-v2-src'
-    scp -r retrode3-web-control/v2/* root@192.168.0.202:/root/retrode3-web-v2-src/
-    ssh -t root@192.168.0.202 'sh /root/retrode3-web-v2-src/install-on-retrode.sh'
+The user approved replacing the existing development device's web UI, with a backup.
+The Retrode has direct Internet access, so there is no need to clone on another
+machine and transfer source via scp. Perform these commands **on the Retrode**
+over SSH, as root.
 
-Installer checks Python 3.4+, PHP CLI 5.6+, backend syntax and PHP syntax, and
-starts a local www-data process using a SysV init script. On first use it asks
-interactively for a minimum 12-character web admin password; HTTP Basic auth
-uses username admin. The helper retains the native executable and old webroot;
-it copies the existing native reader to no place, but can link the compiled
-binary from /usr/local/src/retrode3-oscr/build/migration/oscr-snes-native if
-present. If missing, SNES dumping remains disabled pending installation.
+First checkout:
 
-On success open http://192.168.0.202/ in the same trusted USB-local setup.
-If the page fails, SSH remains accessible. Check:
+    git --version
+    git clone --depth 1 --single-branch --branch feature/web-control-v2 \
+      https://github.com/DragonBox-Shop/retrode3.git /root/retrode3-web-src
+    sh /root/retrode3-web-src/retrode3-web-control/v2/install-on-retrode.sh
+
+The installer preflights Python 3.4+, PHP, Python/PHP syntax and the webroot.
+It configures an authenticated development UI (username admin), a localhost
+backend service and an on-device updater. It does not change the native OSCR
+source or the main branch. The previously installed web UI is copied to
+/var/backups/retrode3-web-v2/ before the new webroot is activated.
+
+Later updates, **one command on the Retrode**:
+
+    retrode3-web-v2-update
+
+That command runs a fast-forward-only Git pull of feature/web-control-v2, then
+installs the new frontend and backend, checks service health, and retains a
+rollback copy. It refuses a dirty working tree, an unexpected branch, or an
+active native cartridge read. The Git checkout is stored under /root rather
+than within the publicly served /var/www/html; only deployable assets are
+copied into the webroot. A plain git pull alone does not restart the Python
+backend or deploy copied PHP/CSS/JS, so use the updater rather than just pull.
+
+The installer still works manually when code has been supplied without a Git
+checkout, but that method does not install the Git-updater command. If the
+checkout directory already exists from a previous attempt, inspect its state
+first rather than recloning into it.
+
+Access the new site at http://192.168.0.202/ on the trusted USB/device network.
+HTTP Basic credentials are not encrypted over plain HTTP, so **do not expose
+this development UI to the public Internet or untrusted networks**. The device
+may have Internet access without being publicly reachable, but use a trusted
+connection and do not forward its HTTP port.
+
+Diagnostics:
 
     service retrode3-web-v2 status
     tail -n 80 /var/log/retrode3-web-v2.log
     python3 -c 'import urllib.request; print(urllib.request.urlopen("http://127.0.0.1:8765/api/health").read())'
 
-Immediate webroot rollback (root on Retrode):
+Rollback on the device:
 
     /usr/local/sbin/retrode3-web-v2-rollback
 
-This stops the new backend, disables its boot autostart and restores the old
-webroot. It intentionally does not uninstall the native cartridge reader,
-alter existing ROMs, or revert temporary SNES device node access. Upgrading
-the dev UI again requires rerunning the installer.
-
-Do not test flash-writing or cartridge save-RAM writes; this UI has no such
-API. Do not plug an active USB mass-storage backing image into two read/write
-owners at once. Before presenting v2 on arbitrary LANs, implement TLS/pairing.
-
-Current service uses a non-root www-data identity and temporarily grants it
-SNES slot O_RDWR via the retrode3-reader device group. Native read-only
-operations may additionally require clock sysfs access; review on hardware
-rather than granting the entire web backend root privileges.
+Rollback restores the prior webroot and stops/disables the v2 service; it
+leaves the native reader and existing ROM files alone. New versions remain
+development builds until tested against real SNES hardware. USB mass storage
+still uses an independent FAT image and is not synchronized automatically
+with Samba/Web.
