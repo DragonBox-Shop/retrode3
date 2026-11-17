@@ -11,7 +11,11 @@ The `retrode3-usb-network` service:
 - Sets `usb0` to `172.31.255.1/30` after the gadget is fully assembled.
 - Removes the legacy `192.168.0.202/26` address if present.
 - Starts an ISC DHCP server bound only to `usb0`, leasing `172.31.255.2`.
-- Does not advertise a default gateway or DNS server to the host.
+- Does not advertise a default gateway or DNS server **to the host**.
+- Configures a **device-side** default route through the USB host,
+  `default via 172.31.255.2 dev usb0 metric 203`. This allows the Retrode
+  to use the host's internet connection *if* the host enables forwarding/NAT.
+  The route alone does not provide internet access.
 - Uses a dedicated PID file and lease database.
 - Avoids interrupting SSH when the package is installed or removed.
 
@@ -24,8 +28,11 @@ The `retrode3-usb-network` service:
 4. On Linux host, verify NetworkManager gets `172.31.255.2/30`
    via DHCP and `ping 172.31.255.1` succeeds.
 5. Check USB Mass Storage, HID, ACM and `retrode.local`.
-6. Reboot with the host connected and repeat all checks.
-7. Run `apt upgrade` and verify the configuration survives.
+6. Check `ip -4 route` on the Retrode: it must include the USB host as a
+   default route. If host forwarding/NAT is enabled, verify internet access
+   and DNS from the Retrode. The host must still have no USB default gateway.
+7. Reboot with the host connected and repeat all checks.
+8. Run `apt upgrade` and verify the configuration survives.
 
 **Known limitation / required upstream follow-up:** The original Letux NCM
 child can attempt to configure `192.168.0.202/26` and start a separate DHCP
@@ -47,4 +54,6 @@ now staged and swapped atomically by `retrode3-storage-gadget`, rather
 than unlinked while still exported. Updated pages become visible after
 USB reattachment or reboot.
 
-**Status:** proposed, not yet hardware-tested.
+**Status:** DHCP and automatic connection after reboot have been tested
+manually on Retrode hardware. The newly added device-side default route and
+Debian package upgrade/diversion need a fresh hardware test.
