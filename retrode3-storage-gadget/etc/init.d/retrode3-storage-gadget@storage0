@@ -20,8 +20,8 @@ SERVICE=retrode3-storage-gadget
 DEVICE=/var/storage0.img
 BLOCKS=100 # increase block count if we need more space
 NAME=RETRODE3
-FILES=/tmp/retrode3-storage.$
-STAGED=${DEVICE}.new.$
+FILES=/tmp/retrode3-storage.$$
+STAGED=${DEVICE}.new.$$
 
 # Build a new FAT image without unlinking the image currently open by
 # USB Mass Storage. The new inode is used on the next USB reattach/boot.
@@ -38,9 +38,12 @@ build_image () {
                 return 1
         fi
         if ! cp -R /media/usb-storage/. "$FILES/"; then
-                umount "$FILES" || :
-                rm -f "$STAGED"
-                rmdir "$FILES" 2>/dev/null || :
+                if umount "$FILES"; then
+                        rm -f "$STAGED"
+                        rmdir "$FILES" 2>/dev/null || :
+                else
+                        echo "Staged FAT image remains mounted at $FILES" >&2
+                fi
                 return 1
         fi
         sync
