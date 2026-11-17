@@ -2,10 +2,10 @@
 # make all packages for Retrode3
 #
 # if we rebuild the binaries (option -b),
-# this requires a Retrode3 connected and running RNDIS
+# this requires a Retrode3 connected and running CDC-NCM
 # also needs to have gcc / g++ installed (apt-get install g++) there
 
-[ "$DEV" ] || DEV=root@192.168.0.202	# for ssh and rsync
+[ "$DEV" ] || DEV=root@172.31.255.1	# for ssh and rsync
 
 set -e
 
@@ -95,6 +95,7 @@ then
 PACKAGES+=" retrode3-hidd"
 PACKAGES+=" retrode3-controller-gadget"
 PACKAGES+=" retrode3-storage-gadget"
+PACKAGES+=" retrode3-usb-network"
 PACKAGES+=" retrode3-smb"
 PACKAGES+=" retrode3-udev-rules"
 PACKAGES+=" retrode3-web-control"
@@ -107,6 +108,6 @@ echo installing Debian Packages: $PACKAGES
 
 dl-deb $DEV $PACKAGES
 
-open http://192.168.0.202
+open http://172.31.255.1
 
 fi
