@@ -1,22 +1,80 @@
-<html> 
-<head> </head> 
-<body> 
-<a href="https://www.retrode.com"><img style="height: 80px;" src="https://www.retrode.com/wp-content/uploads/2025/03/Retrode-Logo-768x162.webp"></a> 
-<h1>Willkommen zur Openpandora Retrode3</h1> 
-
-<h2>Start</h2> 
-<ul> 
-<li>Verbinde die Retrode 3 mit einem USB-Anschluss (das hast du bereits getan, wenn du diese Datei ge&ouml;ffnet hast)</li>
-<li>&ouml;ffne die in der Retrode3 integrierte Weboberfl&auml;che: <a href="http://192.168.0.202">http://192.168.0.202</a></li>
-<li>Folge den Anweisungen, die du dort findest.</li> 
-</ul> 
-
-<h2>Probleme l&ouml;sen</h2> 
-<ul> 
-<li>Wenn du diese Seite siehst, aber kein Logo, aktiviere den Internetzugang auf deinem Host-PC und Browser.</li> 
-<li>Wenn du nicht auf <a href="http://192.168.0.202">http://192.168.0.202</a> zugreifen kannst, stelle sicher, dass auf deinem Computer RNDIS- oder NCM-Protokolle (Internet &uuml;ber USB) aktiviert sind.</li>
-<li>Unter Windows und macOS sollte dies automatisch geschehen. Unter Linux musst du eventuell bestimmte Kernel-Module (rndis_host oder cdc_ncm) installieren/laden und/oder Einstellungen in einem Netzwerk-Manager vornehmen.</li>
-<li>Ein besonderer Punkt, der &uuml;berpr&uuml;ft werden sollte, ist die IP-Weiterleitung von der Retrode zum Internet des PCs.</li> 
-</ul> 
-</body>
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Retrode 3 - Schnellstart und USB-Netzwerkhilfe</title>
+<style>
+:root {color-scheme:light;}
+*{box-sizing:border-box}
+body{font-family:Arial,Helvetica,sans-serif;line-height:1.55;color:#222;background:#f5f7f9;margin:0;padding:24px}
+main{max-width:840px;margin:auto;background:white;border:1px solid #dce2e8;border-radius:12px;padding:28px 34px}
+header{border-bottom:2px solid #c93030;padding-bottom:14px;margin-bottom:24px}
+header strong{font-size:1.7em;color:#ae2626}
+nav{float:right;font-size:.9em}
+a{color:#0959a7}h1{font-size:1.65em;margin-bottom:.3em}h2{margin-top:1.5em}
+code,pre{font-family:Consolas,Monaco,monospace}code{background:#f0f3f5;padding:1px 4px}
+pre{background:#f0f3f5;padding:12px;white-space:pre-wrap;overflow-wrap:anywhere;border-radius:6px}
+.address{font-size:1.13em;background:#f1f7ff;border:1px solid #bbd2ee;padding:14px;border-radius:7px}
+.note{border-left:4px solid #ad7c13;padding:8px 12px;background:#fffbef}
+footer{border-top:1px solid #ddd;margin-top:30px;padding-top:12px;color:#555;font-size:.85em}
+@media(max-width:600px){body{padding:0}main{border:0;border-radius:0;padding:18px}nav{float:none;display:block}}
+</style>
+</head>
+<body><main>
+<header><nav><a href="START.html" lang="en">English</a></nav><strong>RETRODE 3</strong><div>Schnellstart &amp; Fehlerbehebung</div></header>
+<h1>Willkommen bei der Retrode 3</h1>
+<p>Diese Seite liegt auf dem USB-Laufwerk der Retrode 3 und funktioniert auch offline. Die Retrode stellt ihre Weboberfläche über eine eigene USB-Netzwerkverbindung bereit. Dafür wird <strong>kein Internetzugang</strong> benötigt.</p>
+<h2>Erste Schritte</h2>
+<ol>
+<li>Verbinde die Retrode 3 mit einem USB-Datenkabel mit Deinem Computer und warte, bis sie vollständig gestartet ist.</li>
+<li>Warte, bis Dein Computer die USB-Netzwerkverbindung automatisch eingerichtet hat. USB-Laufwerk und Netzwerk sind zwei Funktionen desselben Geräts.</li>
+<li>Öffne die integrierte Weboberfläche über eine dieser Adressen:</li>
+</ol>
+<div class="address"><strong>Empfohlen:</strong> <a href="http://retrode.local/">http://retrode.local/</a><br>
+<strong>Alternative:</strong> <a href="http://172.31.255.1/">http://172.31.255.1/</a></div>
+<p>Der Name <code>retrode.local</code> verwendet mDNS/Bonjour und funktioniert nicht auf jedem Computer. Die numerische Adresse funktioniert ohne Namensauflösung.</p>
+<h2>Was sollte automatisch passieren?</h2>
+<p>Die Retrode 3 verwendet USB CDC-NCM (Netzwerk über USB). Sie besitzt die Adresse <code>172.31.255.1</code>. Dein Computer sollte per DHCP <code>172.31.255.2</code> mit der Subnetzmaske <code>255.255.255.252</code> erhalten.</p>
+<p>Über USB werden absichtlich <strong>weder Standard-Gateway noch DNS-Server</strong> verteilt. Deine normale Internetverbindung über WLAN oder Ethernet bleibt dadurch erhalten. Meldungen wie „Nicht identifiziertes Netzwerk“ oder „Kein Internet“ beim Retrode-USB-Adapter bedeuten nicht automatisch einen Fehler.</p>
+<h2>Wenn die Weboberfläche nicht erreichbar ist</h2>
+<ol>
+<li>Versuche zuerst <a href="http://172.31.255.1/">http://172.31.255.1/</a>. Gib die Adresse in die Adresszeile des Browsers ein, nicht in die Suche. Verwende <code>http://</code>, nicht <code>https://</code>.</li>
+<li>Warte, bis die Retrode gestartet ist, und stecke das USB-Kabel bei Bedarf neu an. Es muss Daten übertragen können; ein reines Ladekabel reicht nicht.</li>
+<li>Prüfe, ob ein neuer <strong>USB-NCM-/Ethernet-Netzwerkadapter</strong> erscheint und IPv4 auf „Automatisch (DHCP)“ eingestellt ist.</li>
+<li>Wenn der Adapter keine IPv4-Adresse bekommt, erneuere die DHCP-Lease oder trenne und verbinde den Adapter neu.</li>
+<li>Falls DHCP weiterhin nicht funktioniert, trage <strong>nur beim Retrode-USB-Adapter</strong> die IPv4-Adresse <code>172.31.255.2</code> und die Subnetzmaske <code>255.255.255.252</code> (Präfix <code>/30</code>) manuell ein. Gateway und DNS bleiben leer. Verändere nicht Deinen normalen Internetadapter.</li>
+<li>VPNs, Firewalls oder überlappende lokale Netzbereiche können Probleme verursachen. Falls nur <code>retrode.local</code> nicht funktioniert, nutze die numerische Adresse.</li>
+</ol>
+<h2>Windows 11</h2>
+<p>Windows 11 bringt den USB-NCM-Treiber (<code>UsbNcm.sys</code>) mit. Normalerweise muss kein Treiber heruntergeladen werden.</p>
+<ol>
+<li>Öffne <strong>Einstellungen &gt; Netzwerk und Internet &gt; Erweiterte Netzwerkeinstellungen</strong> und suche den neu hinzugekommenen Ethernet-/USB-Adapter.</li>
+<li>Prüfe in dessen Eigenschaften, ob IPv4 auf <strong>IP-Adresse automatisch beziehen</strong> steht.</li>
+<li>Für eine manuelle Einrichtung: Drücke <code>Win+R</code>, gib <code>ncpa.cpl</code> ein und öffne beim neuen Adapter <strong>Eigenschaften &gt; Internetprotokoll Version 4 (TCP/IPv4) &gt; Eigenschaften</strong>. Trage die oben genannten Werte ein. Gateway und DNS bleiben leer.</li>
+<li>Erscheint kein USB-Netzwerkadapter, prüfe im <strong>Geräte-Manager</strong>, ob ein NCM- oder unbekanntes Gerät auftaucht. Verbinde die Retrode erneut und prüfe Windows Update.</li>
+</ol>
+<p class="note"><strong>Windows 10 und älter:</strong> Microsoft führt seinen standardmäßigen USB-NCM-Klassentreiber für Windows 11 auf, nicht für Windows 10. Auf älteren Versionen funktioniert die automatische Netzwerkeinrichtung deshalb nicht garantiert. Installiere dafür keine beliebigen Treiber aus unbekannten Quellen.</p>
+<h2>Linux</h2>
+<p>Die meisten aktuellen Distributionen laden den Treiber <code>cdc_ncm</code> automatisch. NetworkManager richtet die Adresse normalerweise per DHCP ein.</p>
+<pre>ip link
+ip -4 addr show
+ping -c 3 172.31.255.1</pre>
+<p>Falls der neue USB-Adapter erkannt wird, aber keine Verbindung bekommt, aktiviere DHCP für diesen Adapter in Deiner Netzwerkverwaltung. Manuelle Testkonfiguration (ersetze <code>USB_IFACE</code> durch den tatsächlichen Namen des Adapters):</p>
+<pre>sudo ip link set USB_IFACE up
+sudo ip addr replace 172.31.255.2/30 dev USB_IFACE
+ping -c 3 172.31.255.1</pre>
+<p>Diese <code>ip</code>-Befehle gelten nur vorübergehend. Richte keine Standardroute über die Retrode 3 ein.</p>
+<h2>macOS</h2>
+<ol>
+<li>Öffne <strong>Systemeinstellungen &gt; Netzwerk</strong> und wähle den USB-/Ethernet-Dienst der Retrode 3.</li>
+<li>Stelle unter <strong>Details &gt; TCP/IP</strong> die <strong>IPv4-Konfiguration</strong> auf <strong>DHCP</strong>. Erneuere bei Bedarf die DHCP-Lease.</li>
+<li>Falls DHCP nicht funktioniert, wähle <strong>Manuell</strong> und trage <code>172.31.255.2</code> als IP-Adresse sowie <code>255.255.255.252</code> als Teilnetzmaske ein. Das Router-Feld bleibt leer.</li>
+<li>Verwende die numerische Webadresse, wenn <code>retrode.local</code> nicht aufgelöst wird.</li>
+</ol>
+<h2>Internetzugang und WLAN</h2>
+<p>Die Weboberfläche, die USB-Verbindung und lokale Dateiübertragungen funktionieren <strong>ohne Internetzugang</strong>. Soll die Retrode über den Computer ins Internet gelangen, etwa für Updates, Zeitsynchronisation oder Online-Bilder, ist das eine <strong>zusätzliche, optionale Konfiguration</strong>. Dafür benötigt der Computer Routing/NAT und die Retrode eine passende DNS-Konfiguration. DHCP allein reicht dafür nicht.</p>
+<p class="note">Die Internetfreigabe von Windows und macOS kann die USB-Netzwerkadressen ändern und so mit unserem festen Netz <code>172.31.255.0/30</code> kollidieren. Schalte sie daher nicht unüberlegt ein. Die WLAN-Konfiguration ist unabhängig von USB; diese Anleitung setzt keinen aktiven WLAN-Access-Point voraus.</p>
+<footer>Retrode 3 USB-Schnellstart · Lokales Dokument · Produktinformationen: <a href="https://www.retrode.com/">retrode.com</a> (benötigt Internet)</footer>
+</main></body>
 </html>
