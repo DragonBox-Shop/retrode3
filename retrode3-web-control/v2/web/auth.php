@@ -21,7 +21,20 @@ function retrode_session() {
     ini_set('session.cookie_samesite', 'Strict');
     session_start();
     if (empty($_SESSION['csrf'])) {
-        $_SESSION['csrf'] = bin2hex(random_bytes(24));
+        if (function_exists('random_bytes')) {
+            $bytes = random_bytes(24);
+        } elseif (function_exists('openssl_random_pseudo_bytes')) {
+            $strong = false;
+            $bytes = openssl_random_pseudo_bytes(24, $strong);
+            if (!$strong) {
+                http_response_code(503);
+                exit('Secure session randomness unavailable');
+            }
+        } else {
+            http_response_code(503);
+            exit('Secure session randomness unavailable');
+        }
+        $_SESSION['csrf'] = bin2hex($bytes);
     }
     return $_SESSION['csrf'];
 }

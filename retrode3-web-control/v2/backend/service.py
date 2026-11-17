@@ -135,7 +135,7 @@ def capability_probe():
     try:
         proc = subprocess.Popen([SNES_BIN, "--protocol", "ndjson-v1", "--interactive"],
                                 stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-                                stderr=subprocess.DEVNULL)
+                                stderr=subprocess.DEVNULL, bufsize=0)
         deadline = time.time() + 5.0
         ready = False
         while time.time() < deadline:
@@ -244,7 +244,7 @@ class Job(object):
                     self.output = os.path.join(system_folder, filename)
                 process = subprocess.Popen([SNES_BIN, "--protocol", "ndjson-v1", "--interactive"],
                                            stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-                                           stderr=subprocess.DEVNULL)
+                                           stderr=subprocess.DEVNULL, bufsize=0)
                 with self.lock:
                     self.process = process
                 deadline = time.time() + 900
@@ -371,6 +371,13 @@ class JobManager(object):
         thread.start()
         return job.snapshot()
 
+    def current(self):
+        with self.lock:
+            job = self.active
+            if job is None and self.jobs:
+                job = max(self.jobs.values(), key=lambda j: j.created)
+        return job.snapshot() if job else {"status": "idle"}
+
     def get(self, job_id):
         with self.lock:
             job = self.jobs.get(job_id)
@@ -486,6 +493,8 @@ class Handler(BaseHTTPRequestHandler):
                 self._json(200, wifi_status())
             elif path == "/api/wifi/scan":
                 self._json(200, {"networks": wifi_scan()})
+            elif path == "/api/jobs/active":
+                self._json(200, MANAGER.current())
             elif path.startswith("/api/jobs/") and re.match(r"^/api/jobs/[0-9a-f]{32}$", path):
                 self._json(200, MANAGER.get(path.split("/")[-1]).snapshot())
             elif path == "/api/files":

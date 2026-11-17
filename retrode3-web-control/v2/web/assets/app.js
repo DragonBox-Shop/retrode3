@@ -262,8 +262,21 @@
       api("/api/wifi/disconnect", {}).then(loadSettings).catch(fail);
     });
   }
+  function resumeJob() {
+    api("/api/jobs/active").then(function (job) {
+      if (!job.id) return;
+      $("job-panel").hidden = false;
+      renderJob(job);
+      if (["done", "failed", "cancelled"].indexOf(job.status) === -1) {
+        activeJob = job.id;
+        $("cancel").disabled = false;
+        $("read").disabled = $("probe").disabled = true;
+        schedulePoll();
+      } else $("cancel").disabled = true;
+    }).catch(function () { /* Older backends may not support /active. */ });
+  }
   bind();
   var saved = (navigator.language || "").toLowerCase().indexOf("de") === 0 ? "de" : "en";
   setLocale(saved);
-  loadCapabilities();
+  loadCapabilities().then(resumeJob);
 })();

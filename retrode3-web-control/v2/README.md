@@ -39,3 +39,48 @@ Submit a probe with JSON {"system":"snes","command":"probe"}. Submit a dump with
 - Make a tested, reviewed switch from old web root to v2 only when feature parity is achieved, then merge into master.
 
 The current v2 branch is a starting implementation, not a production release.
+
+
+## Direct on-device development install (replaces old web UI)
+
+The user authorized replacing the current development Retrode3 webroot, with full backup.
+Use an Arch Linux workstation that can SSH to the USB-network address 192.168.0.202:
+
+    git clone --depth 1 --branch feature/web-control-v2 https://github.com/DragonBox-Shop/retrode3.git
+    cd retrode3
+    ssh root@192.168.0.202 'mkdir -p /root/retrode3-web-v2-src'
+    scp -r retrode3-web-control/v2/* root@192.168.0.202:/root/retrode3-web-v2-src/
+    ssh -t root@192.168.0.202 'sh /root/retrode3-web-v2-src/install-on-retrode.sh'
+
+Installer checks Python 3.4+, PHP CLI 5.6+, backend syntax and PHP syntax, and
+starts a local www-data process using a SysV init script. On first use it asks
+interactively for a minimum 12-character web admin password; HTTP Basic auth
+uses username admin. The helper retains the native executable and old webroot;
+it copies the existing native reader to no place, but can link the compiled
+binary from /usr/local/src/retrode3-oscr/build/migration/oscr-snes-native if
+present. If missing, SNES dumping remains disabled pending installation.
+
+On success open http://192.168.0.202/ in the same trusted USB-local setup.
+If the page fails, SSH remains accessible. Check:
+
+    service retrode3-web-v2 status
+    tail -n 80 /var/log/retrode3-web-v2.log
+    python3 -c 'import urllib.request; print(urllib.request.urlopen("http://127.0.0.1:8765/api/health").read())'
+
+Immediate webroot rollback (root on Retrode):
+
+    /usr/local/sbin/retrode3-web-v2-rollback
+
+This stops the new backend, disables its boot autostart and restores the old
+webroot. It intentionally does not uninstall the native cartridge reader,
+alter existing ROMs, or revert temporary SNES device node access. Upgrading
+the dev UI again requires rerunning the installer.
+
+Do not test flash-writing or cartridge save-RAM writes; this UI has no such
+API. Do not plug an active USB mass-storage backing image into two read/write
+owners at once. Before presenting v2 on arbitrary LANs, implement TLS/pairing.
+
+Current service uses a non-root www-data identity and temporarily grants it
+SNES slot O_RDWR via the retrode3-reader device group. Native read-only
+operations may additionally require clock sysfs access; review on hardware
+rather than granting the entire web backend root privileges.
