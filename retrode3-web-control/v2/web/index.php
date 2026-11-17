@@ -1,0 +1,57 @@
+<?php
+require __DIR__ . '/auth.php';
+retrode_auth();
+$csrf = retrode_session();
+header('Cache-Control: no-store');
+header('X-Content-Type-Options: nosniff');
+header("Content-Security-Policy: default-src 'self'; img-src 'self'; style-src 'self'; script-src 'self'; connect-src 'self'; base-uri 'none'; form-action 'self'");
+?><!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="csrf-token" content="<?php echo htmlspecialchars($csrf, ENT_QUOTES, 'UTF-8'); ?>">
+<title>Retrode3 Control</title>
+<link rel="stylesheet" href="assets/style.css">
+<script src="assets/app.js" defer></script>
+</head>
+<body>
+<header class="topbar"><div class="brand"><span class="brand-icon">R3</span><div><strong>Retrode3</strong><small data-i18n="subtitle">Cartridge Control</small></div></div><div class="top-right"><span id="connection" class="pill" data-i18n="connecting">Connecting…</span><select id="locale" aria-label="Language"><option value="en">English</option><option value="de">Deutsch</option></select></div></header>
+<div class="layout">
+<nav class="tabs" aria-label="Navigation">
+<button class="tab active" data-tab="reader" data-i18n="reader">Read Cartridge</button>
+<button class="tab" data-tab="files" data-i18n="files">File Manager</button>
+<button class="tab" data-tab="writer" data-i18n="writer">Write Cartridge</button>
+<button class="tab" data-tab="settings" data-i18n="settings">General Settings</button>
+</nav>
+<main>
+<section id="reader" class="page active">
+<div class="section-head"><div><p class="eyebrow" data-i18n="reader_small">ROM DUMPING</p><h1 data-i18n="reader_title">Read your cartridge</h1><p class="muted" data-i18n="reader_desc">Detect a game and save a ROM dump to shared storage.</p></div></div>
+<div class="two-col">
+<div class="panel"><div class="panel-head"><h2 data-i18n="cartridge">Cartridge</h2><span class="tag" id="reader-support" data-i18n="checking">Checking…</span></div>
+<label for="system" data-i18n="system">System</label><select id="system"><option value="snes">Super Nintendo (SNES)</option></select><p class="muted small" data-i18n="systems_note">Additional systems appear when their native cores are available.</p>
+<button id="probe" class="btn secondary" data-i18n="detect">Detect cartridge</button>
+<div id="game-info" class="game-info"><p class="muted" data-i18n="not_detected">No cartridge examined yet.</p></div>
+</div>
+<div class="panel"><h2 data-i18n="read_options">Read options</h2>
+<label for="filename" data-i18n="filename">File name</label><input id="filename" maxlength="64" value="SNES-Dump" autocomplete="off">
+<label for="mapping" data-i18n="mapping">Mapping</label><select id="mapping"><option value="" data-i18n="auto">Automatic</option><option value="lo">LoROM</option><option value="hi">HiROM</option></select>
+<label for="rom-size" data-i18n="rom_size">ROM size override</label><select id="rom-size"><option value="" data-i18n="auto">Automatic</option></select>
+<p class="muted small" data-i18n="overrides_note">Overrides are optional. Use detected settings unless you know the cartridge's layout.</p>
+<button id="read" class="btn primary" data-i18n="start_read">Read ROM</button>
+<div id="job-panel" class="job-panel" hidden><div class="progress-line"><strong id="job-label"></strong><span id="job-percent"></span></div><div class="progress"><div id="job-fill"></div></div><p id="job-detail" class="muted small"></p><button id="cancel" class="btn danger" data-i18n="cancel">Cancel</button></div>
+</div></div>
+<div class="panel notes"><h2 data-i18n="availability">Availability</h2><p id="availability" class="muted"></p></div>
+</section>
+<section id="files" class="page"><p class="eyebrow" data-i18n="shared_storage">SHARED STORAGE</p><h1 data-i18n="files_title">Your game library</h1><p class="muted" data-i18n="files_desc">Browse, rename, move, download or delete ROM files in shared storage.</p>
+<div class="panel"><div class="file-head"><div id="breadcrumb" class="breadcrumb"></div><div class="actions"><button id="new-folder" class="btn secondary" data-i18n="new_folder">New folder</button><button id="refresh-files" class="btn secondary" data-i18n="refresh">Refresh</button></div></div>
+<div class="file-table-wrap"><table class="file-table"><thead><tr><th data-i18n="name">Name</th><th data-i18n="size">Size</th><th data-i18n="modified">Modified</th><th data-i18n="actions">Actions</th></tr></thead><tbody id="file-rows"></tbody></table></div></div></section>
+<section id="writer" class="page"><p class="eyebrow" data-i18n="future">FUTURE FEATURE</p><h1 data-i18n="writer_title">Write a cartridge</h1><div class="panel empty"><span class="big-icon">↗</span><h2 data-i18n="writer_unavailable">Writing isn't available yet</h2><p class="muted" data-i18n="writer_desc">This area is reserved for future flash and save operations, with explicit safety checks.</p></div></section>
+<section id="settings" class="page"><p class="eyebrow" data-i18n="device">DEVICE</p><h1 data-i18n="settings_title">General settings</h1><div class="two-col"><div class="panel"><h2 data-i18n="wifi">Wi-Fi connection</h2><div class="keyval"><span data-i18n="wifi_status">Status</span><strong id="wifi-status">…</strong></div><div class="keyval"><span data-i18n="ip_address">IP address</span><strong id="wifi-ip">…</strong></div>
+<div class="actions"><button id="scan-wifi" class="btn secondary" data-i18n="scan">Scan networks</button><button id="disconnect-wifi" class="btn danger" data-i18n="disconnect">Disconnect</button></div><div id="wifi-networks"></div>
+<label for="wifi-ssid" data-i18n="ssid">Network name (SSID)</label><input id="wifi-ssid" maxlength="32" autocomplete="off">
+<label for="wifi-password" data-i18n="password">Password</label><input id="wifi-password" type="password" maxlength="128" autocomplete="new-password">
+<button id="connect-wifi" class="btn primary" data-i18n="connect">Connect</button><p class="muted small" data-i18n="wifi_warning">Changing network settings may interrupt your connection.</p></div>
+<div class="panel"><h2 data-i18n="localization">Language &amp; time</h2><div class="keyval"><span data-i18n="device_time">Device time</span><strong id="device-time">…</strong></div><div class="keyval"><span data-i18n="timezone">Time zone</span><strong id="device-timezone">…</strong></div><p class="muted small" data-i18n="time_note">Time and time zone are currently read-only. Language files can be added without changing the backend.</p></div></div></section>
+<div id="toast" role="status" aria-live="polite"></div>
+</main></div></body></html>
