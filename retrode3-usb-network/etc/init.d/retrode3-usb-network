@@ -78,6 +78,13 @@ do_start() {
     ip -4 addr del 192.168.0.202/26 dev "$IFACE" 2>/dev/null || :
     ip -4 route del default via 192.168.0.200 dev "$IFACE" 2>/dev/null || :
 
+    # The host does NOT receive a default gateway via DHCP. Conversely,
+    # Retrode3 needs a default route through the host for optional Internet
+    # sharing (NAT/IP forwarding is configured separately on the host).
+    # Preserve the original Letux route metric so other lower-metric
+    # uplinks, when configured, retain priority.
+    ip -4 route replace default via 172.31.255.2 dev "$IFACE" metric 203 || return 1
+
     if own_dhcp_running; then
         echo "Retrode3 USB DHCP already running"
         return 0
