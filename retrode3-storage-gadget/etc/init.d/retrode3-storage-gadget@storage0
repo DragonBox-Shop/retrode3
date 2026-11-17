@@ -20,7 +20,38 @@ SERVICE=retrode3-storage-gadget
 DEVICE=/var/storage0.img
 BLOCKS=100 # increase block count if we need more space
 NAME=RETRODE3
-FILES=/tmp/$$
+FILES=/tmp/retrode3-storage.$
+STAGED=${DEVICE}.new.$
+
+# Build a new FAT image without unlinking the image currently open by
+# USB Mass Storage. The new inode is used on the next USB reattach/boot.
+build_image () {
+        mkdir -p "$FILES" || return 1
+        rm -f "$STAGED"
+        if ! /sbin/mkfs.vfat -C -n "$NAME" "$STAGED" "$BLOCKS"; then
+                rmdir "$FILES"
+                return 1
+        fi
+        if ! mount -o loop "$STAGED" "$FILES"; then
+                rm -f "$STAGED"
+                rmdir "$FILES"
+                return 1
+        fi
+        if ! cp -R /media/usb-storage/. "$FILES/"; then
+                umount "$FILES" || :
+                rm -f "$STAGED"
+                rmdir "$FILES" 2>/dev/null || :
+                return 1
+        fi
+        sync
+        if ! umount "$FILES"; then
+                echo "Could not unmount staged Retrode3 storage image" >&2
+                return 1
+        fi
+        rmdir "$FILES" || return 1
+        mv -f "$STAGED" "$DEVICE" || return 1
+        echo "Updated $DEVICE; new contents appear after USB reconnect/reboot"
+}
 
 do_status () {
 	if fgrep -q "$DEVICE" /sys/kernel/config/usb_gadget/letux/functions/mass_storage.usb0/lun.*/file 2>/dev/null
@@ -37,32 +68,19 @@ case "$1" in
         log_daemon_msg "Starting $SERVICE"
         do_status && exit 0	# already running
 
-	if [ ! -r "$DEVICE" ]
-	then
-		/usr/sbin/service letux-storage-gadget@storage0 stop
+        if [ ! -r "$DEVICE" ]; then
+                build_image || exit 1
+        fi
 
-		echo create "$DEVICE"
-		/sbin/mkfs.vfat -C -n "$NAME" "$DEVICE" "$BLOCKS"
-
-		echo rename to "$NAME"
-		/sbin/fatlabel "$DEVICE" "$NAME"
-
-		echo fill disk with data from /media/usb-storage
-		mkdir -p "$FILES"
-		mount -o loop "$DEVICE" "$FILES"
-		rm -rf "$FILES/"*
-		# echo test data >"$FILES/test"
-		cp /media/usb-storage/* $FILES
-		sync
-		umount "$FILES"
-		rm -rf "$FILES"
-
-		echo done creating "$DEVICE"
-
-	fi
 	/usr/sbin/service letux-storage-gadget@storage0 start
 
         exit 0
+        ;;
+  prepare)
+        # Safe on a live USB Mass Storage gadget: image file is replaced
+        # atomically, existing open image remains available to the host.
+        build_image
+        exit $?
         ;;
   restart|reload|force-reload)
         echo "Error: argument '$1' not supported" >&2
@@ -81,7 +99,7 @@ case "$1" in
 	exit $?
 	;;
   *)
-        echo "Usage: $0 start|stop|status" >&2
+        echo "Usage: $0 start|stop|status|prepare" >&2
         exit 3
         ;;
 esac
