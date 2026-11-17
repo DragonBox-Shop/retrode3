@@ -5,6 +5,14 @@ case "$1" in
     configure)
         # Register for SysV runlevels; DO NOT restart the running gadget or
         # network during package installation (SSH may use USB-NCM).
+        # This legacy g_ether ifupdown configuration is owned by the
+        # linux-rootfs-letux-retrode3 package. Divert it outside of
+        # interfaces.d so future package upgrades cannot re-enable it.
+        # A dpkg-divert is reversible and does not mutate the owner package.
+        mkdir -p /etc/retrode3
+        dpkg-divert --local --rename --add \
+            --divert /etc/retrode3/letux-usb0.legacy \
+            /etc/network/interfaces.d/letux-usb0
         update-rc.d retrode3-usb-network defaults
         ;;
     abort-upgrade|abort-remove|abort-deconfigure)
