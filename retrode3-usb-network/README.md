@@ -33,9 +33,18 @@ daemon on some boot paths. This package detects a legacy daemon PID and
 refuses to run a conflicting second server. Correct the generic NCM service
 lifecycle upstream before treating the integration as production-ready.
 
-The legacy `/etc/network/interfaces.d/letux-usb0` file must also be
-disabled or removed in the final image; it is an obsolete `g_ether` setup.
-Its ownership/diversion strategy is intentionally deferred to the
-upstream integration, rather than silently editing another package's files.
+The legacy `/etc/network/interfaces.d/letux-usb0` file is owned by
+`linux-rootfs-letux-retrode3`. It attempts to load obsolete `g_ether`,
+conflicting with the ConfigFS CDC-NCM gadget. On package installation a
+local dpkg diversion redirects it to
+`/etc/retrode3/letux-usb0.legacy` (outside interfaces.d), so upgrades
+to its owning package cannot reactivate it. The diversion is removed
+when this package is uninstalled. A previously manually backed-up copy
+under `/root/` is not touched.
+
+The FAT backing image used for `START.html` and `START.de.html` is
+now staged and swapped atomically by `retrode3-storage-gadget`, rather
+than unlinked while still exported. Updated pages become visible after
+USB reattachment or reboot.
 
 **Status:** proposed, not yet hardware-tested.
