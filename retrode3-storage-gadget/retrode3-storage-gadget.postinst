@@ -19,11 +19,13 @@ set -e
 
 case "$1" in
     configure)
-	DEVICE=/var/storage0.img
+        [ -x /bin/systemctl ] && /bin/systemctl daemon-reload || :
 
-	[ -x /bin/systemctl ] && /bin/systemctl daemon-reload || : echo ignore error
-	rm -f "$DEVICE"	# force content rebuild after install or update
-	/usr/sbin/service retrode3-storage-gadget@storage0 start
+        # Never unlink the currently exported FAT backing store. Build a
+        # replacement atomically; the connected host keeps its old image
+        # until USB re-enumeration/reboot.
+        /usr/sbin/service retrode3-storage-gadget@storage0 prepare
+        /usr/sbin/service retrode3-storage-gadget@storage0 start
    ;;
 
     abort-upgrade|abort-remove|abort-deconfigure)
