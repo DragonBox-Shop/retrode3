@@ -151,3 +151,20 @@ See `v2/docs/slot-discovery.md` for the status model, adapters, the safety
 boundary and real-hardware acceptance checklist. Automated checks live in
 `.github/workflows/web-v2-checks.yml`; passing mocks do not replace
 physical slot/adapter tests.
+
+## Architecture correction: shared retrode3-cli transport
+
+**Decision 2026-11-18:** NDJSON messages, progress and read-job coordination
+will come from the **central retrode3-cli**, not from each individual
+system/plugin binary. Existing direct SNES NDJSON usage is a *transitional
+compatibility path*, not the desired reader-plugin contract. Do not port
+NDJSON individually to every MD/NES/adapter reader merely for Web support.
+
+The CLI's future `get_capabilities` must be the source of truth for
+which systems and advanced fields the Web exposes; slot status alone cannot
+identify a cartridge or adapter. Until that CLI API is finished, retain the
+working SNES UI and mark the legacy MegaDrive one-shot integration pending.
+
+See `v2/docs/cli-integration.md` for the target architecture and migration
+acceptance tests. This decision supersedes earlier descriptions in this
+README suggesting that each core should provide Web NDJSON progress.

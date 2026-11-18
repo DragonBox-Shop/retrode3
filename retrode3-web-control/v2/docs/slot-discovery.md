@@ -39,3 +39,14 @@ The UI's advanced selector deliberately offers **only live-compatible readers**,
 7. Test missing `/sys` sense paths as `unavailable`, not as empty.
 
 Do **not** test a write-dependent special cartridge or change voltage on the basis of slot detection.
+
+## Correction: protocol responsibility (2026-11-18)
+
+The final NDJSON transport and progress reporting belong to the **central
+retrode3-cli**, not to each OSCR system core or adapter plugin. The per-reader
+handshake and executable registry described above are a temporary bridge used
+by the development Web prototype, not a plugin API requirement. When
+retrode3-cli provides capability/slot/job messages, replace this shim with
+one CLI client; keep passive hardware sense distinct from actual game or
+adapter identification. Refer to `cli-integration.md` for the authoritative
+plan; do not require the MegaDrive plugin itself to emit NDJSON.
