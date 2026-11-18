@@ -6,7 +6,7 @@ Branch: feature/web-control-v2 in DragonBox-Shop/retrode3. Status: development p
 - OS, original PHP UI, WLAN helper, Samba, USB storage: DragonBox-Shop/retrode3
 - Native cartridge reader and NDJSON v1: DragonBox-Shop/retrode3-oscr, migration/oscr-firmware
 - A Python 3.4-compatible backend on 127.0.0.1:8765 owns a single hardware job, validates input and paths, forwards native events, and provides guarded file/WLAN operations.
-- A PHP gateway with HTTP Basic auth, session and CSRF validation mediates all browser requests; it refuses requests if an administrator password hash is missing.
+- A PHP gateway uses same-origin session + CSRF protection for browser requests. No password is required by default; optional HTTP Basic authentication can be enabled with an on-device command.
 - Vanilla JS/CSS frontend, language files in web/locales/de.json and en.json. Navigation: Read, File Manager, Write (disabled), Settings.
 - Only native SNES LoROM/HiROM probe/read/cancel/get_capabilities are supported. No claims about CRDB game matches, auto-detect, save RAM, other cores or cartridge writes.
 
@@ -20,8 +20,8 @@ Requirements: Python 3.4+, a PHP runtime with sessions, password_verify and stre
 
 1. Host v2/web separately from the existing /var/www/html (test vhost or subpath), without replacing the old site.
 2. Install/copy the backend and start manually with RETRODE3_GAMES_ROOT=/path/to/test/games RETRODE3_SNES_BINARY=/path/to/oscr-snes-native python3 backend/service.py. The default binary path is /usr/local/bin/oscr-snes-native. No system daemon or package installation is included yet.
-3. To unlock PHP access, put a PHP password_hash(PASSWORD_DEFAULT) hash as a single line into /etc/retrode3-web-control.auth. Username is admin. Make the file owned by root, readable by the PHP worker, and NOT located within the public web root. Never publish it. Without it the UI returns HTTP 503.
-4. The PHP gateway uses HTTP Basic authentication. Passwords traverse HTTP without encryption, so do not expose this prototype to an untrusted LAN, public Wi-Fi, or the Internet. Production needs HTTPS or a stronger pairing and device-local trust model.
+3. Password authentication is OFF by default. The PHP gateway accepts requests without login if /etc/retrode3-web-control.auth does not exist. To enable optional HTTP Basic authentication, run retrode3-web-v2-auth enable as root after installation. To disable it, run retrode3-web-v2-auth disable. No 12-character minimum is enforced; any nonempty password is accepted. If protection is configured but its hash file becomes unreadable, PHP fails closed.
+4. The UI has no password by default. Even though cartridge ROMs are not sensitive, an untrusted visitor could delete ROM files or change Wi-Fi settings. Keep the development interface on the trusted local/USB network; do not port-forward it. Optional Basic authentication is not encrypted over plain HTTP.
 5. Backend requires ROM folder write permissions and restricted cartridge device access. WLAN is controlled via existing retrode3-wlan using sudo -n (configurable with RETRODE3_WLAN_SUDO=0). Existing helper/privileged dependencies require separate security review.
 
 Prototype endpoints: GET /api/health, /api/capabilities, /api/settings, /api/wifi/status, /api/wifi/scan, /api/files?path=, /api/files/download?path=, /api/jobs/{id}; POST /api/jobs, /api/jobs/{id}/cancel, /api/files/mkdir, /api/files/move, /api/files/delete, /api/wifi/connect, /api/wifi/disconnect.
@@ -57,7 +57,7 @@ First checkout:
     sh /root/retrode3-web-src/retrode3-web-control/v2/install-on-retrode.sh
 
 The installer preflights Python 3.4+, PHP, Python/PHP syntax and the webroot.
-It configures an authenticated development UI (username admin), a localhost
+It configures a no-login-by-default development UI, a localhost
 backend service and an on-device updater. It does not change the native OSCR
 source or the main branch. The previously installed web UI is copied to
 /var/backups/retrode3-web-v2/ before the new webroot is activated.
@@ -80,7 +80,9 @@ checkout directory already exists from a previous attempt, inspect its state
 first rather than recloning into it.
 
 Access the new site at http://192.168.0.202/ on the trusted USB/device network.
-HTTP Basic credentials are not encrypted over plain HTTP, so **do not expose
+The interface requires **no password by default**; enable optional authentication
+with `retrode3-web-v2-auth enable` or remove it using `retrode3-web-v2-auth disable`.
+Even with optional Basic auth, HTTP does not encrypt credentials; **do not expose
 this development UI to the public Internet or untrusted networks**. The device
 may have Internet access without being publicly reachable, but use a trusted
 connection and do not forward its HTTP port.
@@ -90,6 +92,13 @@ Diagnostics:
     service retrode3-web-v2 status
     tail -n 80 /var/log/retrode3-web-v2.log
     python3 -c 'import urllib.request; print(urllib.request.urlopen("http://127.0.0.1:8765/api/health").read())'
+
+Optional login (run on Retrode as root):
+
+    retrode3-web-v2-auth enable
+    retrode3-web-v2-auth disable
+
+Login name when enabled: admin. The optional setup accepts any nonempty password, without imposing a minimum length.
 
 Rollback on the device:
 

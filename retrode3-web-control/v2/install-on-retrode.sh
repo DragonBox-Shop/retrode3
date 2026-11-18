@@ -14,6 +14,7 @@ info() { echo "==> $*"; }
 [ -f "$BASE/web/index.php" ] || fail "Missing web/index.php"
 [ -f "$BASE/service/retrode3-web-v2.init" ] || fail "Missing init script"
 [ -f "$BASE/rollback-on-retrode.sh" ] || fail "Missing rollback script"
+[ -f "$BASE/manage-auth-on-retrode.sh" ] || fail "Missing authentication manager"
 [ -d "$WWW" ] || fail "Webroot $WWW not found."
 [ -d /usr/local/games ] || fail "Games share /usr/local/games missing."
 id www-data >/dev/null 2>&1 || fail "Account www-data missing."
@@ -57,26 +58,10 @@ if [ ! -e /usr/local/bin/oscr-snes-native ]; then
     fi
 fi
 
-if [ ! -r "$AUTH" ]; then
-    info "Create new web admin password (username: admin)."
-    [ -c /dev/tty ] || fail "Run over an interactive terminal."
-    printf "New password (at least 12 characters): " > /dev/tty
-    stty -echo < /dev/tty
-    trap 'stty echo < /dev/tty' 0 1 2 3 15
-    IFS= read -r PASS < /dev/tty || fail "Could not read password."
-    stty echo < /dev/tty
-    trap - 0 1 2 3 15
-    printf "\n" > /dev/tty
-    PASSLEN=$(printf '%s' "$PASS" | wc -c)
-    [ "$PASSLEN" -ge 12 ] || fail "Password too short."
-    HASH=$(printf '%s' "$PASS" | php -r 'echo password_hash(stream_get_contents(STDIN), PASSWORD_DEFAULT);')
-    unset PASS
-    [ -n "$HASH" ] || fail "Password hash failed."
-    ( umask 027; printf '%s\n' "$HASH" > "$AUTH" )
-    chown root:www-data "$AUTH"
-    chmod 0640 "$AUTH"
+if [ -e "$AUTH" ]; then
+    info "Optional web password file is present. Authentication remains enabled."
 else
-    info "Keeping existing administrator hash."
+    info "Web access without password (default). Configure optional protection later if desired."
 fi
 
 if [ ! -e /usr/local/games/ROMs ]; then
@@ -170,7 +155,7 @@ info "SUCCESS: New frontend is installed at http://192.168.0.202/"
 info "Check service: service retrode3-web-v2 status"
 info "Read logs: tail -n 50 /var/log/retrode3-web-v2.log"
 info "Rollback: /usr/local/sbin/retrode3-web-v2-rollback"
-info "Admin username: admin."
+info "Login: no password by default. Optional password: retrode3-web-v2-auth enable."
 
 # Only a private checkout is pulled. Do not expose a .git directory to HTTP.
 if command -v git >/dev/null 2>&1; then
@@ -189,3 +174,8 @@ EOF
         info "Next updates: retrode3-web-v2-update (Git pull + deploy + backup)"
     fi
 fi
+
+# Install optional authentication manager. The site works without this step.
+cp "$BASE/manage-auth-on-retrode.sh" /usr/local/sbin/retrode3-web-v2-auth
+chown root:root /usr/local/sbin/retrode3-web-v2-auth
+chmod 0755 /usr/local/sbin/retrode3-web-v2-auth

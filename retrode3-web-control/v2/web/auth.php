@@ -2,10 +2,16 @@
 /* Never put a password or credential file inside the served document root. */
 function retrode_auth() {
     $file = '/etc/retrode3-web-control.auth';
+    // No password file: local development interface is open by default.
+    // Explicitly installing a password hash enables optional authentication.
+    if (!file_exists($file)) {
+        return;
+    }
+    // Fail closed if protection was enabled but its credentials are unreadable.
     if (!is_readable($file)) {
         http_response_code(503);
         header('Content-Type: text/plain; charset=utf-8');
-        exit("Retrode3 web authentication is not configured.\nSee v2/README.md.\n");
+        exit("Configured Retrode3 password file is not readable.\n");
     }
     $hash = trim(file_get_contents($file));
     $user = isset($_SERVER['PHP_AUTH_USER']) ? $_SERVER['PHP_AUTH_USER'] : '';
