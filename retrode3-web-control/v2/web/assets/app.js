@@ -52,6 +52,7 @@
   function setLocale(lang) {
     if (!/^(en|de)$/.test(lang)) lang = "en";
     locale = lang; $("locale").value = lang;
+    $("help-online-link").href = "https://github.com/DragonBox-Shop/retrode3/blob/feature/web-control-v2/retrode3-web-control/v2/docs/user-guide." + lang + ".md";
     fetch("locales/" + lang + ".json", {cache: "no-store"})
       .then(function (r) { if (!r.ok) throw new Error("locale"); return r.json(); })
       .then(function (data) { messages = data; localize(); })
@@ -327,8 +328,15 @@
     }).catch(fail);
     api("/api/wifi/status").then(function (data) {
       text($("wifi-status"), !data.available ? t("status_no_wifi") :
-        data.connected ? t("status_connected") + " · " + data.ssid : t("status_disconnected"));
+        data.connected ? t("status_connected") + (data.ssid ? " · " + data.ssid : "") :
+        data.associated ? t("wifi_associated_no_ip") : t("status_disconnected"));
       text($("wifi-ip"), data.ipv4 || "—");
+      text($("wifi-interface"), data.interface || "—");
+      var hint = data.warning === "legacy_helper_does_not_detect_interface" ?
+        t("wifi_legacy_warning") :
+        data.warning === "legacy_helper_unavailable" ? t("wifi_helper_warning") :
+        !data.available ? t("wifi_not_found_detail") : "";
+      text($("wifi-diagnostic"), hint);
     }).catch(fail);
   }
   function bind() {
@@ -357,6 +365,10 @@
     $("scan-wifi").addEventListener("click", function () {
       api("/api/wifi/scan").then(function (data) {
         var list = $("wifi-networks"); list.innerHTML = "";
+        if (!data.networks || !data.networks.length) {
+          notify(t("wifi_scan_empty"));
+          return;
+        }
         data.networks.forEach(function (network) {
           var row = document.createElement("div"), btn = button(network.ssid, function () {
             $("wifi-ssid").value = network.ssid;

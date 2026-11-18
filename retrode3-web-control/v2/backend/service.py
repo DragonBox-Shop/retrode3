@@ -38,6 +38,7 @@ READER_SPECS = {
 PHYSICAL_SLOTS = (("md", "Mega Drive"), ("snes", "Super Nintendo"),
                   ("nes", "Nintendo / Famicom"))
 WLAN_BIN = os.environ.get("RETRODE3_WLAN_BINARY", "/usr/local/bin/retrode3-wlan")
+NET_SYSFS_ROOT = os.environ.get("RETRODE3_NET_SYSFS_ROOT", "/sys/class/net")
 RUN_SUDO = os.environ.get("RETRODE3_WLAN_SUDO", "1") == "1"
 SEGMENT = re.compile(r"^[^/\\\x00-\x1f\x7f]+$")
 FILE_STEM = re.compile(r"[^A-Za-z0-9_. -]+")
@@ -115,15 +116,125 @@ def call_wlan(*args):
     return out.decode("utf-8", "replace").strip()
 
 
+def wireless_interfaces():
+    """Find WLAN devices without relying on the legacy iwconfig grep.
+
+    This does not change interface state and works when WLAN is down.
+    /sys/class/net/wlan*/phy80211 and iw dev are intentionally read-only.
+    """
+    found = set()
+    if os.path.isdir(NET_SYSFS_ROOT):
+        try:
+            for name in os.listdir(NET_SYSFS_ROOT):
+                if (os.path.exists(os.path.join(NET_SYSFS_ROOT, name, "phy80211"))
+                        or os.path.isdir(os.path.join(NET_SYSFS_ROOT, name, "wireless"))):
+                    found.add(name)
+        except OSError:
+            pass
+    proc = None
+    try:
+        proc = subprocess.Popen(["iw", "dev"], stdout=subprocess.PIPE,
+                                stderr=subprocess.PIPE)
+        out, _ = proc.communicate(timeout=5)
+        if proc.returncode == 0:
+            for match in re.findall(r"^\s*Interface\s+(\S+)\s*$",
+                                    out.decode("utf-8", "replace"), re.MULTILINE):
+                if re.match(r"^[A-Za-z0-9_.-]{1,32}$", match):
+                    found.add(match)
+    except subprocess.TimeoutExpired:
+        if proc is not None:
+            proc.kill()
+            proc.communicate()
+    except OSError:
+        pass
+    return sorted(found)
+
+
+def wireless_link(interface):
+    """Optional association and SSID hints; failures remain unknown, not absent."""
+    proc = None
+    try:
+        proc = subprocess.Popen(["iw", "dev", interface, "link"],
+                                stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        out, _ = proc.communicate(timeout=5)
+        if proc.returncode != 0:
+            return {}
+        raw = out.decode("utf-8", "replace")
+        connected = "Connected to " in raw
+        match = re.search(r"^\s*SSID:\s*(.*)$", raw, re.MULTILINE)
+        return {"associated": connected, "ssid": match.group(1) if match else ""}
+    except subprocess.TimeoutExpired:
+        if proc is not None:
+            proc.kill()
+            proc.communicate()
+    except OSError:
+        pass
+    return {}
+
+
+def interface_ipv4(interface):
+    """Read IPv4 via old Debian iproute2 or net-tools, without extra privileges."""
+    for argv in (["ip", "-4", "addr", "show", "dev", interface],
+                 ["ifconfig", interface]):
+        try:
+            proc = subprocess.Popen(argv, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            out, _ = proc.communicate(timeout=4)
+            if proc.returncode:
+                continue
+            raw = out.decode("utf-8", "replace")
+            match = re.search(r"\binet(?: addr:|\s+)(\d{1,3}(?:\.\d{1,3}){3})\b", raw)
+            if match:
+                return match.group(1)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            proc.communicate()
+        except OSError:
+            continue
+    return ""
+
+
 def wifi_status():
-    raw = call_wlan("status")
-    if raw == "no WLAN interface":
-        return {"available": False, "connected": False}
-    # Legacy retrode3-wlan output: status,ssid,ap,mac,ipv4,ipv6
-    fields = (raw.split(",", 5) + [""] * 6)[:6]
-    return {"available": True, "connected": fields[0] == "connected",
-            "ssid": fields[1], "access_point": fields[2], "mac": fields[3],
-            "ipv4": fields[4], "ipv6": fields[5]}
+    """Detect hardware independently of the legacy helper's iwconfig grep."""
+    interfaces = wireless_interfaces()
+    details = {}
+    helper_missing_interface = False
+    helper_failed = False
+    try:
+        raw = call_wlan("status")
+        if raw == "no WLAN interface":
+            helper_missing_interface = True
+        else:
+            # Legacy format: connected,ssid,ap,mac,ipv4,ipv6
+            fields = (raw.split(",", 5) + [""] * 6)[:6]
+            if fields[0] in ("connected", "disconnected"):
+                details = {"connected": fields[0] == "connected",
+                           "ssid": fields[1], "access_point": fields[2],
+                           "mac": fields[3], "ipv4": fields[4],
+                           "ipv6": fields[5]}
+            else:
+                helper_failed = True
+    except ApiError:
+        helper_failed = True
+    available = bool(interfaces) or bool(details)
+    interface = interfaces[0] if interfaces else None
+    link = wireless_link(interface) if interface else {}
+    if not details.get("ssid") and link.get("ssid"):
+        details["ssid"] = link["ssid"]
+    if interface and not details.get("ipv4"):
+        details["ipv4"] = interface_ipv4(interface)
+    if interface and details.get("ipv4") and link.get("associated"):
+        details["connected"] = True
+    details.update({"available": available, "interface": interface,
+                    "interfaces": interfaces,
+                    "connected": bool(details.get("connected", False)),
+                    "associated": link.get("associated")})
+    if not available:
+        details["reason"] = "no_wireless_interface_detected"
+    elif helper_missing_interface:
+        details["warning"] = "legacy_helper_does_not_detect_interface"
+    elif helper_failed:
+        details["warning"] = "legacy_helper_unavailable"
+    return details
 
 
 def wifi_scan():

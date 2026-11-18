@@ -23,6 +23,7 @@ header("Content-Security-Policy: default-src 'self'; img-src 'self'; style-src '
 <button class="tab" data-tab="files" data-i18n="files">File Manager</button>
 <button class="tab" data-tab="writer" data-i18n="writer">Write Cartridge</button>
 <button class="tab" data-tab="settings" data-i18n="settings">General Settings</button>
+<button class="tab" data-tab="help" data-i18n="help_tab">Help &amp; Documentation</button>
 </nav>
 <main>
 <section id="reader" class="page active">
@@ -57,10 +58,33 @@ header("Content-Security-Policy: default-src 'self'; img-src 'self'; style-src '
 <div class="file-table-wrap"><table class="file-table"><thead><tr><th data-i18n="name">Name</th><th data-i18n="size">Size</th><th data-i18n="modified">Modified</th><th data-i18n="actions">Actions</th></tr></thead><tbody id="file-rows"></tbody></table></div></div></section>
 <section id="writer" class="page"><p class="eyebrow" data-i18n="future">FUTURE FEATURE</p><h1 data-i18n="writer_title">Write a cartridge</h1><div class="panel empty"><span class="big-icon">↗</span><h2 data-i18n="writer_unavailable">Writing isn't available yet</h2><p class="muted" data-i18n="writer_desc">This area is reserved for future flash and save operations, with explicit safety checks.</p></div></section>
 <section id="settings" class="page"><p class="eyebrow" data-i18n="device">DEVICE</p><h1 data-i18n="settings_title">General settings</h1><div class="two-col"><div class="panel"><h2 data-i18n="wifi">Wi-Fi connection</h2><div class="keyval"><span data-i18n="wifi_status">Status</span><strong id="wifi-status">…</strong></div><div class="keyval"><span data-i18n="ip_address">IP address</span><strong id="wifi-ip">…</strong></div>
+<div class="keyval"><span data-i18n="wifi_interface">Wireless interface</span><strong id="wifi-interface">…</strong></div><p id="wifi-diagnostic" class="muted small" role="status"></p>
 <div class="actions"><button id="scan-wifi" class="btn secondary" data-i18n="scan">Scan networks</button><button id="disconnect-wifi" class="btn danger" data-i18n="disconnect">Disconnect</button></div><div id="wifi-networks"></div>
 <label for="wifi-ssid" data-i18n="ssid">Network name (SSID)</label><input id="wifi-ssid" maxlength="32" autocomplete="off">
 <label for="wifi-password" data-i18n="password">Password</label><input id="wifi-password" type="password" maxlength="128" autocomplete="new-password">
 <button id="connect-wifi" class="btn primary" data-i18n="connect">Connect</button><p class="muted small" data-i18n="wifi_warning">Changing network settings may interrupt your connection.</p></div>
 <div class="panel"><h2 data-i18n="localization">Language &amp; time</h2><div class="keyval"><span data-i18n="device_time">Device time</span><strong id="device-time">…</strong></div><div class="keyval"><span data-i18n="timezone">Time zone</span><strong id="device-timezone">…</strong></div><p class="muted small" data-i18n="time_note">Time and time zone are currently read-only. Language files can be added without changing the backend.</p></div></div></section>
+<section id="help" class="page">
+<p class="eyebrow" data-i18n="help_small">DOCUMENTATION</p>
+<h1 data-i18n="help_title">Help &amp; documentation</h1>
+<p class="muted" data-i18n="help_intro">Quick start guide for reading cartridges and managing ROMs. The full instructions are available online.</p>
+<div class="two-col">
+<div class="panel">
+<h2 data-i18n="help_quick_title">Quick start</h2>
+<ol class="help-steps">
+<li data-i18n="help_step_one">Connect Retrode3 to your computer and open its web page.</li>
+<li data-i18n="help_step_two">Insert a cartridge. The slot indicator shows whether a cartridge is physically present.</li>
+<li data-i18n="help_step_three">Select a supported reader and use Detect Cartridge, then Read ROM.</li>
+<li data-i18n="help_step_four">Access completed dumps in the File Manager or via Samba.</li>
+</ol>
+</div>
+<div class="panel">
+<h2 data-i18n="help_web_title">Online documentation</h2>
+<p class="muted" data-i18n="help_web_desc">The complete guide covers connection methods, supported systems, troubleshooting and limitations. It can later be moved into the public Wiki without changing this page.</p>
+<a id="help-online-link" class="btn primary help-link" href="https://github.com/DragonBox-Shop/retrode3/blob/feature/web-control-v2/retrode3-web-control/v2/docs/user-guide.en.md" target="_blank" rel="noopener noreferrer" data-i18n="help_open_online">Open online guide</a>
+<p class="muted small" data-i18n="help_note">Only documented read-only operations are currently supported. Do not remove cartridges during a read.</p>
+</div>
+</div>
+</section>
 <div id="toast" role="status" aria-live="polite"></div>
 </main></div></body></html>

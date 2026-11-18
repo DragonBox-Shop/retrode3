@@ -20,6 +20,46 @@ class BackendTests(unittest.TestCase):
     def tearDown(self):
         shutil.rmtree(self.temp)
 
+    def test_wifi_detects_device_even_if_legacy_helper_misses_it(self):
+        old_root = MODULE.NET_SYSFS_ROOT
+        old_helper = MODULE.call_wlan
+        old_link = MODULE.wireless_link
+        old_ipv4 = MODULE.interface_ipv4
+        try:
+            wifi_root = os.path.join(self.temp, "network")
+            os.makedirs(os.path.join(wifi_root, "wlan0", "phy80211"))
+            MODULE.NET_SYSFS_ROOT = wifi_root
+            MODULE.call_wlan = lambda command: "no WLAN interface"
+            MODULE.wireless_link = lambda interface: {"associated": False, "ssid": ""}
+            MODULE.interface_ipv4 = lambda interface: ""
+            result = MODULE.wifi_status()
+            self.assertTrue(result["available"])
+            self.assertEqual(result["interface"], "wlan0")
+            self.assertEqual(result["warning"], "legacy_helper_does_not_detect_interface")
+            self.assertFalse(result["connected"])
+        finally:
+            MODULE.NET_SYSFS_ROOT = old_root
+            MODULE.call_wlan = old_helper
+            MODULE.wireless_link = old_link
+            MODULE.interface_ipv4 = old_ipv4
+
+    def test_wifi_missing_device_is_not_assumed_connected(self):
+        old_root = MODULE.NET_SYSFS_ROOT
+        old_helper = MODULE.call_wlan
+        old_which = MODULE.wireless_interfaces
+        try:
+            MODULE.NET_SYSFS_ROOT = self.temp
+            MODULE.wireless_interfaces = lambda: []
+            MODULE.call_wlan = lambda command: "no WLAN interface"
+            result = MODULE.wifi_status()
+            self.assertFalse(result["available"])
+            self.assertFalse(result["connected"])
+            self.assertEqual(result["reason"], "no_wireless_interface_detected")
+        finally:
+            MODULE.NET_SYSFS_ROOT = old_root
+            MODULE.call_wlan = old_helper
+            MODULE.wireless_interfaces = old_which
+
     def test_sandbox(self):
         self.assertEqual(MODULE.safe_path(""), MODULE.FILES_ROOT)
         for path in ("../etc", "SNES/../../etc", "/etc", "SNES//file", "SNES/.hidden", "a\\b"):

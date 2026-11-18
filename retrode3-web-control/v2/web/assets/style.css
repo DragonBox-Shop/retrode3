@@ -8,3 +8,8 @@
 #advanced{margin-top:16px;padding:16px;border:1px solid var(--line);border-radius:10px;background:#131d29}
 #advanced-toggle{margin-top:16px}
 @media(max-width:650px){.slot-grid{grid-template-columns:1fr}}
+
+.help-steps{padding-left:22px;margin:0;line-height:1.65;color:var(--text)}
+.help-steps li{padding:6px 0}
+.help-link{display:inline-block;text-decoration:none;margin-top:12px}
+#wifi-diagnostic:not(:empty){border-left:3px solid var(--accent);padding:10px 12px;background:#252f3c;border-radius:4px}

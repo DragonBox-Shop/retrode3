@@ -168,3 +168,31 @@ working SNES UI and mark the legacy MegaDrive one-shot integration pending.
 See `v2/docs/cli-integration.md` for the target architecture and migration
 acceptance tests. This decision supersedes earlier descriptions in this
 README suggesting that each core should provide Web NDJSON progress.
+
+## WLAN discovery and Help tab (2026-11-18)
+
+The original `retrode3-wlan status` shell helper discovers adapters by
+filtering `iwconfig` output for `wlan`. It can print `no WLAN interface`
+even when Linux and `iw dev` know about a wireless device. The v2 web
+backend now detects hardware independently via `/sys/class/net/*/phy80211`,
+`/sys/class/net/*/wireless` and `iw dev`, without activating interfaces or
+changing network configuration. The Settings tab shows the discovered interface
+name and warns if the legacy helper fails to detect it. The existing helper
+still handles **connect/disconnect/scan** while its network setup behavior is
+verified on real hardware; do not equate fixing a false status report with a
+verified successful connection.
+
+For on-device diagnostics, compare `iw dev`, `ls /sys/class/net`,
+`/usr/local/bin/retrode3-wlan status`, and the loopback
+`GET /api/wifi/status` response. The backend uses Python 3.4-compatible
+read-only tools for hardware discovery. Device tests still required.
+
+A new **Help & Documentation** tab gives brief bilingual instructions and
+links to Wiki-ready Markdown documents:
+- `v2/docs/user-guide.de.md`
+ - `v2/docs/user-guide.en.md`
+
+The links currently point to the published GitHub branch's Markdown documents,
+not to an unpublished wiki address. Once the wiki is populated, change the
+one link target in `web/assets/app.js` (plus the HTML fallback) without
+shipping an entire copy of an evolving manual onto the device.
