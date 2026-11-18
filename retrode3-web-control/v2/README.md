@@ -109,3 +109,13 @@ leaves the native reader and existing ROM files alone. New versions remain
 development builds until tested against real SNES hardware. USB mass storage
 still uses an independent FAT image and is not synchronized automatically
 with Samba/Web.
+
+## Local health check on older Debian / proxy-configured shells
+
+The install and update scripts use Python stdlib `http.client.HTTPConnection` to contact the locally bound backend directly. This deliberately bypasses `urllib`'s automatic environment proxy discovery, which could otherwise make a healthy backend appear unreachable.
+
+If health check fails, use:
+
+    python3 -c 'import http.client; c=http.client.HTTPConnection("127.0.0.1",8765,timeout=3); c.request("GET","/api/health"); r=c.getresponse(); print(r.status, r.read())'
+
+Expected status: 200, JSON `{"ok": true, "service": "retrode3-web-v2"}`. Service/listener presence alone does not prove successful responses. If the direct connection succeeds but install still fails, paste the exact installer output and backend logs.

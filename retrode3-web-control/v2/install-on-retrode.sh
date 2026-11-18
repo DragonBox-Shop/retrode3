@@ -31,14 +31,20 @@ info "Preflight checks passed."
 # Avoid orphaning a native child while the web backend is replaced.
 if [ -f /etc/init.d/retrode3-web-v2 ]; then
     if python3 -c '
-import json, sys
+import json, sys, http.client
 try:
-    import urllib.request
-    r = urllib.request.urlopen("http://127.0.0.1:8765/api/jobs/active", timeout=3)
-    state = json.load(r).get("status", "unknown")
+    conn = http.client.HTTPConnection("127.0.0.1", 8765, timeout=3)
+    conn.request("GET", "/api/jobs/active")
+    response = conn.getresponse()
+    if response.status != 200:
+        sys.exit(2)
+    state = json.loads(response.read().decode("utf-8")).get("status", "unknown")
+    conn.close()
 except Exception:
     sys.exit(2)
-sys.exit(1 if state in ("queued", "running", "cancelling") else 0)
+if state in ("queued", "running", "cancelling"):
+    sys.exit(1)
+sys.exit(0 if state in ("idle", "done", "failed", "cancelled") else 2)
 '; then
         :
     else
@@ -109,7 +115,7 @@ info "Checking backend health..."
 OK=0
 COUNT=0
 while [ "$COUNT" -lt 12 ]; do
-    if python3 -c 'import json,urllib.request; r=urllib.request.urlopen("http://127.0.0.1:8765/api/health", timeout=1); assert json.load(r)["ok"]' >/dev/null 2>&1; then
+    if python3 -c 'import json,http.client; c=http.client.HTTPConnection("127.0.0.1",8765,timeout=2); c.request("GET","/api/health"); r=c.getresponse(); assert r.status == 200; assert json.loads(r.read().decode("utf-8")).get("ok") is True; c.close()' >/dev/null 2>&1; then
         OK=1
         break
     fi
