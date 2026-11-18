@@ -167,5 +167,80 @@ class BackendTests(unittest.TestCase):
         finally:
             MODULE.READER_SPECS["snes"]["binary"] = old_binary
 
+
+    def test_cli_registry_missing_and_untrusted_output(self):
+        original = MODULE.CLI_BIN
+        try:
+            MODULE.CLI_BIN = os.path.join(self.temp, "missing-cli")
+            inventory = MODULE.core_registry()
+            self.assertFalse(inventory["available"])
+            self.assertFalse(inventory["control_enabled"])
+            bad = os.path.join(self.temp, "bad-cli")
+            with open(bad, "w") as stream:
+                stream.write("#!/bin/sh\necho '{\"event\":\"cores\",\"cores\":[]}'\n")
+            os.chmod(bad, 0o755)
+            MODULE.CLI_BIN = bad
+            with self.assertRaises(MODULE.ApiError) as failure:
+                MODULE.core_registry()
+            self.assertEqual(failure.exception.code, "core_protocol_invalid")
+        finally:
+            MODULE.CLI_BIN = original
+
+    def test_core_inventory_toggle_and_metadata_only_reader(self):
+        old = (MODULE.CLI_BIN, MODULE.CORECTL_BIN,
+               MODULE.CORECTL_SUDO, MODULE.CORE_CONTROL_ENABLED)
+        state = os.path.join(self.temp, "state")
+        cli = os.path.join(self.temp, "mock-cli")
+        helper = os.path.join(self.temp, "mock-helper")
+        with open(state, "w") as stream:
+            stream.write("off")
+        with open(cli, "w") as stream:
+            stream.write("#!/usr/bin/env python3\n")
+            stream.write("import json, sys\n")
+            stream.write("assert sys.argv[1:] == ['--list-cores', '--protocol', 'ndjson-v1']\n")
+            stream.write("on = open(%r).read() == 'on'\n" % state)
+            stream.write("print(json.dumps({'protocol':'retrode3-ndjson','version':1,"
+                         "'event':'cores','discovery_abi':1,'cores':["
+                         "{'id':'md','name':'Mega Drive','version':'0.1',"
+                         "'slot':'md','installed':True,'enabled':on,"
+                         "'status':'discovered' if on else 'disabled',"
+                         "'usable':False,'actions':[]}]}))\n")
+        with open(helper, "w") as stream:
+            stream.write("#!/usr/bin/env python3\nimport sys\n")
+            stream.write("assert len(sys.argv) == 3 and sys.argv[2] == 'md'\n")
+            stream.write("assert sys.argv[1] in ('enable','disable')\n")
+            stream.write("open(%r,'w').write('on' if sys.argv[1] == 'enable' else 'off')\n" % state)
+        os.chmod(cli, 0o755)
+        os.chmod(helper, 0o755)
+        try:
+            MODULE.CLI_BIN = cli
+            MODULE.CORECTL_BIN = helper
+            MODULE.CORECTL_SUDO = False
+            MODULE.CORE_CONTROL_ENABLED = True
+            self.assertTrue(MODULE.core_registry()["control_enabled"])
+            self.assertFalse(MODULE.core_registry()["cores"][0]["enabled"])
+            for invalid in ({"id":"../md","enabled":True},
+                            {"id":"md","enabled":"true"}):
+                with self.assertRaises(MODULE.ApiError):
+                    MODULE.toggle_core(invalid)
+            with self.assertRaises(MODULE.ApiError) as missing:
+                MODULE.toggle_core({"id":"snes","enabled":True})
+            self.assertEqual(missing.exception.status, 404)
+            self.assertTrue(MODULE.toggle_core({"id":"md","enabled":True})["core"]["enabled"])
+            self.assertFalse(MODULE.reader_capability("md", MODULE.core_registry())["available"])
+            self.assertEqual(MODULE.toggle_core({"id":"md","enabled":False})["core"]["status"], "disabled")
+            with MODULE.MANAGER.lock:
+                MODULE.MANAGER.active = object()
+            try:
+                with self.assertRaises(MODULE.ApiError) as busy:
+                    MODULE.toggle_core({"id":"md","enabled":True})
+                self.assertEqual(busy.exception.status, 409)
+            finally:
+                with MODULE.MANAGER.lock:
+                    MODULE.MANAGER.active = None
+        finally:
+            (MODULE.CLI_BIN, MODULE.CORECTL_BIN,
+             MODULE.CORECTL_SUDO, MODULE.CORE_CONTROL_ENABLED) = old
+
 if __name__ == "__main__":
     unittest.main()
