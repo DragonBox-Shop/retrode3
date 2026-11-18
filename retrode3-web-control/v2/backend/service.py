@@ -27,6 +27,13 @@ FILES_ROOT = os.path.join(ROOT, "ROMs")
 SNES_BIN = os.environ.get("RETRODE3_SNES_BINARY", "/usr/local/bin/oscr-snes-native")
 MD_BIN = os.environ.get("RETRODE3_MD_BINARY", "/usr/local/bin/oscr-md-native")
 SENSE_ROOT = os.environ.get("RETRODE3_SYSFS_ROOT", "/sys/class/retrode3")
+
+CLI_BIN = os.environ.get("RETRODE3_CLI_BINARY", "/usr/local/bin/retrode3-cli")
+CORECTL_BIN = os.environ.get("RETRODE3_CORECTL_BINARY", "/usr/sbin/retrode3-corectl")
+CORE_CONTROL_ENABLED = os.environ.get("RETRODE3_CORE_CONTROL_ENABLED", "0") == "1"
+CORECTL_SUDO = os.environ.get("RETRODE3_CORECTL_SUDO", "1") == "1"
+CORE_ID = re.compile(r"^[a-z0-9_-]{1,48}$")
+
 # A slot is a physical connector, not an identified game system. Readers
 # are admitted only after successfully negotiating native NDJSON v1.
 READER_SPECS = {
@@ -274,7 +281,116 @@ def slot_snapshot():
     return {"slots": slots}
 
 
-def reader_capability(spec_id):
+
+def core_registry():
+    """Obtain inventory from the central CLI; do not inspect plugin files."""
+    missing = {"available": False, "control_enabled": False, "cores": [],
+               "reason": "cli_missing"}
+    if not os.path.isfile(CLI_BIN) or not os.access(CLI_BIN, os.X_OK):
+        return missing
+    try:
+        proc = subprocess.Popen([CLI_BIN, "--list-cores", "--protocol", "ndjson-v1"],
+                                stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+                                stderr=subprocess.DEVNULL)
+        try:
+            out, unused = proc.communicate(timeout=4)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            proc.communicate()
+            raise ApiError(504, "core_timeout", "CLI discovery timed out")
+    except OSError:
+        raise ApiError(503, "cli_unavailable", "CLI cannot start")
+    if proc.returncode != 0 or len(out) > 262144:
+        raise ApiError(502, "core_discovery_failed", "CLI discovery failed")
+    try:
+        lines = out.decode("utf-8").splitlines()
+        if len(lines) != 1:
+            raise ValueError("Expected one event")
+        event = json.loads(lines[0])
+        if (not isinstance(event, dict) or event.get("protocol") != PROTOCOL or
+                type(event.get("version")) is not int or event["version"] != 1 or
+                event.get("event") != "cores" or event.get("discovery_abi") != 1 or
+                not isinstance(event.get("cores"), list) or len(event["cores"]) > 128):
+            raise ValueError("Unexpected CLI protocol")
+        cores = []
+        seen = set()
+        for c in event["cores"]:
+            if not isinstance(c, dict) or not isinstance(c.get("id"), str) or not CORE_ID.match(c["id"]) or c["id"] in seen:
+                raise ValueError("Invalid core ID")
+            seen.add(c["id"])
+            for field in ("name", "version", "slot", "status"):
+                val = c.get(field)
+                if (not isinstance(val, str) or not val or len(val) > 128 or
+                        any(ord(ch) < 32 or ord(ch) == 127 for ch in val)):
+                    raise ValueError("Invalid core metadata")
+            if any(type(c.get(k)) is not bool for k in ("installed", "enabled", "usable")):
+                raise ValueError("Invalid core flags")
+            actions = c.get("actions")
+            if not isinstance(actions, list) or any(not isinstance(a, str) or not CORE_ID.match(a) for a in actions):
+                raise ValueError("Invalid core actions")
+            cores.append(dict((key, c[key]) for key in
+                              ("id", "name", "version", "slot", "status",
+                               "installed", "enabled", "usable", "actions")))
+    except (ValueError, KeyError, UnicodeError, TypeError):
+        raise ApiError(502, "core_protocol_invalid", "CLI inventory protocol mismatch")
+    return {"available": True, "source": "retrode3-cli",
+            "control_enabled": CORE_CONTROL_ENABLED and
+                               os.path.isfile(CORECTL_BIN) and os.access(CORECTL_BIN, os.X_OK),
+            "cores": cores}
+
+
+def toggle_core(data):
+    """Allow only a known installed core ID; no arbitrary shell or path input."""
+    if not CORE_CONTROL_ENABLED:
+        raise ApiError(403, "core_control_disabled", "Core control not enabled")
+    if (set(data.keys()) != set(("id", "enabled")) or
+            not isinstance(data.get("id"), str) or not CORE_ID.match(data["id"]) or
+            type(data.get("enabled")) is not bool):
+        raise ApiError(400, "invalid_core_request", "Invalid core toggle request")
+    with MANAGER.lock:
+        if MANAGER.active is not None or not MANAGER.bus_lock.acquire(False):
+            raise ApiError(409, "busy", "Hardware job or core change running")
+    try:
+        inv = core_registry()
+        if not inv["available"] or not inv["control_enabled"]:
+            raise ApiError(503, "core_control_unavailable", "CLI/helper missing")
+        found = [c for c in inv["cores"] if c["id"] == data["id"] and c["installed"]]
+        if not found:
+            raise ApiError(404, "core_not_found", "Core is not installed")
+        current = found[0]
+        enabled = data["enabled"]
+        if current["enabled"] == enabled:
+            return {"ok": True, "core": current}
+        if enabled and current["status"] != "disabled":
+            raise ApiError(409, "core_invalid_state", "Core cannot be enabled")
+        if not enabled and current["status"] not in ("discovered", "incompatible"):
+            raise ApiError(409, "core_invalid_state", "Core link requires repair")
+        cmd = [CORECTL_BIN, "enable" if enabled else "disable", data["id"]]
+        if CORECTL_SUDO:
+            cmd = ["sudo", "-n"] + cmd
+        try:
+            proc = subprocess.Popen(cmd, stdin=subprocess.DEVNULL,
+                                    stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+            try:
+                proc.communicate(timeout=5)
+            except subprocess.TimeoutExpired:
+                proc.kill()
+                proc.communicate()
+                raise ApiError(504, "core_control_timeout", "Core helper timed out")
+        except OSError:
+            raise ApiError(503, "core_control_unavailable", "Cannot start core helper")
+        if proc.returncode != 0:
+            raise ApiError(502, "core_control_failed", "Core helper rejected request")
+        updated = core_registry()
+        after = [c for c in updated["cores"] if c["id"] == data["id"]]
+        if not after or after[0]["enabled"] != enabled:
+            raise ApiError(409, "core_state_mismatch", "CLI did not confirm the new state")
+        return {"ok": True, "core": after[0]}
+    finally:
+        MANAGER.bus_lock.release()
+
+
+def reader_capability(spec_id, registry=None):
     """Ask only a registered native reader for read-only command metadata.
 
     A legacy one-shot MegaDrive binary does not support this handshake and
@@ -283,6 +399,18 @@ def reader_capability(spec_id):
     spec = READER_SPECS[spec_id]
     result = {"id": spec_id, "name": spec["name"], "slot": spec["slot"],
               "available": False}
+    if registry is None:
+        registry = core_registry()
+    if registry["available"]:
+        known = [c for c in registry["cores"] if c["id"] == spec_id]
+        if known:
+            core = known[0]
+            if not core["enabled"] or core["status"] != "discovered":
+                result["reason"] = "core_disabled_or_incompatible"
+                return result
+            if not core["usable"] or "read_rom" not in core["actions"]:
+                result["reason"] = "core_operation_unavailable"
+                return result
     binary = spec["binary"]
     if not os.path.isfile(binary) or not os.access(binary, os.X_OK):
         result["reason"] = "native_binary_missing"
@@ -354,7 +482,8 @@ def reader_capability(spec_id):
 
 def capability_probe():
     """Only report truly negotiated native readers; no hardware bus scans."""
-    return {"systems": [reader_capability(key) for key in ("snes", "md")]}
+    registry = core_registry()
+    return {"systems": [reader_capability(key, registry) for key in ("snes", "md")]}
 
 
 class Job(object):
@@ -677,6 +806,8 @@ class Handler(BaseHTTPRequestHandler):
                 self._json(200, {"ok": True, "service": "retrode3-web-v2"})
             elif path == "/api/capabilities":
                 self._json(200, capability_probe())
+            elif path == "/api/cores":
+                self._json(200, core_registry())
             elif path == "/api/slots":
                 self._json(200, slot_snapshot())
             elif path == "/api/settings":
@@ -707,6 +838,8 @@ class Handler(BaseHTTPRequestHandler):
             data = self._body()
             if path == "/api/jobs":
                 self._json(202, MANAGER.submit(data))
+            elif path == "/api/cores/toggle":
+                self._json(200, toggle_core(data))
             elif re.match(r"^/api/jobs/[0-9a-f]{32}/cancel$", path):
                 job = MANAGER.get(path.split("/")[-2])
                 job.cancel()
