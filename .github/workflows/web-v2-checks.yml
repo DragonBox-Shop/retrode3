@@ -1,0 +1,38 @@
+name: Retrode3 Web Control v2 checks
+
+on:
+  push:
+    branches: [feature/web-control-v2]
+    paths:
+      - 'retrode3-web-control/v2/**'
+      - '.github/workflows/web-v2-checks.yml'
+  pull_request:
+    paths:
+      - 'retrode3-web-control/v2/**'
+      - '.github/workflows/web-v2-checks.yml'
+
+jobs:
+  lint-and-mocks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Python syntax and mocked backend checks
+        run: |
+          python3 -m py_compile retrode3-web-control/v2/backend/service.py
+          python3 -m unittest discover -s retrode3-web-control/v2/tests -p 'test_*.py' -v
+      - name: JavaScript syntax
+        run: node --check retrode3-web-control/v2/web/assets/app.js
+      - name: Localized strings syntax
+        run: |
+          python3 -m json.tool retrode3-web-control/v2/web/locales/de.json >/dev/null
+          python3 -m json.tool retrode3-web-control/v2/web/locales/en.json >/dev/null
+      - name: PHP syntax
+        run: |
+          for file in retrode3-web-control/v2/web/*.php; do php -l "$file"; done
+      - name: Installer shell syntax
+        run: |
+          for file in retrode3-web-control/v2/*on-retrode.sh; do sh -n "$file"; done
+          sh -n retrode3-web-control/v2/service/retrode3-web-v2.init

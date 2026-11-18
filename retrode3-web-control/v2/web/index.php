@@ -27,17 +27,26 @@ header("Content-Security-Policy: default-src 'self'; img-src 'self'; style-src '
 <main>
 <section id="reader" class="page active">
 <div class="section-head"><div><p class="eyebrow" data-i18n="reader_small">ROM DUMPING</p><h1 data-i18n="reader_title">Read your cartridge</h1><p class="muted" data-i18n="reader_desc">Detect a game and save a ROM dump to shared storage.</p></div></div>
+<div class="panel"><div class="panel-head"><h2 data-i18n="slots_title">Cartridge slots</h2><span class="tag" id="slots-summary" data-i18n="checking">Checking…</span></div>
+<div id="slot-list" class="slot-grid" aria-live="polite"></div>
+<p class="muted small" data-i18n="slots_note">Slot presence is passive detection. The game or adapter type is not automatically identified.</p></div>
 <div class="two-col">
 <div class="panel"><div class="panel-head"><h2 data-i18n="cartridge">Cartridge</h2><span class="tag" id="reader-support" data-i18n="checking">Checking…</span></div>
-<label for="system" data-i18n="system">System</label><select id="system"><option value="snes">Super Nintendo (SNES)</option></select><p class="muted small" data-i18n="systems_note">Additional systems appear when their native cores are available.</p>
+<div class="keyval"><span data-i18n="selected_reader">Selected reader</span><strong id="selected-reader" data-i18n="choose_reader">No supported reader selected</strong></div>
+<p class="muted small" data-i18n="systems_note">Select a detected slot, or use Advanced Settings for an unrecognized cartridge.</p>
 <button id="probe" class="btn secondary" data-i18n="detect">Detect cartridge</button>
 <div id="game-info" class="game-info"><p class="muted" data-i18n="not_detected">No cartridge examined yet.</p></div>
 </div>
 <div class="panel"><h2 data-i18n="read_options">Read options</h2>
 <label for="filename" data-i18n="filename">File name</label><input id="filename" maxlength="64" value="SNES-Dump" autocomplete="off">
-<label for="mapping" data-i18n="mapping">Mapping</label><select id="mapping"><option value="" data-i18n="auto">Automatic</option><option value="lo">LoROM</option><option value="hi">HiROM</option></select>
-<label for="rom-size" data-i18n="rom_size">ROM size override</label><select id="rom-size"><option value="" data-i18n="auto">Automatic</option></select>
+<button id="advanced-toggle" type="button" class="btn secondary" aria-expanded="false" data-i18n="advanced_toggle">Advanced settings</button>
+<div id="advanced" hidden>
+<p class="muted small" data-i18n="advanced_note">For unrecognized cartridges. Only installed, compatible read-only cores are listed. Selecting a system does not change voltage or detect adapters.</p>
+<label for="system" data-i18n="system">Reader / system</label><select id="system"><option value="">—</option></select>
+<div id="mapping-control"><label for="mapping" data-i18n="mapping">Mapping</label><select id="mapping"><option value="" data-i18n="auto">Automatic</option></select></div>
+<div id="size-control"><label for="rom-size" data-i18n="rom_size">ROM size override</label><select id="rom-size"><option value="" data-i18n="auto">Automatic</option></select></div>
 <p class="muted small" data-i18n="overrides_note">Overrides are optional. Use detected settings unless you know the cartridge's layout.</p>
+</div>
 <button id="read" class="btn primary" data-i18n="start_read">Read ROM</button>
 <div id="job-panel" class="job-panel" hidden><div class="progress-line"><strong id="job-label"></strong><span id="job-percent"></span></div><div class="progress"><div id="job-fill"></div></div><p id="job-detail" class="muted small"></p><button id="cancel" class="btn danger" data-i18n="cancel">Cancel</button></div>
 </div></div>

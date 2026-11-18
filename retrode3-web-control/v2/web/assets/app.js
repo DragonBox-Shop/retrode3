@@ -2,7 +2,8 @@
 (function () {
   "use strict";
   var locale = "en", messages = {}, capabilities = null, activeJob = null;
-  var fileFolder = "", jobTimer = null;
+  var fileFolder = "", jobTimer = null, slotData = null, slotFingerprint = null;
+  var selectedReader = "";
   var csrf = document.querySelector('meta[name="csrf-token"]').content;
   var $ = function (id) { return document.getElementById(id); };
   function t(key) { return messages[key] || key; }
@@ -45,8 +46,8 @@
       var key = el.getAttribute("data-i18n");
       if (messages[key]) text(el, messages[key]);
     });
-    text($("availability"), capabilities && capabilities.systems[0].available ?
-      t("available_snes") : t("unavailable_snes"));
+    renderReaderState();
+    if (slotData) renderSlots();
   }
   function setLocale(lang) {
     if (!/^(en|de)$/.test(lang)) lang = "en";
@@ -66,26 +67,132 @@
     if (id === "files") listFiles();
     if (id === "settings") loadSettings();
   }
+  function readers() {
+    return capabilities && capabilities.systems ?
+      capabilities.systems.filter(function (entry) { return entry.available; }) : [];
+  }
+  function readerById(id) {
+    return readers().filter(function (entry) { return entry.id === id; })[0] || null;
+  }
+  function renderReaderState() {
+    var reader = readerById(selectedReader);
+    text($("selected-reader"), reader ? reader.name : t("choose_reader"));
+    text($("reader-support"), reader ? reader.name : t("reader_unavailable"));
+    $("probe").disabled = $("read").disabled = !reader || Boolean(activeJob);
+    var summary = readers().map(function (item) { return item.name; }).join(", ");
+    var mdLegacy = capabilities && capabilities.systems &&
+      capabilities.systems.some(function (item) {
+        return item.id === "md" && !item.available && item.reason === "native_protocol_unavailable";
+      });
+    text($("availability"), (summary ? t("readers_available") + ": " + summary :
+      t("no_readers_available")) + (mdLegacy ? " · " + t("md_protocol_pending") : ""));
+  }
+  function configureReaderOptions() {
+    var reader = readerById(selectedReader), caps = reader && reader.capabilities || {};
+    var mapping = $("mapping"), size = $("rom-size");
+    mapping.innerHTML = ""; size.innerHTML = "";
+    var a = document.createElement("option"); a.value = ""; text(a, t("auto")); mapping.appendChild(a);
+    var b = document.createElement("option"); b.value = ""; text(b, t("auto")); size.appendChild(b);
+    (caps.mappings || []).forEach(function (mappingId) {
+      if (typeof mappingId !== "string" || mappingId.length > 32) return;
+      var opt = document.createElement("option");
+      opt.value = mappingId;
+      text(opt, mappingId === "lo" ? "LoROM" : mappingId === "hi" ? "HiROM" : mappingId);
+      mapping.appendChild(opt);
+    });
+    $("mapping-control").hidden = !(caps.mappings && caps.mappings.length);
+    $("size-control").hidden = !caps.size_override;
+    if (caps.size_override) {
+      var choices = Array.isArray(caps.size_choices_bytes) ? caps.size_choices_bytes.slice() : [];
+      if (!choices.length) {
+        for (var n = 131072; n <= Math.min(caps.max_rom_bytes || 4194304, 4194304); n *= 2)
+          choices.push(n);
+      }
+      choices.forEach(function (bytes) {
+        if (typeof bytes !== "number" || bytes < 131072 || bytes > 4194304) return;
+        var opt = document.createElement("option");
+        opt.value = String(bytes); text(opt, humanSize(bytes)); size.appendChild(opt);
+      });
+    }
+  }
+  function selectReader(id) {
+    var reader = readerById(id);
+    selectedReader = reader ? id : "";
+    $("system").value = selectedReader;
+    if (reader && (!$("filename").value || /^(SNES|MD)-Dump$/.test($("filename").value))) {
+      $("filename").value = reader.id.toUpperCase() + "-Dump";
+    }
+    configureReaderOptions();
+    renderReaderState();
+    if (slotData) renderSlots();
+  }
+  function renderSlots() {
+    if (!slotData) return;
+    var list = $("slot-list"); list.innerHTML = "";
+    var occupied = slotData.slots.filter(function (slot) { return slot.status === "occupied"; });
+    text($("slots-summary"), occupied.length ? occupied.length + " " + t("slots_occupied") : t("no_occupied_slots"));
+    slotData.slots.forEach(function (slot) {
+      var matching = readers().filter(function (reader) { return reader.slot === slot.id; });
+      var card = document.createElement("button");
+      card.type = "button";
+      card.className = "slot-card" + (slot.status === "occupied" ? " occupied" : "");
+      if (matching.length === 1 && matching[0].id === selectedReader)
+        card.className += " selected";
+      var title = document.createElement("strong");
+      text(title, slot.name); card.appendChild(title);
+      var state = document.createElement("span");
+      text(state, slot.status === "occupied" ? t("slot_occupied") :
+        slot.status === "empty" ? t("slot_empty") :
+        slot.status === "unavailable" ? t("slot_unavailable") : t("slot_unknown"));
+      card.appendChild(state);
+      var hint = document.createElement("small");
+      text(hint, matching.length ? matching.map(function (r) { return r.name; }).join(", ") :
+        t("slot_no_reader")); card.appendChild(hint);
+      card.addEventListener("click", function () {
+        if (matching.length === 1) selectReader(matching[0].id);
+        else {
+          $("advanced").hidden = false;
+          $("advanced-toggle").setAttribute("aria-expanded", "true");
+          notify(t("manual_reader_hint"));
+        }
+      });
+      list.appendChild(card);
+    });
+  }
+  function refreshSlots() {
+    return api("/api/slots").then(function (data) {
+      if (!data || !Array.isArray(data.slots)) return;
+      slotData = data;
+      var fingerprint = data.slots.map(function (slot) { return slot.id + ":" + slot.status; }).join("|");
+      if (fingerprint !== slotFingerprint && !activeJob) {
+        slotFingerprint = fingerprint;
+        var occupied = data.slots.filter(function (slot) { return slot.status === "occupied"; });
+        var matches = readers().filter(function (reader) {
+          return occupied.some(function (slot) { return slot.id === reader.slot; });
+        });
+        selectReader(matches.length === 1 ? matches[0].id : "");
+      }
+      renderSlots();
+    }).catch(function (error) {
+      text($("slots-summary"), t("slot_unavailable"));
+      fail(error);
+    });
+  }
   function loadCapabilities() {
     return api("/api/capabilities").then(function (data) {
       capabilities = data;
-      var ready = data.systems && data.systems.some(function (sys) {
-        return sys.id === "snes" && sys.available;
-      });
       text($("connection"), t("connected"));
-      text($("reader-support"), ready ? "SNES" : t("offline"));
-      $("probe").disabled = $("read").disabled = !ready;
-      var sizes = $("rom-size"); sizes.innerHTML = "";
-      var auto = document.createElement("option"); auto.value = ""; text(auto, t("auto")); sizes.appendChild(auto);
-      if (ready && data.systems[0].capabilities.size_override) {
-        for (var kiB = 128; kiB <= 4096; kiB *= 2) {
-          var option = document.createElement("option");
-          option.value = String(kiB * 1024);
-          text(option, kiB >= 1024 ? (kiB / 1024) + " MiB" : kiB + " KiB");
-          sizes.appendChild(option);
-        }
-      }
-      localize();
+      var select = $("system"), previous = selectedReader;
+      select.innerHTML = "";
+      var initial = document.createElement("option");
+      initial.value = ""; text(initial, t("choose_reader")); select.appendChild(initial);
+      readers().forEach(function (reader) {
+        var option = document.createElement("option");
+        option.value = reader.id; text(option, reader.name); select.appendChild(option);
+      });
+      selectReader(previous);
+      if (!activeJob) slotFingerprint = null;
+      return refreshSlots();
     }).catch(function (error) {
       text($("connection"), t("offline"));
       $("probe").disabled = $("read").disabled = true;
@@ -110,7 +217,8 @@
     if (data.title) $("filename").value = data.title;
   }
   function startJob(command) {
-    var payload = {system: "snes", command: command};
+    if (!readerById(selectedReader)) return notify(t("choose_reader"));
+    var payload = {system: selectedReader, command: command};
     if (command === "read_rom") {
       payload.filename = $("filename").value;
       if ($("mapping").value) payload.mapping = $("mapping").value;
@@ -228,6 +336,12 @@
     document.querySelectorAll(".tab").forEach(function (tab) {
       tab.addEventListener("click", function () { showTab(tab.getAttribute("data-tab")); });
     });
+    $("advanced-toggle").addEventListener("click", function () {
+      var expanded = $("advanced").hidden;
+      $("advanced").hidden = !expanded;
+      $("advanced-toggle").setAttribute("aria-expanded", String(expanded));
+    });
+    $("system").addEventListener("change", function () { selectReader(this.value); });
     $("probe").addEventListener("click", function () { startJob("probe"); });
     $("read").addEventListener("click", function () { startJob("read_rom"); });
     $("cancel").addEventListener("click", function () {
@@ -279,4 +393,5 @@
   var saved = (navigator.language || "").toLowerCase().indexOf("de") === 0 ? "de" : "en";
   setLocale(saved);
   loadCapabilities().then(resumeJob);
+  window.setInterval(refreshSlots, 3000);
 })();

@@ -64,6 +64,14 @@ if [ ! -e /usr/local/bin/oscr-snes-native ]; then
     fi
 fi
 
+# Link the read-only MegaDrive stage-1 binary if it was built locally.
+# The Web UI only enables it after a separate compatible NDJSON handshake.
+if [ ! -e /usr/local/bin/oscr-md-native ] &&
+   [ -x /usr/local/src/retrode3-oscr/build/migration/oscr-md-native ]; then
+    ln -s /usr/local/src/retrode3-oscr/build/migration/oscr-md-native /usr/local/bin/oscr-md-native
+    info "Linked native MegaDrive CLI (NDJSON web support still required)."
+fi
+
 if [ -e "$AUTH" ]; then
     info "Optional web password file is present. Authentication remains enabled."
 else

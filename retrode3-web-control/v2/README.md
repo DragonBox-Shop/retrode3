@@ -119,3 +119,35 @@ If health check fails, use:
     python3 -c 'import http.client; c=http.client.HTTPConnection("127.0.0.1",8765,timeout=3); c.request("GET","/api/health"); r=c.getresponse(); print(r.status, r.read())'
 
 Expected status: 200, JSON `{"ok": true, "service": "retrode3-web-v2"}`. Service/listener presence alone does not prove successful responses. If the direct connection succeeds but install still fails, paste the exact installer output and backend logs.
+
+## Slot-aware reader selection (2026-11-18)
+
+Passive presence polling reads the three existing kernel sysfs `sense` values
+for SNES, MegaDrive and NES. The browser displays physical slot status every
+three seconds without activating the cartridge bus. The displayed slot is
+**not** proof of what game system or adapter is inserted. When exactly one
+compatible registered reader matches the occupied connector, the UI suggests
+that reader; it does not automatically run a cartridge probe.
+
+The advanced read-only selector lists **only readers whose real installed
+native executable successfully answers NDJSON v1 `ready` and
+`get_capabilities`**, validated by protocol version and system ID.
+Only the corresponding supported mapping/size controls are shown. Unsupported
+systems or one-shot legacy binaries are never offered just because an
+executable is present. The backend is still restricted to reviewed built-in
+reader descriptors; future plugin descriptors require a separate trusted
+registry and hardware safety design.
+
+The native MegaDrive stage-1 CLI exists in the OSCR feature branch
+`feature/native-md-stage1` and has passed real hardware ROM tests, but it
+is currently **one-shot JSON only**. It cannot yet provide the NDJSON v1
+protocol (and live progress/cancel) expected by this Web bridge, so the MD
+reader is correctly shown as unavailable for browser reading. Once the
+MegaDrive native core implements the compatible interface, the frontend will
+show it without new hardcoded UI options. A local binary symlink is installed
+where present, but a symlink alone never marks that core ready.
+
+See `v2/docs/slot-discovery.md` for the status model, adapters, the safety
+boundary and real-hardware acceptance checklist. Automated checks live in
+`.github/workflows/web-v2-checks.yml`; passing mocks do not replace
+physical slot/adapter tests.

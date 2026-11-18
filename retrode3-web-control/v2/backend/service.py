@@ -25,9 +25,20 @@ HOST = "127.0.0.1"
 ROOT = os.path.realpath(os.environ.get("RETRODE3_GAMES_ROOT", "/usr/local/games"))
 FILES_ROOT = os.path.join(ROOT, "ROMs")
 SNES_BIN = os.environ.get("RETRODE3_SNES_BINARY", "/usr/local/bin/oscr-snes-native")
+MD_BIN = os.environ.get("RETRODE3_MD_BINARY", "/usr/local/bin/oscr-md-native")
+SENSE_ROOT = os.environ.get("RETRODE3_SYSFS_ROOT", "/sys/class/retrode3")
+# A slot is a physical connector, not an identified game system. Readers
+# are admitted only after successfully negotiating native NDJSON v1.
+READER_SPECS = {
+    "snes": {"name": "Super Nintendo (SNES)", "slot": "snes",
+             "binary": SNES_BIN, "folder": "SNES", "extension": "sfc"},
+    "md": {"name": "Mega Drive / Genesis", "slot": "md",
+           "binary": MD_BIN, "folder": "MD", "extension": "md"}
+}
+PHYSICAL_SLOTS = (("md", "Mega Drive"), ("snes", "Super Nintendo"),
+                  ("nes", "Nintendo / Famicom"))
 WLAN_BIN = os.environ.get("RETRODE3_WLAN_BINARY", "/usr/local/bin/retrode3-wlan")
 RUN_SUDO = os.environ.get("RETRODE3_WLAN_SUDO", "1") == "1"
-SYSTEMS = ("SNES",)
 SEGMENT = re.compile(r"^[^/\\\x00-\x1f\x7f]+$")
 FILE_STEM = re.compile(r"[^A-Za-z0-9_. -]+")
 PROTOCOL = "retrode3-ndjson"
@@ -126,17 +137,51 @@ def wifi_scan():
     return sorted(networks, key=lambda n: n["dbm"], reverse=True)
 
 
-def capability_probe():
-    """Ask the real executable. Do not advertise hypothetical cores."""
-    if not os.path.isfile(SNES_BIN) or not os.access(SNES_BIN, os.X_OK):
-        return {"systems": [{"id": "snes", "available": False,
-                              "reason": "native_binary_missing"}]}
+def slot_snapshot():
+    """Passive, safe inspection: never touch cartridge data or switch voltage.
+
+    'occupied' is a kernel sense indication, NOT a system/adapter identity.
+    An adapter may not expose a working sense line; unknown stays unknown.
+    """
+    slots = []
+    for slot_id, name in PHYSICAL_SLOTS:
+        sense_file = os.path.join(SENSE_ROOT, "slot-" + slot_id, "sense")
+        state = "unavailable" if not os.path.exists(sense_file) else "unknown"
+        if state != "unavailable":
+            try:
+                with open(sense_file, "r") as handle:
+                    raw = handle.read(40).strip().lower()
+                if raw == "active":
+                    state = "occupied"
+                elif raw == "empty":
+                    state = "empty"
+            except (IOError, OSError):
+                state = "unknown"
+        slots.append({"id": slot_id, "name": name, "status": state,
+                      "detected_system": None, "adapter_id": None,
+                      "detection": "kernel_sense_only"})
+    return {"slots": slots}
+
+
+def reader_capability(spec_id):
+    """Ask only a registered native reader for read-only command metadata.
+
+    A legacy one-shot MegaDrive binary does not support this handshake and
+    therefore remains unavailable to the web UI, even if it is executable.
+    """
+    spec = READER_SPECS[spec_id]
+    result = {"id": spec_id, "name": spec["name"], "slot": spec["slot"],
+              "available": False}
+    binary = spec["binary"]
+    if not os.path.isfile(binary) or not os.access(binary, os.X_OK):
+        result["reason"] = "native_binary_missing"
+        return result
     proc = None
     try:
-        proc = subprocess.Popen([SNES_BIN, "--protocol", "ndjson-v1", "--interactive"],
+        proc = subprocess.Popen([binary, "--protocol", "ndjson-v1", "--interactive"],
                                 stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                                 stderr=subprocess.DEVNULL, bufsize=0)
-        deadline = time.time() + 5.0
+        deadline = time.time() + 3.0
         ready = False
         while time.time() < deadline:
             if not select.select([proc.stdout], [], [], 0.2)[0]:
@@ -147,25 +192,37 @@ def capability_probe():
             if not line:
                 break
             event = json.loads(line.decode("utf-8"))
-            if event.get("event") == "ready":
+            if (event.get("event") == "ready" and
+                    event.get("protocol") == PROTOCOL and
+                    event.get("version") == 1 and
+                    event.get("system") == spec_id):
                 ready = True
                 break
         if not ready:
-            raise ValueError("no ready event")
+            raise ValueError("no compatible ready event")
         proc.stdin.write(b'{"command":"get_capabilities","request_id":"webcap"}\n')
         proc.stdin.flush()
-        deadline = time.time() + 5.0
+        deadline = time.time() + 3.0
         while time.time() < deadline:
             if not select.select([proc.stdout], [], [], 0.2)[0]:
+                if proc.poll() is not None:
+                    break
                 continue
             line = proc.stdout.readline()
             if not line:
                 break
             event = json.loads(line.decode("utf-8"))
-            if event.get("event") == "capabilities" and event.get("request_id") == "webcap":
-                return {"systems": [{"id": "snes", "available": True,
-                                     "capabilities": event}]}
-    except (OSError, ValueError, KeyError):
+            commands = event.get("commands")
+            if (event.get("protocol") == PROTOCOL and
+                    event.get("version") == 1 and
+                    event.get("event") == "capabilities" and
+                    event.get("request_id") == "webcap" and
+                    event.get("system") == spec_id and
+                    isinstance(commands, list) and
+                    all(x in commands for x in ("get_capabilities", "probe", "read_rom", "cancel"))):
+                result.update({"available": True, "capabilities": event})
+                return result
+    except (OSError, ValueError, KeyError, IOError):
         pass
     finally:
         if proc is not None:
@@ -180,13 +237,20 @@ def capability_probe():
                 except OSError:
                     pass
             proc.stdout.close()
-    return {"systems": [{"id": "snes", "available": False,
-                          "reason": "native_protocol_unavailable"}]}
+    result["reason"] = "native_protocol_unavailable"
+    return result
+
+
+def capability_probe():
+    """Only report truly negotiated native readers; no hardware bus scans."""
+    return {"systems": [reader_capability(key) for key in ("snes", "md")]}
 
 
 class Job(object):
-    def __init__(self, manager, action, mapping, size, label):
+    def __init__(self, manager, reader_id, action, mapping, size, label):
         self.manager = manager
+        self.reader_id = reader_id
+        self.reader = READER_SPECS[reader_id]
         self.id = uuid.uuid4().hex
         self.action = action
         self.mapping = mapping
@@ -205,7 +269,7 @@ class Job(object):
 
     def snapshot(self):
         with self.lock:
-            return {"id": self.id, "command": self.action, "system": "snes",
+            return {"id": self.id, "command": self.action, "system": self.reader_id,
                     "status": self.status, "events": self.events[-32:],
                     "progress": self.progress, "result": self.result,
                     "error": self.error, "output": self.output, "created": self.created}
@@ -237,12 +301,12 @@ class Job(object):
                     self.status = "running"
                 if self.action == "read_rom":
                     ensure_storage()
-                    system_folder = safe_path("SNES", must_exist=False)
+                    system_folder = safe_path(self.reader["folder"], must_exist=False)
                     if not os.path.exists(system_folder):
                         os.mkdir(system_folder)
-                    filename = "%s-%s.sfc" % (self.label, self.id[:8])
+                    filename = "%s-%s.%s" % (self.label, self.id[:8], self.reader["extension"])
                     self.output = os.path.join(system_folder, filename)
-                process = subprocess.Popen([SNES_BIN, "--protocol", "ndjson-v1", "--interactive"],
+                process = subprocess.Popen([self.reader["binary"], "--protocol", "ndjson-v1", "--interactive"],
                                            stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                                            stderr=subprocess.DEVNULL, bufsize=0)
                 with self.lock:
@@ -340,22 +404,38 @@ class JobManager(object):
         self.bus_lock = threading.Lock()
 
     def submit(self, data):
-        if data.get("system") != "snes" or data.get("command") not in ("probe", "read_rom"):
-            raise ApiError(400, "unsupported", "Only SNES probe/read_rom supported")
+        reader_id = data.get("system")
+        if reader_id not in READER_SPECS or data.get("command") not in ("probe", "read_rom"):
+            raise ApiError(400, "unsupported", "Unknown reader or unsupported command")
         mapping = data.get("mapping")
         size = data.get("size_bytes")
-        if mapping is not None and mapping not in ("lo", "hi"):
-            raise ApiError(400, "invalid_mapping", "Mapping must be lo or hi")
+        # Validate input before invoking any process or touching hardware.
+        if mapping is not None and (not isinstance(mapping, str) or len(mapping) > 32):
+            raise ApiError(400, "invalid_mapping", "Invalid mapping")
         if size is not None:
             if type(size) is not int or size < 131072 or size > 4194304:
-                raise ApiError(400, "invalid_size", "Size must be 128 KiB to 4 MiB")
-            if size % (65536 if mapping == "hi" else 32768):
-                raise ApiError(400, "invalid_size", "Size incompatible with mapping")
+                raise ApiError(400, "invalid_size", "Invalid ROM size")
+            if reader_id == "snes" and size % (65536 if mapping == "hi" else 32768):
+                raise ApiError(400, "invalid_size", "SNES ROM size incompatible with mapping")
+            if reader_id == "md" and size % 2:
+                raise ApiError(400, "invalid_size", "MegaDrive ROM size must be even")
         if data["command"] == "probe" and (mapping is not None or size is not None):
             raise ApiError(400, "invalid_command", "Probe does not accept overrides")
-        if not os.path.isfile(SNES_BIN) or not os.access(SNES_BIN, os.X_OK):
-            raise ApiError(503, "native_binary_missing", "Native SNES reader unavailable")
-        job = Job(self, data["command"], mapping, size, sanitized_filename(data.get("filename")))
+        cap = reader_capability(reader_id)
+        if not cap["available"]:
+            raise ApiError(503, "native_protocol_unavailable",
+                           "A compatible native reader is not installed")
+        features = cap["capabilities"]
+        if data["command"] not in features["commands"]:
+            raise ApiError(400, "unsupported", "Command unavailable for this reader")
+        if mapping is not None and mapping not in features.get("mappings", []):
+            raise ApiError(400, "invalid_mapping", "Mapping not offered by this reader")
+        if size is not None and not features.get("size_override", False):
+            raise ApiError(400, "invalid_size", "ROM size override unavailable")
+        if size is not None and size > features.get("max_rom_bytes", 4194304):
+            raise ApiError(400, "invalid_size", "ROM size exceeds reader capabilities")
+        job = Job(self, reader_id, data["command"], mapping, size,
+                  sanitized_filename(data.get("filename")))
         with self.lock:
             if self.active is not None:
                 raise ApiError(409, "busy", "Cartridge reader already busy")
@@ -486,6 +566,8 @@ class Handler(BaseHTTPRequestHandler):
                 self._json(200, {"ok": True, "service": "retrode3-web-v2"})
             elif path == "/api/capabilities":
                 self._json(200, capability_probe())
+            elif path == "/api/slots":
+                self._json(200, slot_snapshot())
             elif path == "/api/settings":
                 self._json(200, {"time": datetime.datetime.now().isoformat(),
                                  "timezone": time.tzname[time.daylight and time.localtime().tm_isdst > 0]})
