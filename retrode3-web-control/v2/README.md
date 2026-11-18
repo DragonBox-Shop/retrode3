@@ -196,3 +196,18 @@ The links currently point to the published GitHub branch's Markdown documents,
 not to an unpublished wiki address. Once the wiki is populated, change the
 one link target in `web/assets/app.js` (plus the HTML fallback) without
 shipping an entire copy of an evolving manual onto the device.
+
+## Staged central core registry UI (2026-11-18)
+
+Settings displays installed and disabled cores from
+`retrode3-cli --list-cores --protocol ndjson-v1`. Each core shows
+version, slot, compatibility, and operations. Optional enable/disable
+uses the restricted `retrode3-corectl` helper through the backend;
+it is disabled by default until administrator authentication and a
+least-privilege helper rule are configured. See
+`docs/cli-integration.md`.
+
+The central CLI currently performs discovery only, not read jobs.
+The old SNES native runner stays temporarily operational, while any
+registered disabled or metadata-only core is never advertised as a
+working reader. Do not deploy as a production release yet.
