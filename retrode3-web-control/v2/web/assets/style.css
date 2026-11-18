@@ -13,3 +13,9 @@
 .help-steps li{padding:6px 0}
 .help-link{display:inline-block;text-decoration:none;margin-top:12px}
 #wifi-diagnostic:not(:empty){border-left:3px solid var(--accent);padding:10px 12px;background:#252f3c;border-radius:4px}
+
+.core-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px}
+.core-card{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:18px;min-width:0}
+.core-head{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.core-card p{overflow-wrap:anywhere;margin:12px 0 0}
+.core-card .btn{margin-top:16px}
