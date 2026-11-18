@@ -4,6 +4,7 @@
   var locale = "en", messages = {}, capabilities = null, activeJob = null;
   var fileFolder = "", jobTimer = null, slotData = null, slotFingerprint = null;
   var selectedReader = "";
+  var coreState = null, corePending = false;
   var csrf = document.querySelector('meta[name="csrf-token"]').content;
   var $ = function (id) { return document.getElementById(id); };
   function t(key) { return messages[key] || key; }
@@ -48,6 +49,7 @@
     });
     renderReaderState();
     if (slotData) renderSlots();
+    renderCores();
   }
   function setLocale(lang) {
     if (!/^(en|de)$/.test(lang)) lang = "en";
@@ -228,6 +230,7 @@
     $("read").disabled = $("probe").disabled = true;
     api("/api/jobs", payload).then(function (job) {
       activeJob = job.id;
+      renderCores();
       $("job-panel").hidden = false;
       $("cancel").disabled = false;
       renderJob(job);
@@ -262,6 +265,7 @@
       if (["done", "failed", "cancelled"].indexOf(job.status) === -1) schedulePoll();
       else {
         activeJob = null;
+        renderCores();
         $("cancel").disabled = true;
         loadCapabilities();
       }
@@ -322,7 +326,81 @@
       });
     }).catch(fail);
   }
+
+  function renderCores() {
+    var list = $("core-list");
+    list.innerHTML = "";
+    if (!coreState) {
+      text($("cores-summary"), t("checking"));
+      return;
+    }
+    if (!coreState.available) {
+      text($("cores-summary"), t("core_cli_missing"));
+      return;
+    }
+    text($("cores-summary"), coreState.cores.length ?
+      coreState.cores.length + " " + t("core_found") +
+      (!coreState.control_enabled ? " · " + t("core_readonly") : "") :
+      t("core_none_installed"));
+    coreState.cores.forEach(function (core) {
+      var card = document.createElement("div");
+      card.className = "core-card";
+      var header = document.createElement("div");
+      header.className = "core-head";
+      var name = document.createElement("strong");
+      text(name, core.name);
+      header.appendChild(name);
+      var badge = document.createElement("span");
+      badge.className = "tag";
+      text(badge, t(core.enabled ? "core_enabled" : "core_disabled"));
+      header.appendChild(badge);
+      card.appendChild(header);
+      var detail = document.createElement("p");
+      detail.className = "muted small";
+      var stateKey = "core_status_" + core.status;
+      text(detail, t("core_version") + ": " + core.version +
+        " · " + t("core_slot") + ": " + core.slot +
+        " · " + (messages[stateKey] ? t(stateKey) : core.status) +
+        " · " + t(core.usable ? "core_usable" : "core_not_usable"));
+      card.appendChild(detail);
+      var actions = document.createElement("p");
+      actions.className = "muted small";
+      text(actions, t("core_actions") + ": " +
+        (core.actions.length ? core.actions.join(", ") : t("core_no_actions")));
+      card.appendChild(actions);
+      var toggle = button(t(core.enabled ? "core_disable" : "core_enable"), function () {
+        if (core.enabled && !confirm(t("core_confirm_disable"))) return;
+        corePending = true;
+        renderCores();
+        api("/api/cores/toggle", {id: core.id, enabled: !core.enabled})
+          .then(function () { notify(t("core_saved")); }).catch(fail)
+          .then(function () {
+            corePending = false;
+            loadCores();
+            loadCapabilities();
+          });
+      });
+      toggle.className = "btn secondary";
+      toggle.disabled = !coreState.control_enabled || corePending || Boolean(activeJob) ||
+        (core.enabled ? ["discovered", "incompatible"].indexOf(core.status) === -1 :
+                        core.status !== "disabled");
+      card.appendChild(toggle);
+      list.appendChild(card);
+    });
+  }
+  function loadCores() {
+    return api("/api/cores").then(function (result) {
+      if (!result || !Array.isArray(result.cores)) throw new Error(t("error_generic"));
+      coreState = result;
+      renderCores();
+    }).catch(function (error) {
+      coreState = {available: false, control_enabled: false, cores: []};
+      renderCores();
+      fail(error);
+    });
+  }
   function loadSettings() {
+    loadCores();
     api("/api/settings").then(function (data) {
       text($("device-time"), data.time); text($("device-timezone"), data.timezone);
     }).catch(fail);
@@ -341,6 +419,7 @@
   }
   function bind() {
     $("locale").addEventListener("change", function () { setLocale(this.value); });
+    $("refresh-cores").addEventListener("click", loadCores);
     document.querySelectorAll(".tab").forEach(function (tab) {
       tab.addEventListener("click", function () { showTab(tab.getAttribute("data-tab")); });
     });
