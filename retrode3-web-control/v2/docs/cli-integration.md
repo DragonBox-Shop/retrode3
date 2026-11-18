@@ -58,3 +58,39 @@ signature.
 
 This document supersedes previous instructions in this branch that asked
 each system's binary to implement its own NDJSON progress interface.
+
+## Core registry UI, staged implementation
+
+The Settings page requests `GET /api/cores`. The backend runs the fixed
+`retrode3-cli --list-cores --protocol ndjson-v1` executable and validates
+its sole `cores` NDJSON event. This displays preinstalled modules (including
+disabled ones), versions, required slots, ABI state, and actual operations.
+It never loads modules directly or checks plugin existence from PHP.
+
+`POST /api/cores/toggle` accepts exactly `{"id":"md","enabled":true}`
+(or false). The backend validates the CLI-provided installed core ID,
+refuses changes during cartridge jobs, then invokes the fixed
+`retrode3-corectl enable|disable <id>` helper with an argv array, never
+via a shell. It immediately re-queries the CLI and verifies the new state.
+The PHP gateway provides existing same-origin CSRF validation.
+
+Core controls are intentionally **disabled by default**. The device image
+must install CLI and helper at `/usr/local/bin/retrode3-cli` and
+`/usr/sbin/retrode3-corectl` respectively, or set fixed environment
+variables `RETRODE3_CLI_BINARY` and `RETRODE3_CORECTL_BINARY` in the
+backend service. Enable optional web authentication
+(`retrode3-web-v2-auth enable`) and configure a narrowly scoped
+non-interactive privilege delegation for this one helper. Only then set
+`RETRODE3_CORE_CONTROL_ENABLED=1` in the backend service environment.
+`RETRODE3_CORECTL_SUDO=0` is for explicitly privileged integration tests;
+never grant arbitrary sudo/shell access. Protect the management interface
+on a trusted network (and use HTTPS for remote authentication).
+
+**Not production operation integration:** the current common CLI registry
+is discovery-only. Legacy SNES and MD native NDJSON read runners are retained
+as temporary compatibility paths for an unregistered reader. A registered
+core that is disabled, incompatible, or not `usable` with `read_rom` will
+not be offered for reading. Once the CLI's central operation runtime is
+implemented and verified on hardware, replace the remaining per-reader
+process logic in this backend. The existing registry does not yet provide
+real production `.so` readers.
