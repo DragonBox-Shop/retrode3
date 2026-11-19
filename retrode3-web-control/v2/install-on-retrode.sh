@@ -55,6 +55,26 @@ sys.exit(0 if state in ("idle", "done", "failed", "cancelled") else 2)
 fi
 
 
+# The shared core registry/operation host is built in retrode3-oscr,
+# not installed by the older native SNES/MD acceptance-reader setup.
+# Copy the built host to a root-owned fixed path. Never replace an existing
+# system-installed CLI or follow an unexpected destination symlink.
+CLI_BUILD=/usr/local/src/retrode3-oscr/build/migration/retrode3-cli
+CLI_INSTALL=/usr/local/bin/retrode3-cli
+if [ ! -e "$CLI_INSTALL" ] && [ ! -L "$CLI_INSTALL" ]; then
+    if [ -f "$CLI_BUILD" ] && [ -x "$CLI_BUILD" ]; then
+        install -o root -g root -m 0755 "$CLI_BUILD" "$CLI_INSTALL"
+        info "Installed central Retrode3 CLI for web core discovery."
+    else
+        info "WARNING: central CLI is not built at $CLI_BUILD."
+        info "Build it in retrode3-oscr with: make -f Makefile.migration native-core-registry"
+    fi
+elif [ -x "$CLI_INSTALL" ]; then
+    info "Using existing central CLI at $CLI_INSTALL (not replacing it)."
+else
+    info "WARNING: $CLI_INSTALL exists but cannot be executed; inspect it manually."
+fi
+
 if [ ! -e /usr/local/bin/oscr-snes-native ]; then
     if [ -x /usr/local/src/retrode3-oscr/build/migration/oscr-snes-native ]; then
         ln -s /usr/local/src/retrode3-oscr/build/migration/oscr-snes-native /usr/local/bin/oscr-snes-native
@@ -135,7 +155,28 @@ if [ "$OK" != 1 ]; then
     fail "Backend health check failed; old website NOT replaced."
 fi
 
-STAGE="/var/www/html-retrode3-v2-staging-$$"
+# Discovery is read-only and must work as the unprivileged backend account.
+# Report a useful warning rather than silently treating a missing CLI as no cores.
+info "Checking CLI core discovery through the running web backend..."
+python3 -c '
+import json, http.client
+try:
+    c = http.client.HTTPConnection("127.0.0.1", 8765, timeout=6)
+    c.request("GET", "/api/cores")
+    r = c.getresponse()
+    body = json.loads(r.read().decode("utf-8"))
+    c.close()
+    if r.status != 200:
+        print("WARNING: /api/cores returned HTTP %s: %s" % (r.status, body.get("error", "unknown")))
+    elif not body.get("available"):
+        print("WARNING: CLI discovery unavailable: %s" % body.get("reason", "unknown"))
+    else:
+        print("Core discovery working: %d installed cores" % len(body.get("cores", [])))
+except Exception as e:
+    print("WARNING: CLI discovery check failed: %s" % e)
+' || true
+
+STAGE="/var/www/html-retrode3-v2-staging-$"
 [ ! -e "$STAGE" ] || fail "Staging path exists."
 mkdir "$STAGE"
 cp -a "$BASE/web/." "$STAGE/"
