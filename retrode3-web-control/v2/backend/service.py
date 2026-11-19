@@ -804,6 +804,33 @@ class AutomaticDetection(object):
                         pass
                 del self.records[slot_id]
 
+    def _event_changed(self, payload):
+        """Invalidate cached identity on KOBJ_CHANGE even for rapid swaps.
+
+        The event only invalidates. The sysfs sense must be reread
+        before probing, so no event can choose a voltage or core.
+        """
+        if len(payload) > 16384:
+            return
+        values = {}
+        for part in payload.split(b"\\x00"):
+            if b"=" in part:
+                key, value = part.split(b"=", 1)
+                if key in (b"SLOT", b"SENSE"):
+                    values[key] = value
+        name = values.get(b"SLOT", b"").decode("ascii", "ignore")
+        sense = values.get(b"SENSE", b"").decode("ascii", "ignore")
+        slot_id = name[5:] if name.startswith("slot-") else ""
+        if not CORE_ID.match(slot_id) or sense not in ("active", "empty"):
+            return
+        with self.lock:
+            previous = self.records.pop(slot_id, None)
+            if previous and previous["state"] == "detecting":
+                try:
+                    self.manager.get(previous["job_id"]).cancel()
+                except ApiError:
+                    pass
+
     def _watch(self):
         netlink = None
         try:
@@ -827,8 +854,8 @@ class AutomaticDetection(object):
                 try:
                     ready, _, _ = select.select([netlink], [], [], 0.3)
                     if ready:
-                        # All actions are validated via sysfs in tick().
-                        netlink.recv(16384)
+                        # Event only invalidates cached title, never selects a core.
+                        self._event_changed(netlink.recv(16384))
                 except (OSError, ValueError):
                     netlink.close()
                     netlink = None
