@@ -1,0 +1,54 @@
+name: Retrode3 boot-time cartridge bus lock
+
+on:
+  push:
+    branches:
+      - master
+      - develop
+    paths:
+      - 'retrode3-core-runtime/usr/lib/tmpfiles.d/retrode3.conf'
+      - '.github/workflows/core-runtime-lock.yml'
+  pull_request:
+    branches:
+      - master
+      - develop
+    paths:
+      - 'retrode3-core-runtime/usr/lib/tmpfiles.d/retrode3.conf'
+      - '.github/workflows/core-runtime-lock.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  tmpfiles:
+    name: Create safe Retrode3 lock on boot
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate exact tmpfiles policy
+        shell: bash
+        run: |
+          set -eu
+          file=retrode3-core-runtime/usr/lib/tmpfiles.d/retrode3.conf
+          grep -Fx 'd /run/lock/retrode3 0755 root root -' "$file"
+          grep -Fx 'f /run/lock/retrode3/bus.lock 0660 root www-data -' "$file"
+          grep -Fx 'z /run/lock/retrode3/bus.lock 0660 root www-data -' "$file"
+          test "$(grep -Ec '^[dfz] ' "$file")" -eq 3
+      - name: Create and validate runtime lock and non-root access
+        shell: bash
+        run: |
+          set -eu
+          file=retrode3-core-runtime/usr/lib/tmpfiles.d/retrode3.conf
+          sudo systemd-tmpfiles --create --prefix=/run/lock/retrode3 "$file"
+          test -d /run/lock/retrode3
+          test -f /run/lock/retrode3/bus.lock
+          test "$(stat -c '%a %U:%G' /run/lock/retrode3)" = '755 root:root'
+          test "$(stat -c '%a %U:%G' /run/lock/retrode3/bus.lock)" = '660 root:www-data'
+          sudo -u www-data test -r /run/lock/retrode3/bus.lock
+          sudo -u www-data test -w /run/lock/retrode3/bus.lock
+          if sudo -u www-data test -w /run/lock/retrode3; then
+            echo 'FAIL: web user could modify the trusted lock directory' >&2
+            exit 1
+          fi
