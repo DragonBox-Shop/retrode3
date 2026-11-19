@@ -50,6 +50,7 @@
     });
     renderReaderState();
     if (slotData) renderSlots();
+    renderSelectedProbe();
     renderCores();
   }
   function setLocale(lang) {
@@ -198,6 +199,9 @@
       });
       slotData = data;
       var fingerprint = data.slots.map(function (slot) { return slot.id + ":" + slot.status; }).join("|");
+      if (probeTarget && data.slots.some(function (slot) {
+        return slot.id === probeTarget.slot && slot.status !== probeTarget.status;
+      })) probeTarget = null;
       if (fingerprint !== slotFingerprint && !activeJob) {
         slotFingerprint = fingerprint;
         var occupied = data.slots.filter(function (slot) { return slot.status === "occupied"; });
@@ -277,6 +281,7 @@
       renderJob(job);
       schedulePoll();
     }).catch(function (err) {
+      if (command === "probe") probeTarget = null;
       $("read").disabled = $("probe").disabled = false; fail(err);
     });
   }
