@@ -4,6 +4,7 @@
   var locale = "en", messages = {}, capabilities = null, activeJob = null;
   var fileFolder = "", jobTimer = null, slotData = null, slotFingerprint = null;
   var selectedReader = "";
+  var detectedBySlot = {}, probeTarget = null;
   var coreState = null, corePending = false;
   var csrf = document.querySelector('meta[name="csrf-token"]').content;
   var $ = function (id) { return document.getElementById(id); };
@@ -69,6 +70,7 @@
     });
     if (id === "files") listFiles();
     if (id === "settings") loadSettings();
+    if (id === "plugins") loadCores();
   }
   function readers() {
     return capabilities && capabilities.systems ?
@@ -82,13 +84,7 @@
     text($("selected-reader"), reader ? reader.name : t("choose_reader"));
     text($("reader-support"), reader ? reader.name : t("reader_unavailable"));
     $("probe").disabled = $("read").disabled = !reader || Boolean(activeJob);
-    var summary = readers().map(function (item) { return item.name; }).join(", ");
-    var mdLegacy = capabilities && capabilities.systems &&
-      capabilities.systems.some(function (item) {
-        return item.id === "md" && !item.available && item.reason === "native_protocol_unavailable";
-      });
-    text($("availability"), (summary ? t("readers_available") + ": " + summary :
-      t("no_readers_available")) + (mdLegacy ? " · " + t("md_protocol_pending") : ""));
+
   }
   function configureReaderOptions() {
     var reader = readerById(selectedReader), caps = reader && reader.capabilities || {};
@@ -128,6 +124,24 @@
     configureReaderOptions();
     renderReaderState();
     if (slotData) renderSlots();
+    renderSelectedProbe();
+  }
+  function selectedSlotId() {
+    var reader = readerById(selectedReader);
+    return reader ? reader.slot : "";
+  }
+  function renderSelectedProbe() {
+    var slot = selectedSlotId();
+    var cached = slot && detectedBySlot[slot];
+    if (cached && cached.reader === selectedReader) renderProbe(cached.data, false);
+    else {
+      var box = $("game-info");
+      box.innerHTML = "";
+      var empty = document.createElement("p");
+      empty.className = "muted";
+      text(empty, t("not_detected"));
+      box.appendChild(empty);
+    }
   }
   function renderSlots() {
     if (!slotData) return;
@@ -136,11 +150,12 @@
     text($("slots-summary"), occupied.length ? occupied.length + " " + t("slots_occupied") : t("no_occupied_slots"));
     slotData.slots.forEach(function (slot) {
       var matching = readers().filter(function (reader) { return reader.slot === slot.id; });
+      var isSelected = matching.length === 1 && matching[0].id === selectedReader;
       var card = document.createElement("button");
       card.type = "button";
-      card.className = "slot-card" + (slot.status === "occupied" ? " occupied" : "");
-      if (matching.length === 1 && matching[0].id === selectedReader)
-        card.className += " selected";
+      card.className = "slot-card" + (slot.status === "occupied" ? " occupied" : "") +
+        (isSelected ? " selected" : "");
+      card.setAttribute("aria-pressed", isSelected ? "true" : "false");
       var title = document.createElement("strong");
       text(title, slot.name); card.appendChild(title);
       var state = document.createElement("span");
@@ -149,8 +164,18 @@
         slot.status === "unavailable" ? t("slot_unavailable") : t("slot_unknown"));
       card.appendChild(state);
       var hint = document.createElement("small");
-      text(hint, matching.length ? matching.map(function (r) { return r.name; }).join(", ") :
-        t("slot_no_reader")); card.appendChild(hint);
+      var systemName = matching.length ? matching.map(function (r) { return r.name; }).join(", ") :
+        (slot.status === "occupied" ? t("slot_no_reader") : "");
+      text(hint, systemName);
+      card.appendChild(hint);
+      if (slot.status === "occupied" && matching.length === 1) {
+        var game = document.createElement("span");
+        game.className = "slot-game";
+        var cached = detectedBySlot[slot.id];
+        text(game, cached && cached.reader === matching[0].id ?
+          (cached.data.title || t("unknown")) : t("unknown"));
+        card.appendChild(game);
+      }
       card.addEventListener("click", function () {
         if (matching.length === 1) selectReader(matching[0].id);
         else {
@@ -165,6 +190,12 @@
   function refreshSlots() {
     return api("/api/slots").then(function (data) {
       if (!data || !Array.isArray(data.slots)) return;
+      var previousSlots = slotData && slotData.slots || [];
+      data.slots.forEach(function (slot) {
+        var previous = previousSlots.filter(function (entry) { return entry.id === slot.id; })[0];
+        if (!previous || previous.status !== slot.status || slot.status !== "occupied")
+          delete detectedBySlot[slot.id];
+      });
       slotData = data;
       var fingerprint = data.slots.map(function (slot) { return slot.id + ":" + slot.status; }).join("|");
       if (fingerprint !== slotFingerprint && !activeJob) {
@@ -202,7 +233,7 @@
       fail(error);
     });
   }
-  function renderProbe(data) {
+  function renderProbe(data, updateFilename) {
     var box = $("game-info");
     while (box.firstChild) box.removeChild(box.firstChild);
     var fields = [
@@ -217,7 +248,7 @@
     });
     var info = document.createElement("p"); info.className = "muted small";
     text(info, t("not_integrated")); box.appendChild(info);
-    if (data.title) $("filename").value = data.title;
+    if (updateFilename !== false && data.title) $("filename").value = data.title;
   }
   function startJob(command) {
     if (!readerById(selectedReader)) return notify(t("choose_reader"));
@@ -228,6 +259,16 @@
       if ($("rom-size").value) payload.size_bytes = Number($("rom-size").value);
     }
     $("read").disabled = $("probe").disabled = true;
+    if (command === "probe") {
+      var target = selectedSlotId();
+      probeTarget = target ? {slot: target, reader: selectedReader,
+        fingerprint: slotData && slotData.slots.filter(function (s) { return s.id === target; })[0]} : null;
+      if (probeTarget) {
+        probeTarget.status = probeTarget.fingerprint && probeTarget.fingerprint.status;
+        delete detectedBySlot[target];
+        renderSlots();
+      }
+    }
     api("/api/jobs", payload).then(function (job) {
       activeJob = job.id;
       renderCores();
@@ -248,11 +289,25 @@
     text($("job-detail"), progress.bytes_total ?
       humanSize(progress.bytes_done) + " / " + humanSize(progress.bytes_total) : "");
     if (job.status === "done") {
-      if (job.command === "probe") { renderProbe(job.result || {}); notify(t("probe_finished")); }
+      if (job.command === "probe") {
+        var target = probeTarget;
+        var current = target && slotData && slotData.slots.filter(function (s) { return s.id === target.slot; })[0];
+        if (target && current && current.status === "occupied" && current.status === target.status) {
+          detectedBySlot[target.slot] = {reader: target.reader, data: job.result || {}};
+          if (target.reader === selectedReader) renderProbe(job.result || {}, true);
+          renderSlots();
+        }
+        probeTarget = null;
+        notify(t("probe_finished"));
+      }
       else { notify(t("read_finished")); }
     } else if (job.status === "failed") {
+      if (job.command === "probe") probeTarget = null;
       notify(t("failed") + ": " + (job.error && job.error.code || t("unknown")));
-    } else if (job.status === "cancelled") notify(t("cancelled"));
+    } else if (job.status === "cancelled") {
+      if (job.command === "probe") probeTarget = null;
+      notify(t("cancelled"));
+    }
   }
   function schedulePoll() {
     if (jobTimer) clearTimeout(jobTimer);
@@ -268,6 +323,7 @@
         renderCores();
         $("cancel").disabled = true;
         loadCapabilities();
+        loadCores();
       }
     }).catch(function (err) {
       fail(err); schedulePoll();
