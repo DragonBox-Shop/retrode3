@@ -27,32 +27,36 @@ transport, HTTP sessions/CSRF if enabled, service lifecycle / reconnect,
 filesystem UI permissions and conversion of CLI messages to HTTP responses.
 The browser consumes capabilities and status without knowing plugin internals.
 
-## Shared CLI integration status (2026-11-19)
+## Installed shared CLI contract (2026-11-19)
 
-The common CLI's operation runtime is now implemented and real Retrode3 2.9.5
-hardware has returned matching ROM CRCs for the original-OSCR-derived
-stage-1 SNES (`snes.so`) and Mega Drive (`md.so`) read-only adapters.
-Both modules report `status:"ready"`, `usable:true`, and
-`actions:["probe","read_rom"]` in the central `cores` event.
+Read repository `AGENTS.md` and `docs/WEB-V2-HANDOFF.md` first. The development
+Retrode3 2.9.5 has one OS-installed runtime, **`/usr/bin/retrode3-cli`**,
+and the restricted administrative toggle at **`/usr/sbin/retrode3-corectl`**.
+SNES, MegaDrive and NES cores are installed at
+`/usr/lib/retrode3/cores-available/{snes,md,nes}.{so,core}` and their
+enabled links are under `/etc/retrode3/cores-enabled/`.
 
-Web v2 reads this registry and exposes only enabled, `ready`, usable
-cores with their actual actions. The web job manager starts
-`retrode3-cli --protocol ndjson-v1 --interactive` and sends
-`{"command":"probe","core":"snes","request_id":"..."}` or
-`{"command":"read_rom","core":"md","request_id":"...","output":"..."}`
-through stdin, forwarding correlated result/progress/error messages to the
-browser. The real CLI's `ready` event has `system:"multi"`, not the
-individual system ID. The frontend must not require separate per-plugin
-NDJSON handlers. The central CLI currently offers neither custom mapping
-nor ROM-size overrides, so the web must hide them for this transport.
+All three report enabled, `ready`, usable and `probe`/`read_rom` through
+`/usr/bin/retrode3-cli --list-cores --protocol ndjson-v1`. The Web backend
+starts only `/usr/bin/retrode3-cli --protocol ndjson-v1 --interactive`.
+Every `probe` or `read_rom` request specifies the CLI core ID. The one
+CLI publishes `ready` with `system:"multi"` and correlated NDJSON events.
+No standalone reader, compatibility fallback, copied CLI, or extra
+per-console executable is supported. No mapping or size override is exposed
+unless the central core metadata gains that capability.
 
-The former `oscr-snes-native` NDJSON runner remains a temporary fallback
-**only when the central CLI is absent**. With an installed common CLI, an
-unregistered, disabled, incompatible or unusable module is never replaced by
-an unrelated legacy runner. The tested read-only SNES/MD capability scope is
-limited to the original accepted standard stage-1 ROM types. This is still
-a development interface: hardware-specific web service permissions, full
-physical Web UI acceptance and release packaging remain pending.
+Physical read-only ROM CRC references: SNES Terranigma `6FB8A4DF`,
+MegaDrive Snake Rattle n Roll `543BED30`, NES Excitebike `F749E780`.
+These stage-1 cores do not imply special-chip, NES mapper, SRAM, flash,
+or write support. End-to-end Web testing is still pending.
+
+The device uses **SysV init**, not systemd. The tested OS-owned
+`/etc/init.d/retrode3-core-runtime` prepares
+`/run/lock/retrode3/bus.lock`. The lock directory is root:root 0755 and the
+lock file is root:www-data 0660. Never unlink a live lock file. The Web
+installer checks/registers this service; persistent `/dev/slot-*`
+permissions are a separate OS/udev packaging requirement. Test Web jobs as
+`www-data` and after a reboot.
 
 ## Slot and plugin detection
 
@@ -82,11 +86,9 @@ refuses changes during cartridge jobs, then invokes the fixed
 via a shell. It immediately re-queries the CLI and verifies the new state.
 The PHP gateway provides existing same-origin CSRF validation.
 
-Core controls are intentionally **disabled by default**. The device image
-must install CLI and helper at `/usr/local/bin/retrode3-cli` and
-`/usr/sbin/retrode3-corectl` respectively, or set fixed environment
-variables `RETRODE3_CLI_BINARY` and `RETRODE3_CORECTL_BINARY` in the
-backend service. Enable optional web authentication
+Core controls are intentionally **disabled by default**. The device image installs CLI and helper at `/usr/bin/retrode3-cli` and
+`/usr/sbin/retrode3-corectl` respectively. Browser requests never accept
+an executable path. Enable optional web authentication
 (`retrode3-web-v2-auth enable`) and configure a narrowly scoped
 non-interactive privilege delegation for this one helper. Only then set
 `RETRODE3_CORE_CONTROL_ENABLED=1` in the backend service environment.
@@ -94,16 +96,11 @@ non-interactive privilege delegation for this one helper. Only then set
 never grant arbitrary sudo/shell access. Protect the management interface
 on a trusted network (and use HTTPS for remote authentication).
 
-**Do not conflate discovery with operation support:** `ready` and
-`usable:true` are required for a core to become a Web reader. An
-`enabled:true` module may still lack usable read operations. The active
-CLI can read through the common core ABI, but Stage-1 SNES/MD support is
-not the complete original Sanni firmware feature set. The installer now
-copies an existing built CLI to `/usr/local/bin/retrode3-cli` if needed.
-It also grants the dedicated `retrode3-reader` group access to the
-MD/SNES character devices and the shared `/run/lock/retrode3/bus.lock`;
-device file permissions may reset at reboot pending permanent udev packaging.
-Real target Web read/cancel acceptance remains mandatory.
+**Do not conflate discovery with operation support:** only cores whose
+CLI metadata explicitly reports installed, enabled, ready and usable and
+supports the requested action are exposed. The Web installer never installs
+or rebuilds the CLI or cores. Hardware, Web permissions, reboot, cancellation
+and device access require real Retrode3 acceptance.
 
 ## Dynamic readers and kernel-triggered autoprobes (2026-11-19)
 
@@ -139,8 +136,6 @@ no competing browser-side hardware probe and no long-lived PHP push
 connection. Server-Sent Events could be added later if response latency
 requires it, without changing the kernel or CLI contract.
 
-The old direct SNES/MD development binaries form a separate,
-explicit compatibility fallback **only if the common CLI is missing**.
-They do not restrict any installed central CLI core. The automatic
-probe is read-only and does not detect adapter voltage; do not use an
-unknown multi-protocol adapter without explicit safety metadata.
+There is no standalone reader compatibility fallback. Missing or invalid
+central CLI metadata makes a core unavailable. Automatic probing remains
+read-only and does not identify unknown cartridge adapter voltages.
