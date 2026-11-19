@@ -286,7 +286,10 @@ def core_registry():
     """Obtain inventory from the central CLI; do not inspect plugin files."""
     missing = {"available": False, "control_enabled": False, "cores": [],
                "reason": "cli_missing"}
-    if not os.path.isfile(CLI_BIN) or not os.access(CLI_BIN, os.X_OK):
+    if not os.path.isfile(CLI_BIN):
+        return missing
+    if not os.access(CLI_BIN, os.X_OK):
+        missing["reason"] = "cli_not_executable"
         return missing
     try:
         proc = subprocess.Popen([CLI_BIN, "--list-cores", "--protocol", "ndjson-v1"],
