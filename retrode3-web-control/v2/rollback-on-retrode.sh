@@ -27,4 +27,4 @@ if command -v update-rc.d >/dev/null 2>&1; then
 fi
 echo "Old web interface restored from $BACKUP/previous-webroot"
 echo "New frontend retained in $BACKUP/new-webroot-removed-$STAMP"
-echo "Backend stopped; native OSCR reader unchanged."
+echo "Backend stopped; OS-installed shared CLI and core modules unchanged."
