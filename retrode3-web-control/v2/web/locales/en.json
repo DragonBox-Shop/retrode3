@@ -123,7 +123,7 @@
   "wifi_scan_empty": "No networks returned. Check wireless status and scan permissions.",
   "core_title": "Software cores",
   "core_intro": "The central CLI reports installed cores, enabled state, compatibility and supported operations. A core may be enabled without being ready to read ROMs.",
-  "core_cli_missing": "The central retrode3-cli is not installed or available yet.",
+  "core_cli_missing": "The central retrode3-cli was not found at the expected system path.",
   "core_found": "installed cores",
   "core_readonly": "Management is read-only",
   "core_none_installed": "No software cores installed yet.",
@@ -146,5 +146,7 @@
   "plugins_tab": "Plugins",
   "plugins_small": "SOFTWARE CORES",
   "plugins_title": "Installed plugins",
-  "plugins_desc": "View and manage installed cartridge readers. The CLI reports their activation and supported operations."
+  "plugins_desc": "View and manage installed cartridge readers. The CLI reports their activation and supported operations.",
+  "core_cli_not_executable": "The central CLI exists but cannot be executed. Check permissions.",
+  "core_cli_error": "CLI discovery failed. Check the backend log and CLI protocol."
 }
