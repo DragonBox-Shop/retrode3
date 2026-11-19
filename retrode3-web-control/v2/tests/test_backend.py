@@ -78,13 +78,13 @@ class BackendTests(unittest.TestCase):
 
     def test_native_missing(self):
         manager = MODULE.JobManager()
-        old_binary = MODULE.READER_SPECS["snes"]["binary"]
-        MODULE.READER_SPECS["snes"]["binary"] = os.path.join(self.temp, "missing-native")
+        old_binary = MODULE.LEGACY_READERS["snes"]["binary"]
+        MODULE.LEGACY_READERS["snes"]["binary"] = os.path.join(self.temp, "missing-native")
         try:
             with self.assertRaises(MODULE.ApiError):
                 manager.submit({"system": "snes", "command": "probe"})
         finally:
-            MODULE.READER_SPECS["snes"]["binary"] = old_binary
+            MODULE.LEGACY_READERS["snes"]["binary"] = old_binary
 
     def test_passive_slot_status_and_unknown_values(self):
         previous = MODULE.SENSE_ROOT
@@ -112,8 +112,8 @@ class BackendTests(unittest.TestCase):
             MODULE.SENSE_ROOT = previous
 
     def test_only_ndjson_native_core_is_web_available(self):
-        old_snes = MODULE.READER_SPECS["snes"]["binary"]
-        old_md = MODULE.READER_SPECS["md"]["binary"]
+        old_snes = MODULE.LEGACY_READERS["snes"]["binary"]
+        old_md = MODULE.LEGACY_READERS["md"]["binary"]
         native = os.path.join(self.temp, "mock-ndjson-snes")
         legacy = os.path.join(self.temp, "mock-one-shot-md")
         with open(native, "w") as handle:
@@ -133,8 +133,8 @@ class BackendTests(unittest.TestCase):
         os.chmod(native, 0o755)
         os.chmod(legacy, 0o755)
         try:
-            MODULE.READER_SPECS["snes"]["binary"] = native
-            MODULE.READER_SPECS["md"]["binary"] = legacy
+            MODULE.LEGACY_READERS["snes"]["binary"] = native
+            MODULE.LEGACY_READERS["md"]["binary"] = legacy
             results = MODULE.capability_probe()["systems"]
             by_id = dict((entry["id"], entry) for entry in results)
             self.assertTrue(by_id["snes"]["available"])
@@ -144,8 +144,8 @@ class BackendTests(unittest.TestCase):
             with self.assertRaises(MODULE.ApiError):
                 MODULE.JobManager().submit({"system": "md", "command": "read_rom"})
         finally:
-            MODULE.READER_SPECS["snes"]["binary"] = old_snes
-            MODULE.READER_SPECS["md"]["binary"] = old_md
+            MODULE.LEGACY_READERS["snes"]["binary"] = old_snes
+            MODULE.LEGACY_READERS["md"]["binary"] = old_md
 
     def test_unregistered_core_is_never_invoked(self):
         with self.assertRaises(MODULE.ApiError) as err:
@@ -154,18 +154,18 @@ class BackendTests(unittest.TestCase):
 
     def test_size_validation(self):
         manager = MODULE.JobManager()
-        old_binary = MODULE.READER_SPECS["snes"]["binary"]
+        old_binary = MODULE.LEGACY_READERS["snes"]["binary"]
         try:
             binary = os.path.join(self.temp, "mock-reader")
             with open(binary, "w") as handle:
                 handle.write("#!/bin/sh\nexit 0\n")
             os.chmod(binary, 0o755)
-            MODULE.READER_SPECS["snes"]["binary"] = binary
+            MODULE.LEGACY_READERS["snes"]["binary"] = binary
             for size in (True, 0, 131071, 4194305, 131073):
                 with self.assertRaises(MODULE.ApiError):
                     manager.submit({"system": "snes", "command": "read_rom", "size_bytes": size})
         finally:
-            MODULE.READER_SPECS["snes"]["binary"] = old_binary
+            MODULE.LEGACY_READERS["snes"]["binary"] = old_binary
 
 
     def test_cli_registry_missing_and_untrusted_output(self):
