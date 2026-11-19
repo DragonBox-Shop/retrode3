@@ -25,24 +25,14 @@ from urllib.parse import parse_qs, urlparse, quote
 HOST = "127.0.0.1"
 ROOT = os.path.realpath(os.environ.get("RETRODE3_GAMES_ROOT", "/usr/local/games"))
 FILES_ROOT = os.path.join(ROOT, "ROMs")
-SNES_BIN = os.environ.get("RETRODE3_SNES_BINARY", "/usr/local/bin/oscr-snes-native")
-MD_BIN = os.environ.get("RETRODE3_MD_BINARY", "/usr/local/bin/oscr-md-native")
 SENSE_ROOT = os.environ.get("RETRODE3_SYSFS_ROOT", "/sys/class/retrode3")
 
-CLI_BIN = os.environ.get("RETRODE3_CLI_BINARY", "/usr/local/bin/retrode3-cli")
+CLI_BIN = os.environ.get("RETRODE3_CLI_BINARY", "/usr/bin/retrode3-cli")
 CORECTL_BIN = os.environ.get("RETRODE3_CORECTL_BINARY", "/usr/sbin/retrode3-corectl")
 CORE_CONTROL_ENABLED = os.environ.get("RETRODE3_CORE_CONTROL_ENABLED", "0") == "1"
 CORECTL_SUDO = os.environ.get("RETRODE3_CORECTL_SUDO", "1") == "1"
 CORE_ID = re.compile(r"^[a-z0-9_-]{1,48}$")
 
-# Compatibility for old *standalone* acceptance readers when the central
-# CLI has not been installed. This is NEVER an allowlist for CLI plugins.
-LEGACY_READERS = {
-    "snes": {"name": "Super Nintendo (SNES)", "slot": "snes",
-             "binary": SNES_BIN, "folder": "SNES", "extension": "sfc"},
-    "md": {"name": "Mega Drive / Genesis", "slot": "md",
-           "binary": MD_BIN, "folder": "MD", "extension": "md"},
-}
 # Cosmetic, familiar labels only. New physical kernel slots still show up.
 PHYSICAL_SLOTS = (("md", "Mega Drive"), ("snes", "Super Nintendo"),
                   ("nes", "Nintendo / Famicom"))
@@ -412,125 +402,43 @@ def toggle_core(data):
 
 
 def reader_capability(core_id, registry=None):
-    """Derive any reader from CLI metadata without an ID allowlist.
-
-    In particular, neither a recognized device slot nor an installed .so
-    implies an executable ROM operation. Only `ready`, usable, enabled
-    and explicit CLI actions can open a cartridge.
-    """
+    """Discover supported operations exclusively through the central CLI."""
     if registry is None:
         registry = core_registry()
-    if registry["available"]:
-        core = next((item for item in registry["cores"]
-                     if item["id"] == core_id), None)
-        if core is None:
-            return None
-        result = {"id": core["id"], "name": core["name"], "slot": core["slot"],
-                  "available": False, "transport": "cli",
-                  "folder": core["id"].upper(),
-                  "extension": KNOWN_ROM_EXTENSIONS.get(core["id"], "bin")}
-        if not (core["installed"] and core["enabled"] and
-                core["status"] == "ready" and core["usable"]):
-            result["reason"] = "core_not_ready"
-            return result
-        commands = [action for action in ("probe", "read_rom")
-                    if action in core["actions"]]
-        if not commands:
-            result["reason"] = "core_operation_unavailable"
-            return result
-        result.update({"available": True,
-                       "capabilities": {
-                           "system": core["id"], "core": core["id"],
-                           "slot": core["slot"], "commands": commands,
-                           "mappings": [], "size_override": False,
-                           "database_lookup": False,
-                           "write_operations": False}})
-        return result
-    # Only while the central CLI is absent: old proven native NDJSON runner.
-    spec = LEGACY_READERS.get(core_id)
-    if spec is None:
+    if not registry["available"]:
         return None
-    result = {"id": core_id, "name": spec["name"], "slot": spec["slot"],
-              "folder": spec["folder"], "extension": spec["extension"],
-              "binary": spec["binary"], "transport": "legacy",
-              "available": False}
-    binary = spec["binary"]
-    if not binary or not os.path.isfile(binary) or not os.access(binary, os.X_OK):
-        result["reason"] = "native_binary_missing"
+    core = next((c for c in registry["cores"] if c["id"] == core_id), None)
+    if core is None:
+        return None
+    result = {"id": core["id"], "name": core["name"], "slot": core["slot"],
+              "available": False, "transport": "cli",
+              "folder": core["id"].upper(),
+              "extension": KNOWN_ROM_EXTENSIONS.get(core["id"], "bin")}
+    if not (core["installed"] and core["enabled"] and
+            core["status"] == "ready" and core["usable"]):
+        result["reason"] = "core_not_ready"
         return result
-    proc = None
-    try:
-        proc = subprocess.Popen([binary, "--protocol", "ndjson-v1", "--interactive"],
-                                stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-                                stderr=subprocess.DEVNULL, bufsize=0)
-        deadline = time.time() + 3.0
-        ready = False
-        while time.time() < deadline:
-            if not select.select([proc.stdout], [], [], 0.2)[0]:
-                if proc.poll() is not None:
-                    break
-                continue
-            line = proc.stdout.readline()
-            if not line:
-                break
-            event = json.loads(line.decode("utf-8"))
-            if (event.get("event") == "ready" and
-                    event.get("protocol") == PROTOCOL and
-                    event.get("version") == 1 and
-                    event.get("system") == core_id):
-                ready = True
-                break
-        if not ready:
-            raise ValueError("no compatible ready event")
-        proc.stdin.write(b'{"command":"get_capabilities","request_id":"webcap"}\n')
-        proc.stdin.flush()
-        deadline = time.time() + 3.0
-        while time.time() < deadline:
-            if not select.select([proc.stdout], [], [], 0.2)[0]:
-                if proc.poll() is not None:
-                    break
-                continue
-            line = proc.stdout.readline()
-            if not line:
-                break
-            event = json.loads(line.decode("utf-8"))
-            commands = event.get("commands")
-            if (event.get("protocol") == PROTOCOL and
-                    event.get("version") == 1 and
-                    event.get("event") == "capabilities" and
-                    event.get("request_id") == "webcap" and
-                    event.get("system") == core_id and
-                    isinstance(commands, list) and
-                    all(x in commands for x in (
-                        "get_capabilities", "probe", "read_rom", "cancel"))):
-                result.update({"available": True, "capabilities": event})
-                return result
-    except (OSError, ValueError, KeyError, IOError):
-        pass
-    finally:
-        if proc is not None:
-            try:
-                proc.stdin.close()
-                proc.terminate()
-                proc.wait(timeout=2)
-            except (OSError, subprocess.TimeoutExpired):
-                try:
-                    proc.kill()
-                    proc.wait()
-                except OSError:
-                    pass
-            proc.stdout.close()
-    result["reason"] = "native_protocol_unavailable"
+    commands = [action for action in ("probe", "read_rom")
+                if action in core["actions"]]
+    if not commands:
+        result["reason"] = "core_operation_unavailable"
+        return result
+    result.update({"available": True,
+                   "capabilities": {"system": core["id"], "core": core["id"],
+                                    "slot": core["slot"], "commands": commands,
+                                    "mappings": [], "size_override": False,
+                                    "database_lookup": False,
+                                    "write_operations": False}})
     return result
 
 
 def capability_probe():
-    """Every CLI-listed core, including unknown future systems and plugins."""
+    """List only registered shared-CLI cores, never legacy readers."""
     registry = core_registry()
-    ids = ([item["id"] for item in registry["cores"]]
-           if registry["available"] else list(LEGACY_READERS))
-    return {"systems": [reader_capability(core_id, registry) for core_id in ids]}
-
+    if not registry["available"]:
+        return {"systems": []}
+    return {"systems": [reader_capability(c["id"], registry)
+                        for c in registry["cores"]]}
 
 
 
@@ -540,7 +448,6 @@ class Job(object):
         self.manager = manager
         self.reader_id = reader_id
         self.reader = reader
-        self.transport = reader["transport"]
         self.automatic = automatic
         self.id = uuid.uuid4().hex
         self.action = action
@@ -598,9 +505,7 @@ class Job(object):
                         os.mkdir(system_folder)
                     filename = "%s-%s.%s" % (self.label, self.id[:8], self.reader["extension"])
                     self.output = os.path.join(system_folder, filename)
-                argv = ([CLI_BIN, "--protocol", "ndjson-v1", "--interactive"]
-                        if self.transport == "cli" else
-                        [self.reader["binary"], "--protocol", "ndjson-v1", "--interactive"])
+                argv = [CLI_BIN, "--protocol", "ndjson-v1", "--interactive"]
                 process = subprocess.Popen(argv, stdin=subprocess.PIPE,
                                            stdout=subprocess.PIPE,
                                            stderr=subprocess.DEVNULL, bufsize=0)
@@ -623,15 +528,13 @@ class Job(object):
                     if (kind == "ready" and not sent and
                             event.get("protocol") == PROTOCOL and
                             event.get("version") == 1 and
-                            event.get("system") == (
-                                "multi" if self.transport == "cli" else self.reader_id)):
+                            event.get("system") == "multi"):
                         with self.lock:
                             if self.cancel_requested:
                                 self.status = "cancelled"
                                 return
                             command = {"command": self.action, "request_id": self.id}
-                            if self.transport == "cli":
-                                command["core"] = self.reader_id
+                            command["core"] = self.reader_id
                             if self.action == "read_rom":
                                 command["output"] = self.output
                                 if self.mapping:
@@ -664,7 +567,8 @@ class Job(object):
                             self.result = event
                             self.status = "done"
                         elif kind == "error":
-                            self.error = {"code": event.get("code", "operation_failed")}
+                            self.error = {"code": event.get("code", "operation_failed"),
+                                          "message": event.get("message", "Cartridge operation failed")}
                             self.status = "cancelled" if event.get("code") == "cancelled" else "failed"
                         if self.status in ("done", "cancelled", "failed"):
                             return
@@ -728,7 +632,7 @@ class JobManager(object):
             raise ApiError(400, "unsupported", "Core not registered by CLI")
         if not cap["available"]:
             raise ApiError(503, "native_protocol_unavailable",
-                           "A compatible native reader is not installed")
+                           "The requested shared CLI core is not available")
         features = cap["capabilities"]
         if data["command"] not in features["commands"]:
             raise ApiError(400, "unsupported", "Command unavailable for this reader")
