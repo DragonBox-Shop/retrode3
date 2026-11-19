@@ -4,7 +4,7 @@
   var locale = "en", messages = {}, capabilities = null, activeJob = null;
   var fileFolder = "", jobTimer = null, slotData = null, slotFingerprint = null;
   var selectedReader = "";
-  var detectedBySlot = {}, probeTarget = null;
+  var detectedBySlot = {}, probeTarget = null, autoNames = {};
   var coreState = null, corePending = false;
   var csrf = document.querySelector('meta[name="csrf-token"]').content;
   var $ = function (id) { return document.getElementById(id); };
@@ -133,16 +133,28 @@
     var reader = readerById(selectedReader);
     return reader ? reader.slot : "";
   }
+  function autoDetection(slotId) {
+    var entry = slotData && slotData.slots.filter(function (s) {
+      return s.id === slotId && s.status === "occupied";
+    })[0];
+    return entry && entry.detection || null;
+  }
   function renderSelectedProbe() {
     var slot = selectedSlotId();
+    var detected = slot && autoDetection(slot);
     var cached = slot && detectedBySlot[slot];
-    if (cached && cached.reader === selectedReader) renderProbe(cached.data, false);
-    else {
+    if (detected && detected.state === "detected" && detected.result) {
+      renderProbe(detected.result, false);
+    } else if (cached && cached.reader === selectedReader &&
+               (!detected || detected.state !== "idle")) {
+      renderProbe(cached.data, false);
+    } else {
       var box = $("game-info");
       box.innerHTML = "";
       var empty = document.createElement("p");
       empty.className = "muted";
-      text(empty, t("not_detected"));
+      text(empty, detected && ["pending", "detecting"].indexOf(detected.state) !== -1 ?
+        t("detecting_automatically") : t("not_detected"));
       box.appendChild(empty);
     }
   }
@@ -175,8 +187,13 @@
         var game = document.createElement("span");
         game.className = "slot-game";
         var cached = detectedBySlot[slot.id];
-        text(game, cached && cached.reader === matching[0].id ?
-          (cached.data.title || t("unknown")) : t("unknown"));
+        var automatic = slot.detection || {};
+        var title = automatic.state === "detected" && automatic.result &&
+          automatic.result.title;
+        if (!title && cached && cached.reader === matching[0].id &&
+            automatic.state !== "idle") title = cached.data.title;
+        text(game, title || (automatic.state === "detecting" ||
+          automatic.state === "pending" ? t("detecting_automatically") : t("unknown")));
         card.appendChild(game);
       }
       card.addEventListener("click", function () {
@@ -196,8 +213,10 @@
       var previousSlots = slotData && slotData.slots || [];
       data.slots.forEach(function (slot) {
         var previous = previousSlots.filter(function (entry) { return entry.id === slot.id; })[0];
-        if (!previous || previous.status !== slot.status || slot.status !== "occupied")
+        if (!previous || previous.status !== slot.status || slot.status !== "occupied") {
           delete detectedBySlot[slot.id];
+          delete autoNames[slot.id];
+        }
       });
       slotData = data;
       var fingerprint = data.slots.map(function (slot) { return slot.id + ":" + slot.status; }).join("|");
@@ -210,9 +229,22 @@
         var matches = readers().filter(function (reader) {
           return occupied.some(function (slot) { return slot.id === reader.slot; });
         });
-        selectReader(matches.length === 1 ? matches[0].id : "");
+        if (matches.some(function (reader) { return reader.id === selectedReader; }))
+          selectReader(selectedReader);
+        else selectReader(matches.length === 1 ? matches[0].id : "");
       }
       renderSlots();
+      var chosen = selectedSlotId();
+      if (chosen) {
+        var detected = autoDetection(chosen);
+        var name = detected && detected.state === "detected" && detected.result && detected.result.title;
+        if (name && autoNames[chosen] !== name) {
+          if (!$("filename").value || /^(SNES|MD|NES)-Dump$/.test($("filename").value) ||
+              $("filename").value === autoNames[chosen]) $("filename").value = name;
+          autoNames[chosen] = name;
+        }
+      }
+      renderSelectedProbe();
     }).catch(function (error) {
       text($("slots-summary"), t("slot_unavailable"));
       fail(error);
@@ -536,7 +568,7 @@
   }
   function resumeJob() {
     api("/api/jobs/active").then(function (job) {
-      if (!job.id) return;
+      if (!job.id || job.automatic) return;
       $("job-panel").hidden = false;
       renderJob(job);
       if (["done", "failed", "cancelled"].indexOf(job.status) === -1) {
@@ -551,5 +583,5 @@
   var saved = (navigator.language || "").toLowerCase().indexOf("de") === 0 ? "de" : "en";
   setLocale(saved);
   loadCapabilities().then(resumeJob);
-  window.setInterval(refreshSlots, 3000);
+  window.setInterval(refreshSlots, 1500);
 })();
