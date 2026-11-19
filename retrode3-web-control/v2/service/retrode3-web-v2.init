@@ -18,6 +18,21 @@ case "$1" in
             echo "OS cartridge bus lock not prepared" >&2
             exit 1
         fi
+        # Temporary SysV-device setup until the OS udev package owns these
+        # permissions permanently. Device nodes are recreated at boot.
+        getent group retrode3-reader >/dev/null 2>&1 || {
+            echo "Reader device group is missing" >&2
+            exit 1
+        }
+        for DEVICE in /dev/slot-*; do
+            [ -c "$DEVICE" ] || continue
+            [ ! -L "$DEVICE" ] || {
+                echo "Unsafe cartridge device symlink: $DEVICE" >&2
+                exit 1
+            }
+            chgrp retrode3-reader "$DEVICE"
+            chmod 0660 "$DEVICE"
+        done
         if start-stop-daemon --status --pidfile "$PIDFILE" >/dev/null 2>&1; then
             echo "$NAME already running"
             exit 0
