@@ -138,14 +138,11 @@ executable is present. The backend is still restricted to reviewed built-in
 reader descriptors; future plugin descriptors require a separate trusted
 registry and hardware safety design.
 
-The native MegaDrive stage-1 CLI exists in the OSCR feature branch
-`feature/native-md-stage1` and has passed real hardware ROM tests, but it
-is currently **one-shot JSON only**. It cannot yet provide the NDJSON v1
-protocol (and live progress/cancel) expected by this Web bridge, so the MD
-reader is correctly shown as unavailable for browser reading. Once the
-MegaDrive native core implements the compatible interface, the frontend will
-show it without new hardcoded UI options. A local binary symlink is installed
-where present, but a symlink alone never marks that core ready.
+The original MegaDrive stage-1 standalone executable was a one-shot
+acceptance runner. The newer `feature/shared-md-core` adapts the physically
+tested read-only MegaDrive core to the common `retrode3-cli`, which owns
+the NDJSON transport. Web v2 now uses the central core registry and the
+central interactive CLI for both ready SNES and MegaDrive cores.
 
 See `v2/docs/slot-discovery.md` for the status model, adapters, the safety
 boundary and real-hardware acceptance checklist. Automated checks live in
@@ -160,10 +157,10 @@ system/plugin binary. Existing direct SNES NDJSON usage is a *transitional
 compatibility path*, not the desired reader-plugin contract. Do not port
 NDJSON individually to every MD/NES/adapter reader merely for Web support.
 
-The CLI's future `get_capabilities` must be the source of truth for
-which systems and advanced fields the Web exposes; slot status alone cannot
-identify a cartridge or adapter. Until that CLI API is finished, retain the
-working SNES UI and mark the legacy MegaDrive one-shot integration pending.
+The implemented `--list-cores` registry reports enabled/readable core
+operations, and the common interactive CLI accepts `probe` and `read_rom`
+with an explicit core ID. The Web must not infer cartridge identity or
+expose overrides from physical slot state alone.
 
 See `v2/docs/cli-integration.md` for the target architecture and migration
 acceptance tests. This decision supersedes earlier descriptions in this
@@ -199,7 +196,7 @@ shipping an entire copy of an evolving manual onto the device.
 
 ## Staged central core registry UI (2026-11-18)
 
-Settings displays installed and disabled cores from
+The Plugins tab displays installed and disabled cores from
 `retrode3-cli --list-cores --protocol ndjson-v1`. Each core shows
 version, slot, compatibility, and operations. Optional enable/disable
 uses the restricted `retrode3-corectl` helper through the backend;
@@ -207,7 +204,12 @@ it is disabled by default until administrator authentication and a
 least-privilege helper rule are configured. See
 `docs/cli-integration.md`.
 
-The central CLI currently performs discovery only, not read jobs.
-The old SNES native runner stays temporarily operational, while any
-registered disabled or metadata-only core is never advertised as a
-working reader. Do not deploy as a production release yet.
+**Updated 2026-11-19:** `ready`, enabled, usable SNES and MegaDrive
+cores now run `probe` and `read_rom` through the shared
+`retrode3-cli --protocol ndjson-v1 --interactive` process. The legacy
+SNES runner is used only if the common CLI is absent. Until the device
+installer and security setup are production-ready, this remains a development
+build. The installer provisions the MD/SNES device permissions and shared
+bus-lock group needed by the `www-data` Web backend; permanent udev and
+boot-time lock-directory setup remain outstanding. See
+`docs/cli-integration.md`.
