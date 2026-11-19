@@ -30,7 +30,7 @@
     return fetch(url, options).then(function (response) {
       return response.json().catch(function () { throw new Error(t("error_generic")); })
         .then(function (body) {
-          if (!response.ok) throw new Error(body.error || body.message || t("error_generic"));
+          if (!response.ok) throw new Error(body.message || body.error || t("error_generic"));
           return body;
         });
     });
