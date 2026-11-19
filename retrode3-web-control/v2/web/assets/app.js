@@ -445,7 +445,7 @@
       });
       toggle.className = "btn secondary";
       toggle.disabled = !coreState.control_enabled || corePending || Boolean(activeJob) ||
-        (core.enabled ? ["discovered", "incompatible"].indexOf(core.status) === -1 :
+        (core.enabled ? ["ready", "discovered", "incompatible"].indexOf(core.status) === -1 :
                         core.status !== "disabled");
       card.appendChild(toggle);
       list.appendChild(card);
