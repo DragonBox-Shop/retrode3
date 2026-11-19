@@ -479,7 +479,7 @@ def reader_capability(core_id, registry=None):
                 break
         if not ready:
             raise ValueError("no compatible ready event")
-        proc.stdin.write(b'{"command":"get_capabilities","request_id":"webcap"}\\n')
+        proc.stdin.write(b'{"command":"get_capabilities","request_id":"webcap"}\n')
         proc.stdin.flush()
         deadline = time.time() + 3.0
         while time.time() < deadline:
