@@ -396,7 +396,9 @@
       return;
     }
     if (!coreState.available) {
-      text($("cores-summary"), t("core_cli_missing"));
+      text($("cores-summary"), t(coreState.reason === "cli_not_executable" ?
+        "core_cli_not_executable" : coreState.reason === "cli_missing" ?
+        "core_cli_missing" : "core_cli_error"));
       return;
     }
     text($("cores-summary"), coreState.cores.length ?
@@ -455,7 +457,7 @@
       coreState = result;
       renderCores();
     }).catch(function (error) {
-      coreState = {available: false, control_enabled: false, cores: []};
+      coreState = {available: false, control_enabled: false, cores: [], reason: "cli_error"};
       renderCores();
       fail(error);
     });
