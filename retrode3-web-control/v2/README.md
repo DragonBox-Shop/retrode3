@@ -30,7 +30,9 @@ and `docs/WEB-V2-HANDOFF.md`.
 ROM files are managed beneath `/usr/local/games/ROMs/` and exposed by the
 existing Samba games share. The existing USB mass-storage FAT image is separate
 and is not automatically synchronized with the Web/Samba files.
-Production hardening, persistent device permissions, full USB/network checks,
+The Web SysV startup temporarily restores restricted device-group
+permissions after each boot; permanent udev packaging remains pending.
+Production hardening, full USB/network checks,
 and secure file-manager race review remain outstanding.
 
 ## Install and update directly from Git on the Retrode
