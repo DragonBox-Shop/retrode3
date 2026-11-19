@@ -134,9 +134,11 @@ native executable successfully answers NDJSON v1 `ready` and
 `get_capabilities`**, validated by protocol version and system ID.
 Only the corresponding supported mapping/size controls are shown. Unsupported
 systems or one-shot legacy binaries are never offered just because an
-executable is present. The backend is still restricted to reviewed built-in
-reader descriptors; future plugin descriptors require a separate trusted
-registry and hardware safety design.
+executable is present. The current backend now derives every available reader dynamically from
+root-installed central CLI core metadata (ID, slot, enabled/readable state,
+operations). No extra per-system allowlist or individual NDJSON implementation
+is required. An unrecognized future core uses a generic .bin output suffix
+until the CLI communicates a preferred ROM extension.
 
 The original MegaDrive stage-1 standalone executable was a one-shot
 acceptance runner. The newer `feature/shared-md-core` adapts the physically
@@ -212,4 +214,23 @@ installer and security setup are production-ready, this remains a development
 build. The installer provisions the MD/SNES device permissions and shared
 bus-lock group needed by the `www-data` Web backend; permanent udev and
 boot-time lock-directory setup remain outstanding. See
+`docs/cli-integration.md`.
+
+## Automatic detection and dynamic slot binding (2026-11-19)
+
+The kernel emits cartridge insertion/removal KOBJ_CHANGE events. A single
+backend watcher listens to those events, reconciles the passive slot sense
+every 300ms (including when netlink is unavailable), and submits a read-only
+probe to the common CLI after a 350ms settle delay. It picks a reader solely
+from central CLI core metadata: installed, enabled, ready, usable, `probe`
+action, and matching `slot`. When more than one reader is eligible for a
+physical slot, the backend does not blindly probe any adapter. The user
+must explicitly choose the appropriate reader. The browser displays the
+backend's cached title and removes it on unplug; it polls the lightweight
+`/api/slots` endpoint every 1.5s. No cartridge operation takes place in
+JavaScript and no PHP streaming connection is needed.
+
+All currently exposed Linux `/dev/slot-*` character devices get temporary
+group permission from the developer installer. Permanent udev policy and
+real-target browser end-to-end tests are still outstanding. See
 `docs/cli-integration.md`.
