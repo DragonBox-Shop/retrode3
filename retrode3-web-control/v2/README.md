@@ -1,46 +1,37 @@
-# Retrode3 Web Control v2: development prototype
+# Retrode3 Web Control v2: shared CLI integration
 
-Branch: feature/web-control-v2 in DragonBox-Shop/retrode3. Status: development prototype, not deployed or included in Debian packaging. Existing web UI and master are unchanged.
+Branch: `feature/web-control-v2`. Hardware end-to-end acceptance is pending.
+The OS-installed runtime contract is defined in repository `AGENTS.md`
+and `docs/WEB-V2-HANDOFF.md`.
 
 ## Architecture
-- OS, original PHP UI, WLAN helper, Samba, USB storage: DragonBox-Shop/retrode3
-- Native cartridge reader and NDJSON v1: DragonBox-Shop/retrode3-oscr, migration/oscr-firmware
-- A Python 3.4-compatible backend on 127.0.0.1:8765 owns a single hardware job, validates input and paths, forwards native events, and provides guarded file/WLAN operations.
-- A PHP gateway uses same-origin session + CSRF protection for browser requests. No password is required by default; optional HTTP Basic authentication can be enabled with an on-device command.
-- Vanilla JS/CSS frontend, language files in web/locales/de.json and en.json. Navigation: Read, File Manager, Write (disabled), Settings.
-- Only native SNES LoROM/HiROM probe/read/cancel/get_capabilities are supported. No claims about CRDB game matches, auto-detect, save RAM, other cores or cartridge writes.
 
-## Storage
-Managed ROM files are under /usr/local/games/ROMs/SNES, later additional system subfolders. Samba already shares /usr/local/games. The web file manager is restricted to ROMs and cannot recursively delete nonempty folders. This restriction needs a further filesystem race/symlink review before production.
+- The Web backend (Python 3.4-compatible) runs on `127.0.0.1:8765`
+  under `www-data`; PHP supplies the same-origin authenticated/CSRF gateway.
+- The **only** native cartridge process is `/usr/bin/retrode3-cli`,
+  discovered with `--list-cores --protocol ndjson-v1` and executed with
+  `--protocol ndjson-v1 --interactive`.
+- The OS-owned administrative core toggle is `/usr/sbin/retrode3-corectl`;
+  web controls are disabled unless restricted privilege delegation is set up.
+- SNES, MegaDrive and NES are all delivered as enabled shared CLI cores,
+  not separate executables. No legacy OSCR reader fallback or binary
+  installation occurs during Web deployment.
+- The tested SysV boot script `/etc/init.d/retrode3-core-runtime` owns
+  creation and permissions of `/run/lock/retrode3/bus.lock`.
+- The Web backend provides slot insertion/removal monitoring, safe read-only
+  auto-probe, job serialization, cancellable reads and restricted file/network
+  operations. Physical presence is not cartridge identity.
+- All three stage-1 read-only cores are hardware-tested through the CLI,
+  but the **Web v2 integration is not yet hardware accepted**. Unsupported
+  mappers, special chips, SRAM/flash writes and unknown adapters remain blocked.
 
-IMPORTANT: Existing USB mass storage exposes /var/storage0.img, a separately generated FAT image populated from /media/usb-storage, NOT a live view of /usr/local/games. USB and Samba/Web therefore do not yet share files. Never mount the same FAT filesystem read-write at once on the host and on Linux. Decide on a safe synchronized/exclusive USB strategy before deployment. USB network with Samba access is a possible live-share alternative.
+## Storage and limitations
 
-## Prototype start (development system only)
-Requirements: Python 3.4+, a PHP runtime with sessions, password_verify and stream_socket_client, and the matching OSCR native binary.
-
-1. Host v2/web separately from the existing /var/www/html (test vhost or subpath), without replacing the old site.
-2. Install/copy the backend and start manually with RETRODE3_GAMES_ROOT=/path/to/test/games RETRODE3_SNES_BINARY=/path/to/oscr-snes-native python3 backend/service.py. The default binary path is /usr/local/bin/oscr-snes-native. No system daemon or package installation is included yet.
-3. Password authentication is OFF by default. The PHP gateway accepts requests without login if /etc/retrode3-web-control.auth does not exist. To enable optional HTTP Basic authentication, run retrode3-web-v2-auth enable as root after installation. To disable it, run retrode3-web-v2-auth disable. No 12-character minimum is enforced; any nonempty password is accepted. If protection is configured but its hash file becomes unreadable, PHP fails closed.
-4. The UI has no password by default. Even though cartridge ROMs are not sensitive, an untrusted visitor could delete ROM files or change Wi-Fi settings. Keep the development interface on the trusted local/USB network; do not port-forward it. Optional Basic authentication is not encrypted over plain HTTP.
-5. Backend requires ROM folder write permissions and restricted cartridge device access. WLAN is controlled via existing retrode3-wlan using sudo -n (configurable with RETRODE3_WLAN_SUDO=0). Existing helper/privileged dependencies require separate security review.
-
-Prototype endpoints: GET /api/health, /api/capabilities, /api/settings, /api/wifi/status, /api/wifi/scan, /api/files?path=, /api/files/download?path=, /api/jobs/{id}; POST /api/jobs, /api/jobs/{id}/cancel, /api/files/mkdir, /api/files/move, /api/files/delete, /api/wifi/connect, /api/wifi/disconnect.
-
-Submit a probe with JSON {"system":"snes","command":"probe"}. Submit a dump with {"system":"snes","command":"read_rom","filename":"Terranigma","mapping":"hi","size_bytes":4194304}. Optional mapping/size should only be presented if the native capabilities permit them. Poll the returned job ID. Backend restarts currently lose job history; client cannot rediscover active jobs without an ID.
-
-## Release requirements
-- Run Python unit tests, PHP lint, JS checks and native mocked protocol integration tests; verify 3.4/PHP compatibility.
-- Run real SNES LoROM and HiROM physical read/progress/cancel tests and check ROM output byte-for-byte.
-- Add robust crash/cancel/timeout cleanup and job persistence, fd-based file sandbox against concurrent Samba path swaps, disk quotas and space checks.
-- Audit WLAN helper (and whether AP mode/fallback is needed), network security and first-run password setup.
-- Resolve USB mass-storage live sharing safely, without simultaneous read/write ownership.
-- Package backend as a managed service, install native binary, permissions and sudo rules with least privilege.
-- Add reconnection behavior and user-friendly error mapping; ensure other systems are never falsely enabled.
-- Make a tested, reviewed switch from old web root to v2 only when feature parity is achieved, then merge into master.
-
-The current v2 branch is a starting implementation, not a production release.
-
-
+ROM files are managed beneath `/usr/local/games/ROMs/` and exposed by the
+existing Samba games share. The existing USB mass-storage FAT image is separate
+and is not automatically synchronized with the Web/Samba files.
+Production hardening, persistent device permissions, full USB/network checks,
+and secure file-manager race review remain outstanding.
 
 ## Install and update directly from Git on the Retrode
 
@@ -58,8 +49,9 @@ First checkout:
 
 The installer preflights Python 3.4+, PHP, Python/PHP syntax and the webroot.
 It configures a no-login-by-default development UI, a localhost
-backend service and an on-device updater. It does not change the native OSCR
-source or the main branch. The previously installed web UI is copied to
+backend service and an on-device updater, but requires the preinstalled
+shared CLI and restricted helper; it never installs native reader binaries. It does not change the installed CLI or cores,
+the native OSCR source, or the main branch. The previously installed web UI is copied to
 /var/backups/retrode3-web-v2/ before the new webroot is activated.
 
 Later updates, **one command on the Retrode**:
@@ -105,8 +97,9 @@ Rollback on the device:
     /usr/local/sbin/retrode3-web-v2-rollback
 
 Rollback restores the prior webroot and stops/disables the v2 service; it
-leaves the native reader and existing ROM files alone. New versions remain
-development builds until tested against real SNES hardware. USB mass storage
+leaves the OS-installed shared CLI, cores and existing ROM files alone. New
+versions remain development builds until tested with Web v2 on real SNES,
+MegaDrive and NES hardware. USB mass storage
 still uses an independent FAT image and is not synchronized automatically
 with Samba/Web.
 
@@ -120,117 +113,26 @@ If health check fails, use:
 
 Expected status: 200, JSON `{"ok": true, "service": "retrode3-web-v2"}`. Service/listener presence alone does not prove successful responses. If the direct connection succeeds but install still fails, paste the exact installer output and backend logs.
 
-## Slot-aware reader selection (2026-11-18)
+## Shared CLI and automatic slot handling (2026-11-19)
 
-Passive presence polling reads the three existing kernel sysfs `sense` values
-for SNES, MegaDrive and NES. The browser displays physical slot status every
-three seconds without activating the cartridge bus. The displayed slot is
-**not** proof of what game system or adapter is inserted. When exactly one
-compatible registered reader matches the occupied connector, the UI suggests
-that reader; it does not automatically run a cartridge probe.
+The Plugins tab uses the installed `/usr/bin/retrode3-cli` registry and
+supports all three ready cores (SNES, MD, NES). The backend starts a single
+shared CLI interactive job per operation, always passing the core ID.
+Neither CLI, core modules nor legacy readers are installed by this Web
+installer. `retrode3-core-runtime` must start at boot before Web v2.
 
-The advanced read-only selector lists **only readers whose real installed
-native executable successfully answers NDJSON v1 `ready` and
-`get_capabilities`**, validated by protocol version and system ID.
-Only the corresponding supported mapping/size controls are shown. Unsupported
-systems or one-shot legacy binaries are never offered just because an
-executable is present. The current backend now derives every available reader dynamically from
-root-installed central CLI core metadata (ID, slot, enabled/readable state,
-operations). No extra per-system allowlist or individual NDJSON implementation
-is required. An unrecognized future core uses a generic .bin output suffix
-until the CLI communicates a preferred ROM extension.
+The backend watches kernel slot events and reconciles passive sense values,
+debounces insertion and initiates read-only probes only when a single usable
+reader maps to the occupied slot. On removal, cached cartridge data is cleared
+and affected jobs are cancelled. Unsupported/ambiguous adapters require
+manual selection and safety checks.
 
-The original MegaDrive stage-1 standalone executable was a one-shot
-acceptance runner. The newer `feature/shared-md-core` adapts the physically
-tested read-only MegaDrive core to the common `retrode3-cli`, which owns
-the NDJSON transport. Web v2 now uses the central core registry and the
-central interactive CLI for both ready SNES and MegaDrive cores.
+The browser consumes `/api/slots`, `/api/capabilities`, `/api/cores`
+and the job endpoints. Shared CLI error messages are retained and displayed.
+No JavaScript cartridge hardware operations or per-core executables exist.
 
-See `v2/docs/slot-discovery.md` for the status model, adapters, the safety
-boundary and real-hardware acceptance checklist. Automated checks live in
-`.github/workflows/web-v2-checks.yml`; passing mocks do not replace
-physical slot/adapter tests.
-
-## Architecture correction: shared retrode3-cli transport
-
-**Decision 2026-11-18:** NDJSON messages, progress and read-job coordination
-will come from the **central retrode3-cli**, not from each individual
-system/plugin binary. Existing direct SNES NDJSON usage is a *transitional
-compatibility path*, not the desired reader-plugin contract. Do not port
-NDJSON individually to every MD/NES/adapter reader merely for Web support.
-
-The implemented `--list-cores` registry reports enabled/readable core
-operations, and the common interactive CLI accepts `probe` and `read_rom`
-with an explicit core ID. The Web must not infer cartridge identity or
-expose overrides from physical slot state alone.
-
-See `v2/docs/cli-integration.md` for the target architecture and migration
-acceptance tests. This decision supersedes earlier descriptions in this
-README suggesting that each core should provide Web NDJSON progress.
-
-## WLAN discovery and Help tab (2026-11-18)
-
-The original `retrode3-wlan status` shell helper discovers adapters by
-filtering `iwconfig` output for `wlan`. It can print `no WLAN interface`
-even when Linux and `iw dev` know about a wireless device. The v2 web
-backend now detects hardware independently via `/sys/class/net/*/phy80211`,
-`/sys/class/net/*/wireless` and `iw dev`, without activating interfaces or
-changing network configuration. The Settings tab shows the discovered interface
-name and warns if the legacy helper fails to detect it. The existing helper
-still handles **connect/disconnect/scan** while its network setup behavior is
-verified on real hardware; do not equate fixing a false status report with a
-verified successful connection.
-
-For on-device diagnostics, compare `iw dev`, `ls /sys/class/net`,
-`/usr/local/bin/retrode3-wlan status`, and the loopback
-`GET /api/wifi/status` response. The backend uses Python 3.4-compatible
-read-only tools for hardware discovery. Device tests still required.
-
-A new **Help & Documentation** tab gives brief bilingual instructions and
-links to Wiki-ready Markdown documents:
-- `v2/docs/user-guide.de.md`
- - `v2/docs/user-guide.en.md`
-
-The links currently point to the published GitHub branch's Markdown documents,
-not to an unpublished wiki address. Once the wiki is populated, change the
-one link target in `web/assets/app.js` (plus the HTML fallback) without
-shipping an entire copy of an evolving manual onto the device.
-
-## Staged central core registry UI (2026-11-18)
-
-The Plugins tab displays installed and disabled cores from
-`retrode3-cli --list-cores --protocol ndjson-v1`. Each core shows
-version, slot, compatibility, and operations. Optional enable/disable
-uses the restricted `retrode3-corectl` helper through the backend;
-it is disabled by default until administrator authentication and a
-least-privilege helper rule are configured. See
-`docs/cli-integration.md`.
-
-**Updated 2026-11-19:** `ready`, enabled, usable SNES and MegaDrive
-cores now run `probe` and `read_rom` through the shared
-`retrode3-cli --protocol ndjson-v1 --interactive` process. The legacy
-SNES runner is used only if the common CLI is absent. Until the device
-installer and security setup are production-ready, this remains a development
-build. The installer provisions the MD/SNES device permissions and shared
-bus-lock group needed by the `www-data` Web backend; permanent udev and
-boot-time lock-directory setup remain outstanding. See
-`docs/cli-integration.md`.
-
-## Automatic detection and dynamic slot binding (2026-11-19)
-
-The kernel emits cartridge insertion/removal KOBJ_CHANGE events. A single
-backend watcher listens to those events, reconciles the passive slot sense
-every 300ms (including when netlink is unavailable), and submits a read-only
-probe to the common CLI after a 350ms settle delay. It picks a reader solely
-from central CLI core metadata: installed, enabled, ready, usable, `probe`
-action, and matching `slot`. When more than one reader is eligible for a
-physical slot, the backend does not blindly probe any adapter. The user
-must explicitly choose the appropriate reader. The browser displays the
-backend's cached title and removes it on unplug; it polls the lightweight
-`/api/slots` endpoint every 1.5s. No cartridge operation takes place in
-JavaScript and no PHP streaming connection is needed.
-
-All currently exposed Linux `/dev/slot-*` character devices get temporary
-group permission from the developer installer. Permanent udev policy and
-real-target browser end-to-end tests are still outstanding. See
-`docs/cli-integration.md`.
+For Web hardware acceptance, verify all three known-good cartridges,
+automatic insert/remove, reader permissions after reboot, cancellation,
+file management, Wi-Fi/network and USB gadget behavior. Mock tests are not
+a replacement for device tests. See `docs/cli-integration.md` and
+`docs/slot-discovery.md`.
