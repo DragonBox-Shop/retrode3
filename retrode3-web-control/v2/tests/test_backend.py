@@ -358,6 +358,8 @@ class BackendTests(unittest.TestCase):
             def __init__(self):
                 self.calls = []
                 self.job = FakeJob()
+                self.lock = MODULE.threading.RLock()
+                self.active = None
             def submit(self, data, automatic=False):
                 self.calls.append((data, automatic))
                 return {"id": "1" * 32}
