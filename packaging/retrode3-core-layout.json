@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "producer_repository": "DragonBox-Shop/retrode3-oscr",
+  "producer_make_target": "stage-retrode3-runtime",
+  "producer_stage_root": "build/migration/stage",
+  "target_architecture": "mipsel",
+  "release_packages": {
+    "retrode3-core-runtime": [
+      "usr/bin/retrode3-cli",
+      "usr/sbin/retrode3-corectl"
+    ],
+    "retrode3-core-snes": [
+      "usr/lib/retrode3/cores-available/snes.so",
+      "usr/lib/retrode3/cores-available/snes.core"
+    ],
+    "retrode3-core-md": [
+      "usr/lib/retrode3/cores-available/md.so",
+      "usr/lib/retrode3/cores-available/md.core"
+    ],
+    "retrode3-core-nes": [
+      "usr/lib/retrode3/cores-available/nes.so",
+      "usr/lib/retrode3/cores-available/nes.core"
+    ]
+  },
+  "runtime_state_not_shipped_in_binaries": [
+    "etc/retrode3/cores-enabled",
+    "run/lock/retrode3"
+  ],
+  "legacy_package": "oscr",
+  "legacy_binary_path": "usr/local/bin/oscr",
+  "policy": {
+    "new_cores_enabled_on_install": false,
+    "root_owned_core_files": true,
+    "shared_runtime_one_cli": true,
+    "do_not_replace_legacy_reader": true,
+    "package_release_from_master_only": true
+  },
+  "static_package_assets": {
+    "retrode3-core-runtime": [
+      "retrode3-core-runtime/etc/init.d/retrode3-core-runtime"
+    ]
+  }
+}
