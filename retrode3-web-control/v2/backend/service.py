@@ -813,7 +813,7 @@ class AutomaticDetection(object):
         if len(payload) > 16384:
             return
         values = {}
-        for part in payload.split(b"\\x00"):
+        for part in payload.split(b"\x00"):
             if b"=" in part:
                 key, value = part.split(b"=", 1)
                 if key in (b"SLOT", b"SENSE"):
@@ -847,7 +847,7 @@ class AutomaticDetection(object):
             try:
                 self.tick()
             except Exception as error:
-                sys.stderr.write("Retrode3 auto detect: %s\\n" % error)
+                sys.stderr.write("Retrode3 auto detect: %s\n" % error)
             if netlink is None:
                 time.sleep(0.3)
             else:
