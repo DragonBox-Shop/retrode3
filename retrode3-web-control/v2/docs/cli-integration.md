@@ -104,3 +104,43 @@ It also grants the dedicated `retrode3-reader` group access to the
 MD/SNES character devices and the shared `/run/lock/retrode3/bus.lock`;
 device file permissions may reset at reboot pending permanent udev packaging.
 Real target Web read/cancel acceptance remains mandatory.
+
+## Dynamic readers and kernel-triggered autoprobes (2026-11-19)
+
+The Web reader API has **no installed-core ID allowlist**. `GET /api/capabilities`
+takes each entry from `retrode3-cli --list-cores --protocol ndjson-v1`
+and derives its ID, display name, `slot` and supported commands. A
+newly installed core appears without editing Python/JavaScript.
+The `PHYSICAL_SLOTS` list is **only** for familiar connector labels;
+other kernel-exported `/sys/class/retrode3/slot-*/sense` devices are
+enumerated dynamically. The CLI's `slot` names the physical connector,
+not the system's electrical safety or automatically detected adapter.
+For a new core, ROM output goes to a separate per-core folder under
+shared ROM storage, with generic `.bin` extension unless a known
+format has a conventional suffix. This is a filename preference only,
+not a core admission policy. A future CLI metadata field for the output
+extension would remove even that small presentation mapping.
+
+The kernel's existing `KOBJ_CHANGE` event provides `SLOT=slot-...`
+and `SENSE=active|empty`. A single background thread in the loopback
+backend listens for these events via Linux netlink group 1. On each
+event it invalidates cached identity, then **re-checks kernel sysfs**;
+loss of netlink permission/events is handled by a 300ms passive sense
+reconciliation loop. An occupied slot is debounced for 350ms and
+submitted as a read-only `probe` via the **same shared JobManager**
+and common CLI. If exactly one active ready core has a `probe`
+operation for that `slot`, it is selected automatically; if several
+cores claim a slot, no speculative probe occurs, and the user must
+select an adapter/reader manually. On removal the displayed title
+is discarded, and an active cartridge job for that slot is cancelled.
+The browser only displays the backend's observed slot state and cached
+probe metadata; it polls the lightweight endpoint every 1.5s. There is
+no competing browser-side hardware probe and no long-lived PHP push
+connection. Server-Sent Events could be added later if response latency
+requires it, without changing the kernel or CLI contract.
+
+The old direct SNES/MD development binaries form a separate,
+explicit compatibility fallback **only if the common CLI is missing**.
+They do not restrict any installed central CLI core. The automatic
+probe is read-only and does not detect adapter voltage; do not use an
+unknown multi-protocol adapter without explicit safety metadata.
