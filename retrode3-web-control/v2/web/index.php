@@ -22,6 +22,7 @@ header("Content-Security-Policy: default-src 'self'; img-src 'self'; style-src '
 <button class="tab active" data-tab="reader" data-i18n="reader">Read Cartridge</button>
 <button class="tab" data-tab="files" data-i18n="files">File Manager</button>
 <button class="tab" data-tab="writer" data-i18n="writer">Write Cartridge</button>
+<button class="tab" data-tab="plugins" data-i18n="plugins_tab">Plugins</button>
 <button class="tab" data-tab="settings" data-i18n="settings">General Settings</button>
 <button class="tab" data-tab="help" data-i18n="help_tab">Help &amp; Documentation</button>
 </nav>
@@ -42,7 +43,7 @@ header("Content-Security-Policy: default-src 'self'; img-src 'self'; style-src '
 <label for="filename" data-i18n="filename">File name</label><input id="filename" maxlength="64" value="SNES-Dump" autocomplete="off">
 <button id="advanced-toggle" type="button" class="btn secondary" aria-expanded="false" data-i18n="advanced_toggle">Advanced settings</button>
 <div id="advanced" hidden>
-<p class="muted small" data-i18n="advanced_note">For unrecognized cartridges. Only installed, compatible read-only cores are listed. Selecting a system does not change voltage or detect adapters.</p>
+<p class="muted small" data-i18n="advanced_note">Only readers with confirmed read operations are selectable. Selecting a system does not detect an adapter or change the voltage.</p>
 <label for="system" data-i18n="system">Reader / system</label><select id="system"><option value="">—</option></select>
 <div id="mapping-control"><label for="mapping" data-i18n="mapping">Mapping</label><select id="mapping"><option value="" data-i18n="auto">Automatic</option></select></div>
 <div id="size-control"><label for="rom-size" data-i18n="rom_size">ROM size override</label><select id="rom-size"><option value="" data-i18n="auto">Automatic</option></select></div>
@@ -51,7 +52,6 @@ header("Content-Security-Policy: default-src 'self'; img-src 'self'; style-src '
 <button id="read" class="btn primary" data-i18n="start_read">Read ROM</button>
 <div id="job-panel" class="job-panel" hidden><div class="progress-line"><strong id="job-label"></strong><span id="job-percent"></span></div><div class="progress"><div id="job-fill"></div></div><p id="job-detail" class="muted small"></p><button id="cancel" class="btn danger" data-i18n="cancel">Cancel</button></div>
 </div></div>
-<div class="panel notes"><h2 data-i18n="availability">Availability</h2><p id="availability" class="muted"></p></div>
 </section>
 <section id="files" class="page"><p class="eyebrow" data-i18n="shared_storage">SHARED STORAGE</p><h1 data-i18n="files_title">Your game library</h1><p class="muted" data-i18n="files_desc">Browse, rename, move, download or delete ROM files in shared storage.</p>
 <div class="panel"><div class="file-head"><div id="breadcrumb" class="breadcrumb"></div><div class="actions"><button id="new-folder" class="btn secondary" data-i18n="new_folder">New folder</button><button id="refresh-files" class="btn secondary" data-i18n="refresh">Refresh</button></div></div>
@@ -63,7 +63,8 @@ header("Content-Security-Policy: default-src 'self'; img-src 'self'; style-src '
 <label for="wifi-ssid" data-i18n="ssid">Network name (SSID)</label><input id="wifi-ssid" maxlength="32" autocomplete="off">
 <label for="wifi-password" data-i18n="password">Password</label><input id="wifi-password" type="password" maxlength="128" autocomplete="new-password">
 <button id="connect-wifi" class="btn primary" data-i18n="connect">Connect</button><p class="muted small" data-i18n="wifi_warning">Changing network settings may interrupt your connection.</p></div>
-<div class="panel"><h2 data-i18n="localization">Language &amp; time</h2><div class="keyval"><span data-i18n="device_time">Device time</span><strong id="device-time">…</strong></div><div class="keyval"><span data-i18n="timezone">Time zone</span><strong id="device-timezone">…</strong></div><p class="muted small" data-i18n="time_note">Time and time zone are currently read-only. Language files can be added without changing the backend.</p></div></div><div class="panel"><div class="panel-head"><h2 data-i18n="core_title">Software cores</h2><button id="refresh-cores" type="button" class="btn secondary" data-i18n="refresh">Refresh</button></div><p class="muted small" data-i18n="core_intro">Core availability comes from the CLI. Enabled does not mean usable.</p><p id="cores-summary" class="muted small" role="status"></p><div id="core-list" class="core-list"></div></div></section>
+<div class="panel"><h2 data-i18n="localization">Language &amp; time</h2><div class="keyval"><span data-i18n="device_time">Device time</span><strong id="device-time">…</strong></div><div class="keyval"><span data-i18n="timezone">Time zone</span><strong id="device-timezone">…</strong></div><p class="muted small" data-i18n="time_note">Time and time zone are currently read-only. Language files can be added without changing the backend.</p></div></div></section>
+<section id="plugins" class="page"><p class="eyebrow" data-i18n="plugins_small">PLUGIN MANAGEMENT</p><h1 data-i18n="plugins_title">Installed plugins</h1><p class="muted" data-i18n="plugins_desc">Manage installed software cores without downloading or reinstalling them.</p><div class="panel"><div class="panel-head"><h2 data-i18n="core_title">Software cores</h2><button id="refresh-cores" type="button" class="btn secondary" data-i18n="refresh">Refresh</button></div><p class="muted small" data-i18n="core_intro">Core availability comes from the CLI. Enabled does not mean usable.</p><p id="cores-summary" class="muted small" role="status"></p><div id="core-list" class="core-list"></div></div></section>
 <section id="help" class="page">
 <p class="eyebrow" data-i18n="help_small">DOCUMENTATION</p>
 <h1 data-i18n="help_title">Help &amp; documentation</h1>
