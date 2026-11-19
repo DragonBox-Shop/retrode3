@@ -27,8 +27,8 @@ ROOT = os.path.realpath(os.environ.get("RETRODE3_GAMES_ROOT", "/usr/local/games"
 FILES_ROOT = os.path.join(ROOT, "ROMs")
 SENSE_ROOT = os.environ.get("RETRODE3_SYSFS_ROOT", "/sys/class/retrode3")
 
-CLI_BIN = os.environ.get("RETRODE3_CLI_BINARY", "/usr/bin/retrode3-cli")
-CORECTL_BIN = os.environ.get("RETRODE3_CORECTL_BINARY", "/usr/sbin/retrode3-corectl")
+CLI_BIN = "/usr/bin/retrode3-cli"
+CORECTL_BIN = "/usr/sbin/retrode3-corectl"
 CORE_CONTROL_ENABLED = os.environ.get("RETRODE3_CORE_CONTROL_ENABLED", "0") == "1"
 CORECTL_SUDO = os.environ.get("RETRODE3_CORECTL_SUDO", "1") == "1"
 CORE_ID = re.compile(r"^[a-z0-9_-]{1,48}$")
