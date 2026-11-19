@@ -804,6 +804,16 @@ class AutomaticDetection(object):
                         pass
                 del self.records[slot_id]
 
+    def _cancel_removed_slot(self, slot_id):
+        # Only a confirmed physical removal may interrupt a manual read.
+        sense = next((s for s in slot_snapshot()["slots"] if s["id"] == slot_id), None)
+        if not sense or sense["status"] != "empty":
+            return
+        with self.manager.lock:
+            active = self.manager.active
+        if active is not None and active.reader["slot"] == slot_id:
+            active.cancel()
+
     def _event_changed(self, payload):
         """Invalidate cached identity on KOBJ_CHANGE even for rapid swaps.
 
@@ -823,6 +833,8 @@ class AutomaticDetection(object):
         slot_id = name[5:] if name.startswith("slot-") else ""
         if not CORE_ID.match(slot_id) or sense not in ("active", "empty"):
             return
+        if sense == "empty":
+            self._cancel_removed_slot(slot_id)
         with self.lock:
             previous = self.records.pop(slot_id, None)
             if previous and previous["state"] == "detecting":
@@ -872,6 +884,8 @@ class AutomaticDetection(object):
                 status = slot["status"]
                 record = self.records.get(slot_id)
                 if record is None or record["presence"] != status:
+                    if status == "empty" and record and record["presence"] == "occupied":
+                        self._cancel_removed_slot(slot_id)
                     if record and record["state"] == "detecting":
                         try:
                             self.manager.get(record["job_id"]).cancel()
