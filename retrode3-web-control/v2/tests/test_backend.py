@@ -242,5 +242,87 @@ class BackendTests(unittest.TestCase):
             (MODULE.CLI_BIN, MODULE.CORECTL_BIN,
              MODULE.CORECTL_SUDO, MODULE.CORE_CONTROL_ENABLED) = old
 
+
+    def test_ready_shared_cli_is_exposed_and_serves_probe_and_read(self):
+        """Mock the central CLI transport, not the cartridge bus."""
+        import time
+        old_cli = MODULE.CLI_BIN
+        cli = os.path.join(self.temp, "shared-cli-mock")
+        with open(cli, "w") as stream:
+            stream.write("#!/usr/bin/env python3\n")
+            stream.write("from __future__ import print_function\n")
+            stream.write("import json, sys\n")
+            stream.write("if '--list-cores' in sys.argv:\n")
+            stream.write("  print(json.dumps({'protocol':'retrode3-ndjson','version':1,"
+                         "'event':'cores','discovery_abi':1,'cores':["
+                         "{'id':id,'name':name,'version':'0.1.0-stage1',"
+                         "'slot':id,'installed':True,'enabled':True,"
+                         "'status':'ready','usable':True,"
+                         "'actions':['probe','read_rom']} for id,name in "
+                         "[('snes','Super Nintendo'),('md','Mega Drive')]]}))\n")
+            stream.write("  sys.exit(0)\n")
+            stream.write("assert sys.argv[1:] == ['--protocol', 'ndjson-v1', '--interactive']\n")
+            stream.write("print(json.dumps({'protocol':'retrode3-ndjson','version':1,"
+                         "'event':'ready','system':'multi'}),flush=True)\n")
+            stream.write("for line in sys.stdin:\n")
+            stream.write("  cmd=json.loads(line)\n")
+            stream.write("  assert cmd['core'] in ('snes','md')\n")
+            stream.write("  assert cmd['command'] in ('probe','read_rom')\n")
+            stream.write("  rid=cmd['request_id']\n")
+            stream.write("  event={'protocol':'retrode3-ndjson','version':1,"
+                         "'request_id':rid,'system':cmd['core']}\n")
+            stream.write("  if cmd['command']=='probe':\n")
+            stream.write("    event.update({'event':'probe_result','title':'TEST CART',"
+                         "'mapping':'hi','size_bytes':524288})\n")
+            stream.write("    print(json.dumps(event),flush=True)\n")
+            stream.write("  else:\n")
+            stream.write("    assert 'mapping' not in cmd and 'size_bytes' not in cmd\n")
+            stream.write("    with open(cmd['output'],'wb') as fh: fh.write(b'rom data')\n")
+            stream.write("    event.update({'event':'progress','percent':100,"
+                         "'bytes_done':8,'bytes_total':8})\n")
+            stream.write("    print(json.dumps(event),flush=True)\n")
+            stream.write("    event.update({'event':'result','ok':True,"
+                         "'output':cmd['output'],'bytes_written':8})\n")
+            stream.write("    print(json.dumps(event),flush=True)\n")
+        os.chmod(cli, 0o755)
+        try:
+            MODULE.CLI_BIN = cli
+            result = MODULE.capability_probe()
+            by_id = dict((v["id"], v) for v in result["systems"])
+            self.assertTrue(by_id["md"]["available"])
+            self.assertTrue(by_id["snes"]["available"])
+            self.assertEqual(by_id["snes"]["transport"], "cli")
+            self.assertEqual(by_id["md"]["transport"], "cli")
+            self.assertFalse(by_id["md"]["capabilities"]["size_override"])
+            self.assertEqual(by_id["md"]["capabilities"]["mappings"], [])
+            manager = MODULE.JobManager()
+            jobs = [manager.submit({"system":"snes","command":"probe"}),
+                    ]
+            for job_info in jobs:
+                job = manager.get(job_info["id"])
+                deadline = time.time() + 5
+                while job.snapshot()["status"] not in ("done","failed","cancelled") and time.time() < deadline:
+                    time.sleep(.02)
+                self.assertEqual(job.snapshot()["status"], "done", job.snapshot())
+                self.assertEqual(job.snapshot()["result"]["title"], "TEST CART")
+            deadline = time.time() + 5
+            while manager.active is not None and time.time() < deadline:
+                time.sleep(.02)
+            info = manager.submit({"system":"md","command":"read_rom","filename":"mock"})
+            job = manager.get(info["id"])
+            deadline = time.time() + 5
+            while job.snapshot()["status"] not in ("done","failed","cancelled") and time.time() < deadline:
+                time.sleep(.02)
+            snap = job.snapshot()
+            self.assertEqual(snap["status"], "done", snap)
+            self.assertEqual(snap["progress"]["percent"], 100)
+            self.assertTrue(os.path.isfile(snap["output"]))
+            with open(snap["output"], "rb") as fh:
+                self.assertEqual(fh.read(), b"rom data")
+            with self.assertRaises(MODULE.ApiError):
+                manager.submit({"system":"md","command":"read_rom","size_bytes":131072})
+        finally:
+            MODULE.CLI_BIN = old_cli
+
 if __name__ == "__main__":
     unittest.main()
