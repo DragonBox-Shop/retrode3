@@ -34,5 +34,10 @@
     "shared_runtime_one_cli": true,
     "do_not_replace_legacy_reader": true,
     "package_release_from_master_only": true
+  },
+  "static_package_assets": {
+    "retrode3-core-runtime": [
+      "retrode3-core-runtime/etc/init.d/retrode3-core-runtime"
+    ]
   }
 }

@@ -1,0 +1,64 @@
+name: Retrode3 SysV cartridge bus lock
+on:
+  push:
+    branches:
+      - develop
+      - master
+    paths:
+      - 'retrode3-core-runtime/etc/init.d/retrode3-core-runtime'
+      - '.github/workflows/core-runtime-lock.yml'
+  pull_request:
+    branches:
+      - develop
+      - master
+    paths:
+      - 'retrode3-core-runtime/etc/init.d/retrode3-core-runtime'
+      - '.github/workflows/core-runtime-lock.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  sysvinit-lock:
+    name: Test SysV lock boot script (without systemd)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check POSIX shell and SysV init metadata
+        shell: bash
+        run: |
+          set -eu
+          script=retrode3-core-runtime/etc/init.d/retrode3-core-runtime
+          sh -n "$script"
+          test -x "$script"
+          grep -Fx '# Default-Start:     S' "$script"
+          grep -Fx '# Provides:          retrode3-core-runtime' "$script"
+          if grep -E 'systemd|tmpfiles' "$script"; then
+            echo 'Unexpected systemd dependency' >&2
+            exit 1
+          fi
+      - name: Test boot, reboot-like restart and file ownership
+        shell: bash
+        run: |
+          set -eu
+          script=retrode3-core-runtime/etc/init.d/retrode3-core-runtime
+          sudo sh "$script" start
+          sudo sh "$script" status
+          test "$(stat -c '%a %U:%G' /run/lock/retrode3)" = '755 root:root'
+          test "$(stat -c '%a %U:%G' /run/lock/retrode3/bus.lock)" = '660 root:www-data'
+          sudo -u www-data test -r /run/lock/retrode3/bus.lock
+          sudo -u www-data test -w /run/lock/retrode3/bus.lock
+          if sudo -u www-data test -w /run/lock/retrode3; then
+            echo 'Web user may not write into lock directory' >&2
+            exit 1
+          fi
+          before="$(stat -c '%i' /run/lock/retrode3/bus.lock)"
+          sudo sh "$script" restart
+          sudo sh "$script" stop
+          after="$(stat -c '%i' /run/lock/retrode3/bus.lock)"
+          test "$before" = "$after"
+          sudo rm /run/lock/retrode3/bus.lock
+          sudo sh "$script" start
+          test "$(stat -c '%a %U:%G' /run/lock/retrode3/bus.lock)" = '660 root:www-data'

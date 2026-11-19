@@ -45,6 +45,38 @@ Debian-Repository müssen noch real implementiert und getestet werden.
 **Die obige Tabelle ist die feste Zielstruktur, kein bereits
 veröffentlichtes Paket.**
 
+### Boot-Sperre unter klassischem SysV init
+
+Die Retrode3 verwendet **SysV init, kein systemd**. Das CLI verwaltet
+die eigentliche Datei `/run/lock/retrode3/bus.lock` über `open(O_CREAT)`
+und `flock()`. Es kann jedoch das übergeordnete Verzeichnis nicht
+selbst anlegen. Da `/run` bei jedem Boot neu ist, muss das
+Bootskript frühzeitig die sichere Umgebung vorbereiten.
+
+Die Vorlage `retrode3-core-runtime/etc/init.d/retrode3-core-runtime`
+wird vom zukünftigen `retrode3-core-runtime`-Debian-Paket nach
+`/etc/init.d/retrode3-core-runtime` installiert und mit
+`update-rc.d retrode3-core-runtime defaults` registriert.
+`Default-Start: S` erzeugt das Lock-Verzeichnis bereits während
+der frühen SysV-Bootphase. `start` ist idempotent; `stop` entfernt
+die Lock-Datei **nie**, weil dadurch bestehende flock-Sperren
+umgangen werden könnten.
+
+```text
+/run/lock/retrode3/            root:root       0755
+/run/lock/retrode3/bus.lock    root:www-data   0660
+```
+
+Das Verzeichnis ist nicht durch den Webnutzer beschreibbar. Die
+bereits existierende Lock-Datei wird weder ausgetauscht noch
+abgeschnitten. Das CLI braucht keine Änderung. Dieser Quellstand
+allein installiert das Skript noch nicht auf einem Gerät: bis zum
+fertigen Debian-Paket wird es auf der Entwicklungs-Retrode manuell
+in `/etc/init.d/` installiert und via `update-rc.d` registriert.
+
+Die GitHub-CI testet das Skript direkt mit POSIX-Shell und prüft
+Rechte, wiederholten Start und konstante Lock-Inode, **ohne systemd**.
+
 ### Mutable Pfade und Sicherheit
 
 - `/etc/retrode3/cores-enabled/` enthält nur kontrolliert gesetzte

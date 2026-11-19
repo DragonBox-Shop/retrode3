@@ -1,0 +1,58 @@
+#!/bin/sh
+### BEGIN INIT INFO
+# Provides:          retrode3-core-runtime
+# Required-Start:    $local_fs
+# Required-Stop:
+# Default-Start:     S
+# Default-Stop:
+# Short-Description: Prepare shared Retrode3 cartridge bus lock
+# Description:       Protect shared cartridge bus lock directory and file
+### END INIT INFO
+
+# Debian SysV-init boot setup. Do not remove/recreate the lock inode on stop:
+# existing processes may be holding flock() on it.
+set -e
+
+LOCKDIR=/run/lock/retrode3
+LOCKFILE=$LOCKDIR/bus.lock
+
+prepare_lock()
+{
+    if [ -L "$LOCKDIR" ]; then
+        echo "Refusing symlink for $LOCKDIR" >&2
+        return 1
+    fi
+    install -d -o root -g root -m 0755 "$LOCKDIR"
+    if [ -L "$LOCKFILE" ] ||
+       { [ -e "$LOCKFILE" ] && [ ! -f "$LOCKFILE" ]; }; then
+        echo "Refusing unsafe $LOCKFILE" >&2
+        return 1
+    fi
+    if [ ! -e "$LOCKFILE" ]; then
+        # Same inode is retained for all subsequent lock operations.
+        ( umask 0117; : > "$LOCKFILE" )
+    fi
+    chown root:www-data "$LOCKFILE"
+    chmod 0660 "$LOCKFILE"
+}
+
+case "${1:-}" in
+    start|restart|force-reload|reload)
+        prepare_lock
+        ;;
+    status)
+        if [ -d "$LOCKDIR" ] && [ ! -L "$LOCKDIR" ] &&
+           [ -f "$LOCKFILE" ] && [ ! -L "$LOCKFILE" ]; then
+            exit 0
+        fi
+        exit 3
+        ;;
+    stop)
+        # Never unlink bus.lock while a reader might hold flock().
+        ;;
+    *)
+        echo "Usage: $0 {start|stop|status|restart|force-reload}" >&2
+        exit 2
+        ;;
+esac
+exit 0
