@@ -70,6 +70,7 @@
       el.classList.toggle("active", el.id === id);
     });
     if (id === "files") listFiles();
+    if (id === "reader") loadCapabilities();
     if (id === "settings") loadSettings();
     if (id === "plugins") loadCores();
   }
