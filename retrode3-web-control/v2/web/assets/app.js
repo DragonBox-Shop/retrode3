@@ -121,7 +121,7 @@
     var reader = readerById(id);
     selectedReader = reader ? id : "";
     $("system").value = selectedReader;
-    if (reader && (!$("filename").value || /^(SNES|MD)-Dump$/.test($("filename").value))) {
+    if (reader && (!$("filename").value || /^[a-z0-9_-]+-Dump$/i.test($("filename").value))) {
       $("filename").value = reader.id.toUpperCase() + "-Dump";
     }
     configureReaderOptions();
@@ -143,10 +143,10 @@
     var slot = selectedSlotId();
     var detected = slot && autoDetection(slot);
     var cached = slot && detectedBySlot[slot];
-    if (detected && detected.state === "detected" && detected.result) {
+    if (detected && detected.state === "detected" &&
+        detected.core_id === selectedReader && detected.result) {
       renderProbe(detected.result, false);
-    } else if (cached && cached.reader === selectedReader &&
-               (!detected || detected.state !== "idle")) {
+    } else if (!detected && cached && cached.reader === selectedReader) {
       renderProbe(cached.data, false);
     } else {
       var box = $("game-info");
@@ -165,7 +165,7 @@
     text($("slots-summary"), occupied.length ? occupied.length + " " + t("slots_occupied") : t("no_occupied_slots"));
     slotData.slots.forEach(function (slot) {
       var matching = readers().filter(function (reader) { return reader.slot === slot.id; });
-      var isSelected = matching.length === 1 && matching[0].id === selectedReader;
+      var isSelected = matching.some(function (reader) { return reader.id === selectedReader; });
       var card = document.createElement("button");
       card.type = "button";
       card.className = "slot-card" + (slot.status === "occupied" ? " occupied" : "") +
@@ -183,17 +183,16 @@
         (slot.status === "occupied" ? t("slot_no_reader") : "");
       text(hint, systemName);
       card.appendChild(hint);
-      if (slot.status === "occupied" && matching.length === 1) {
+      if (slot.status === "occupied" && matching.length) {
         var game = document.createElement("span");
         game.className = "slot-game";
-        var cached = detectedBySlot[slot.id];
         var automatic = slot.detection || {};
-        var title = automatic.state === "detected" && automatic.result &&
-          automatic.result.title;
-        if (!title && cached && cached.reader === matching[0].id &&
-            automatic.state !== "idle") title = cached.data.title;
+        var isKnown = automatic.state === "detected" && automatic.result &&
+          matching.some(function (r) { return r.id === automatic.core_id; });
+        var title = isKnown && automatic.result.title;
         text(game, title || (automatic.state === "detecting" ||
-          automatic.state === "pending" ? t("detecting_automatically") : t("unknown")));
+          automatic.state === "pending" ? t("detecting_automatically") :
+          automatic.state === "choose_reader" ? t("choose_reader") : t("unknown")));
         card.appendChild(game);
       }
       card.addEventListener("click", function () {
@@ -215,6 +214,10 @@
         var previous = previousSlots.filter(function (entry) { return entry.id === slot.id; })[0];
         if (!previous || previous.status !== slot.status || slot.status !== "occupied") {
           delete detectedBySlot[slot.id];
+          if (slot.status !== "occupied" && selectedSlotId() === slot.id &&
+              autoNames[slot.id] && $("filename").value === autoNames[slot.id]) {
+            $("filename").value = selectedReader.toUpperCase() + "-Dump";
+          }
           delete autoNames[slot.id];
         }
       });
@@ -231,15 +234,16 @@
         });
         if (matches.some(function (reader) { return reader.id === selectedReader; }))
           selectReader(selectedReader);
-        else selectReader(matches.length === 1 ? matches[0].id : "");
+        else selectReader(matches.length ? matches[0].id : "");
       }
       renderSlots();
       var chosen = selectedSlotId();
       if (chosen) {
         var detected = autoDetection(chosen);
-        var name = detected && detected.state === "detected" && detected.result && detected.result.title;
+        var name = detected && detected.state === "detected" &&
+          detected.core_id === selectedReader && detected.result && detected.result.title;
         if (name && autoNames[chosen] !== name) {
-          if (!$("filename").value || /^(SNES|MD|NES)-Dump$/.test($("filename").value) ||
+          if (!$("filename").value || /^[a-z0-9_-]+-Dump$/i.test($("filename").value) ||
               $("filename").value === autoNames[chosen]) $("filename").value = name;
           autoNames[chosen] = name;
         }
