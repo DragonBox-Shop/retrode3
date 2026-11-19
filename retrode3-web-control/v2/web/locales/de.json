@@ -132,7 +132,7 @@
   "core_version": "Version",
   "core_slot": "Schacht",
   "core_usable": "Funktionen verfügbar",
-  "core_not_usable": "Noch keine nutzbaren Funktionen",
+  "core_not_usable": "Keine unterstützten Funktionen",
   "core_actions": "Unterstützte Aktionen",
   "core_no_actions": "Keine",
   "core_enable": "Aktivieren",
@@ -148,5 +148,8 @@
   "plugins_title": "Installierte Plugins",
   "plugins_desc": "Installierte Modul-Ausleser anzeigen und verwalten. Aktivierung und unterstützte Funktionen meldet die CLI.",
   "core_cli_not_executable": "Die zentrale CLI ist vorhanden, aber nicht ausführbar. Dateirechte prüfen.",
-  "core_cli_error": "CLI-Abfrage fehlgeschlagen. Backend-Log und CLI-Protokoll prüfen."
+  "core_cli_error": "CLI-Abfrage fehlgeschlagen. Backend-Log und CLI-Protokoll prüfen.",
+  "detecting_automatically": "Modul wird erkannt…",
+  "core_status_ready": "Bereit",
+  "core_status_choose_reader": "Ausleser auswählen"
 }
