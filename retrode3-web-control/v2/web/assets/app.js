@@ -84,7 +84,9 @@
     var reader = readerById(selectedReader);
     text($("selected-reader"), reader ? reader.name : t("choose_reader"));
     text($("reader-support"), reader ? reader.name : t("reader_unavailable"));
-    $("probe").disabled = $("read").disabled = !reader || Boolean(activeJob);
+    var commands = reader && reader.capabilities && reader.capabilities.commands || [];
+    $("probe").disabled = !reader || commands.indexOf("probe") === -1 || Boolean(activeJob);
+    $("read").disabled = !reader || commands.indexOf("read_rom") === -1 || Boolean(activeJob);
 
   }
   function configureReaderOptions() {
@@ -255,7 +257,9 @@
     if (updateFilename !== false && data.title) $("filename").value = data.title;
   }
   function startJob(command) {
-    if (!readerById(selectedReader)) return notify(t("choose_reader"));
+    var reader = readerById(selectedReader);
+    if (!reader || (reader.capabilities.commands || []).indexOf(command) === -1)
+      return notify(t("choose_reader"));
     var payload = {system: selectedReader, command: command};
     if (command === "read_rom") {
       payload.filename = $("filename").value;
