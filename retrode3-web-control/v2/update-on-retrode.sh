@@ -6,6 +6,8 @@ set -eu
 fail() { echo "ERROR: $*" >&2; exit 1; }
 [ "$(id -u)" -eq 0 ] || fail "Run as root."
 command -v git >/dev/null 2>&1 || fail "Git is not installed."
+[ -x /usr/bin/retrode3-cli ] || fail "OS shared CLI missing at /usr/bin/retrode3-cli"
+[ -x /usr/sbin/retrode3-corectl ] || fail "OS core helper missing at /usr/sbin/retrode3-corectl"
 SOURCE=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)
 [ -d "$SOURCE/.git" ] || fail "No Git checkout at $SOURCE."
 BRANCH=$(git -C "$SOURCE" symbolic-ref --quiet --short HEAD) ||
