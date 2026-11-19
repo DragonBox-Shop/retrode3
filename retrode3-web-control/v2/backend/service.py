@@ -275,7 +275,10 @@ def slot_snapshot():
                 names.setdefault(entry[5:], entry[5:].replace("_", " ").upper())
     except OSError:
         pass
-    for slot_id, name in sorted(names.items()):
+    labels = dict(PHYSICAL_SLOTS)
+    ordered = list(PHYSICAL_SLOTS) + sorted((slot_id, name) for slot_id, name in names.items()
+                                            if slot_id not in labels)
+    for slot_id, name in ordered:
         sense_file = os.path.join(SENSE_ROOT, "slot-" + slot_id, "sense")
         state = "unavailable" if not os.path.exists(sense_file) else "unknown"
         if state != "unavailable":
