@@ -267,7 +267,15 @@ def slot_snapshot():
     An adapter may not expose a working sense line; unknown stays unknown.
     """
     slots = []
-    for slot_id, name in PHYSICAL_SLOTS:
+    # Known names are presentation labels, not plugin admission rules.
+    names = dict(PHYSICAL_SLOTS)
+    try:
+        for entry in os.listdir(SENSE_ROOT):
+            if entry.startswith("slot-") and CORE_ID.match(entry[5:]):
+                names.setdefault(entry[5:], entry[5:].replace("_", " ").upper())
+    except OSError:
+        pass
+    for slot_id, name in sorted(names.items()):
         sense_file = os.path.join(SENSE_ROOT, "slot-" + slot_id, "sense")
         state = "unavailable" if not os.path.exists(sense_file) else "unknown"
         if state != "unavailable":
@@ -331,6 +339,8 @@ def core_registry():
                 if (not isinstance(val, str) or not val or len(val) > 128 or
                         any(ord(ch) < 32 or ord(ch) == 127 for ch in val)):
                     raise ValueError("Invalid core metadata")
+            if not CORE_ID.match(c["slot"]):
+                raise ValueError("Invalid core slot")
             if any(type(c.get(k)) is not bool for k in ("installed", "enabled", "usable")):
                 raise ValueError("Invalid core flags")
             actions = c.get("actions")
@@ -711,7 +721,9 @@ class JobManager(object):
         if data["command"] == "probe" and (mapping is not None or size is not None):
             raise ApiError(400, "invalid_command", "Probe does not accept overrides")
         cap = reader_capability(reader_id)
-        if not cap or not cap["available"]:
+        if cap is None:
+            raise ApiError(400, "unsupported", "Core not registered by CLI")
+        if not cap["available"]:
             raise ApiError(503, "native_protocol_unavailable",
                            "A compatible native reader is not installed")
         features = cap["capabilities"]
