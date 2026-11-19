@@ -106,16 +106,37 @@ fi
 chown www-data:www-data /usr/local/games/ROMs
 chmod 0755 /usr/local/games/ROMs
 
-# OSCR native opens the slot with O_RDWR even for read-only cartridge dumps.
-if [ -e /dev/slot-snes ]; then
-    getent group retrode3-reader >/dev/null 2>&1 || groupadd -r retrode3-reader
-    usermod -a -G retrode3-reader www-data
-    chgrp retrode3-reader /dev/slot-snes
-    chmod g+rw /dev/slot-snes
-    info "Granted device-group access to /dev/slot-snes (temporary until reboot)."
-else
-    info "WARNING: /dev/slot-snes missing."
+# The shared CLI uses the same cartridge devices and an exclusive flock.
+# Grant ONLY the dedicated reader group access; no world-writable lock/device.
+getent group retrode3-reader >/dev/null 2>&1 || groupadd -r retrode3-reader
+usermod -a -G retrode3-reader www-data
+for SLOT in snes md; do
+    DEVICE="/dev/slot-$SLOT"
+    if [ -c "$DEVICE" ]; then
+        chgrp retrode3-reader "$DEVICE"
+        chmod g+rw "$DEVICE"
+        info "Granted device-group access to $DEVICE (until reboot)."
+    else
+        info "WARNING: $DEVICE not present; $SLOT reads may be unavailable."
+    fi
+done
+
+# The CLI creates /run/lock/retrode3/bus.lock with O_RDWR|O_CREAT.
+# A previous root-run hardware test may already have left root:root/0640
+# there. The web service needs group write to acquire the same flock.
+LOCK_DIR=/run/lock/retrode3
+[ ! -L "$LOCK_DIR" ] || fail "Unsafe symlink in $LOCK_DIR"
+if [ -e "$LOCK_DIR" ]; then
+    [ -d "$LOCK_DIR" ] || fail "Invalid bus lock directory."
 fi
+install -d -o root -g retrode3-reader -m 2770 "$LOCK_DIR"
+if [ -e "$LOCK_DIR/bus.lock" ] || [ -L "$LOCK_DIR/bus.lock" ]; then
+    [ -f "$LOCK_DIR/bus.lock" ] && [ ! -L "$LOCK_DIR/bus.lock" ] ||
+        fail "Unsafe bus lock file."
+    chgrp retrode3-reader "$LOCK_DIR/bus.lock"
+    chmod 0660 "$LOCK_DIR/bus.lock"
+fi
+info "Configured shared CLI cartridge bus lock for retrode3-reader group."
 
 mkdir -p "$ROOT/backend" "$BACKUP_ROOT"
 cp "$BASE/backend/service.py" "$ROOT/backend/service.py"
