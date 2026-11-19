@@ -54,7 +54,7 @@ Old source files remain in Git for reference.
    test fixture, documentation string and user-facing operation
    for the removed paths and per-console subprocesses. In particular,
    update the older `retrode3-web-control/v2/README.md` and
-   `docs/cli-integration.md`. Existing `retro3-wlan`/admin
+   `docs/cli-integration.md`. Existing `retrode3-wlan`/admin
    utilities are separate OS concerns, not a reason to restore
    legacy ROM reader scripts.
 4. The backend should discover usable/read-only actions dynamically
@@ -90,8 +90,9 @@ Old source files remain in Git for reference.
   (source development on `develop`, stable in `master`).
 - `DragonBox-Shop/retrode3`: Web v2 and OS service/package integration.
   The web feature is currently in **`feature/web-control-v2`**;
-  the stable OS `master` and shared `develop` are aligned as
-  of commit `111f61a6`. The web branch diverged before the SysV
+  the tested SysV init is in OS `master` at commit
+  `111f61a6` and inherited by `develop` (which may also contain
+  newer documentation and integration commits). The web branch diverged before the SysV
   lock change. **Bring the SysV fix from `develop` into the web
   work before integration, but do not blindly force-reset or
   overwrite ongoing Web v2 changes.**
