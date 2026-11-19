@@ -123,7 +123,7 @@
   "wifi_scan_empty": "Keine Netzwerke gemeldet. Prüfe WLAN-Status und Scan-Berechtigungen.",
   "core_title": "Software-Cores",
   "core_intro": "Die zentrale CLI meldet installierte Cores, Aktivierung, Kompatibilität und unterstützte Funktionen. Ein Core kann aktiviert sein, ohne bereits ROMs auslesen zu können.",
-  "core_cli_missing": "Die zentrale retrode3-cli ist noch nicht installiert oder erreichbar.",
+  "core_cli_missing": "Die zentrale retrode3-cli wurde am erwarteten Systempfad nicht gefunden.",
   "core_found": "installierte Cores",
   "core_readonly": "Verwaltung derzeit nur lesbar",
   "core_none_installed": "Noch keine Software-Cores installiert.",
@@ -146,5 +146,7 @@
   "plugins_tab": "Plugins",
   "plugins_small": "SOFTWARE-CORES",
   "plugins_title": "Installierte Plugins",
-  "plugins_desc": "Installierte Modul-Ausleser anzeigen und verwalten. Aktivierung und unterstützte Funktionen meldet die CLI."
+  "plugins_desc": "Installierte Modul-Ausleser anzeigen und verwalten. Aktivierung und unterstützte Funktionen meldet die CLI.",
+  "core_cli_not_executable": "Die zentrale CLI ist vorhanden, aber nicht ausführbar. Dateirechte prüfen.",
+  "core_cli_error": "CLI-Abfrage fehlgeschlagen. Backend-Log und CLI-Protokoll prüfen."
 }
