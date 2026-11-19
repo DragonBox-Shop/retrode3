@@ -76,15 +76,17 @@ class BackendTests(unittest.TestCase):
         self.assertFalse("/" in name)
         self.assertFalse(";" in name)
 
-    def test_native_missing(self):
-        manager = MODULE.JobManager()
-        old_binary = MODULE.LEGACY_READERS["snes"]["binary"]
-        MODULE.LEGACY_READERS["snes"]["binary"] = os.path.join(self.temp, "missing-native")
+    def test_missing_shared_cli_does_not_fall_back(self):
+        original = MODULE.CLI_BIN
         try:
-            with self.assertRaises(MODULE.ApiError):
-                manager.submit({"system": "snes", "command": "probe"})
+            MODULE.CLI_BIN = os.path.join(self.temp, "not-installed")
+            self.assertEqual(MODULE.capability_probe()["systems"], [])
+            self.assertIsNone(MODULE.reader_capability("snes"))
+            with self.assertRaises(MODULE.ApiError) as err:
+                MODULE.JobManager().submit({"system": "snes", "command": "probe"})
+            self.assertEqual(err.exception.code, "unsupported")
         finally:
-            MODULE.LEGACY_READERS["snes"]["binary"] = old_binary
+            MODULE.CLI_BIN = original
 
     def test_passive_slot_status_and_unknown_values(self):
         previous = MODULE.SENSE_ROOT
@@ -111,42 +113,6 @@ class BackendTests(unittest.TestCase):
         finally:
             MODULE.SENSE_ROOT = previous
 
-    def test_only_ndjson_native_core_is_web_available(self):
-        old_snes = MODULE.LEGACY_READERS["snes"]["binary"]
-        old_md = MODULE.LEGACY_READERS["md"]["binary"]
-        native = os.path.join(self.temp, "mock-ndjson-snes")
-        legacy = os.path.join(self.temp, "mock-one-shot-md")
-        with open(native, "w") as handle:
-            handle.write("#!/bin/sh\n")
-            handle.write("echo '{\"protocol\":\"retrode3-ndjson\",\"version\":1,"
-                         "\"event\":\"ready\",\"system\":\"snes\"}'\n")
-            handle.write("IFS= read -r command || exit 1\n")
-            handle.write("echo '{\"protocol\":\"retrode3-ndjson\",\"version\":1,"
-                         "\"event\":\"capabilities\",\"request_id\":\"webcap\","
-                         "\"system\":\"snes\",\"commands\":[\"get_capabilities\","
-                         "\"probe\",\"read_rom\",\"cancel\"],\"mappings\":[\"lo\",\"hi\"],"
-                         "\"size_override\":true,\"max_rom_bytes\":4194304}'\n")
-        with open(legacy, "w") as handle:
-            handle.write("#!/bin/sh\n")
-            handle.write("echo '{\"ok\":false,\"error\":\"unknown option\"}' >&2\n")
-            handle.write("exit 2\n")
-        os.chmod(native, 0o755)
-        os.chmod(legacy, 0o755)
-        try:
-            MODULE.LEGACY_READERS["snes"]["binary"] = native
-            MODULE.LEGACY_READERS["md"]["binary"] = legacy
-            results = MODULE.capability_probe()["systems"]
-            by_id = dict((entry["id"], entry) for entry in results)
-            self.assertTrue(by_id["snes"]["available"])
-            self.assertEqual(by_id["snes"]["capabilities"]["system"], "snes")
-            self.assertFalse(by_id["md"]["available"])
-            self.assertEqual(by_id["md"]["reason"], "native_protocol_unavailable")
-            with self.assertRaises(MODULE.ApiError):
-                MODULE.JobManager().submit({"system": "md", "command": "read_rom"})
-        finally:
-            MODULE.LEGACY_READERS["snes"]["binary"] = old_snes
-            MODULE.LEGACY_READERS["md"]["binary"] = old_md
-
     def test_unregistered_core_is_never_invoked(self):
         with self.assertRaises(MODULE.ApiError) as err:
             MODULE.JobManager().submit({"system": "dangerous-helper", "command": "probe"})
@@ -154,19 +120,9 @@ class BackendTests(unittest.TestCase):
 
     def test_size_validation(self):
         manager = MODULE.JobManager()
-        old_binary = MODULE.LEGACY_READERS["snes"]["binary"]
-        try:
-            binary = os.path.join(self.temp, "mock-reader")
-            with open(binary, "w") as handle:
-                handle.write("#!/bin/sh\nexit 0\n")
-            os.chmod(binary, 0o755)
-            MODULE.LEGACY_READERS["snes"]["binary"] = binary
-            for size in (True, 0, 131071, 4194305, 131073):
-                with self.assertRaises(MODULE.ApiError):
-                    manager.submit({"system": "snes", "command": "read_rom", "size_bytes": size})
-        finally:
-            MODULE.LEGACY_READERS["snes"]["binary"] = old_binary
-
+        for size in (True, 0, 131071, 4194305, 131073):
+            with self.assertRaises(MODULE.ApiError):
+                manager.submit({"system": "snes", "command": "read_rom", "size_bytes": size})
 
     def test_cli_registry_missing_and_untrusted_output(self):
         original = MODULE.CLI_BIN
@@ -259,14 +215,14 @@ class BackendTests(unittest.TestCase):
                          "'slot':id,'installed':True,'enabled':True,"
                          "'status':'ready','usable':True,"
                          "'actions':['probe','read_rom']} for id,name in "
-                         "[('snes','Super Nintendo'),('md','Mega Drive')]]}))\n")
+                         "[('snes','Super Nintendo'),('md','Mega Drive'),('nes','Nintendo Entertainment System')]]}))\n")
             stream.write("  sys.exit(0)\n")
             stream.write("assert sys.argv[1:] == ['--protocol', 'ndjson-v1', '--interactive']\n")
             stream.write("print(json.dumps({'protocol':'retrode3-ndjson','version':1,"
                          "'event':'ready','system':'multi'}),flush=True)\n")
             stream.write("for line in sys.stdin:\n")
             stream.write("  cmd=json.loads(line)\n")
-            stream.write("  assert cmd['core'] in ('snes','md')\n")
+            stream.write("  assert cmd['core'] in ('snes','md','nes')\n")
             stream.write("  assert cmd['command'] in ('probe','read_rom')\n")
             stream.write("  rid=cmd['request_id']\n")
             stream.write("  event={'protocol':'retrode3-ndjson','version':1,"
@@ -291,23 +247,23 @@ class BackendTests(unittest.TestCase):
             by_id = dict((v["id"], v) for v in result["systems"])
             self.assertTrue(by_id["md"]["available"])
             self.assertTrue(by_id["snes"]["available"])
+            self.assertTrue(by_id["nes"]["available"])
             self.assertEqual(by_id["snes"]["transport"], "cli")
             self.assertEqual(by_id["md"]["transport"], "cli")
             self.assertFalse(by_id["md"]["capabilities"]["size_override"])
             self.assertEqual(by_id["md"]["capabilities"]["mappings"], [])
             manager = MODULE.JobManager()
-            jobs = [manager.submit({"system":"snes","command":"probe"}),
-                    ]
-            for job_info in jobs:
+            for system in ("snes", "nes"):
+                job_info = manager.submit({"system":system,"command":"probe"})
                 job = manager.get(job_info["id"])
                 deadline = time.time() + 5
                 while job.snapshot()["status"] not in ("done","failed","cancelled") and time.time() < deadline:
                     time.sleep(.02)
                 self.assertEqual(job.snapshot()["status"], "done", job.snapshot())
                 self.assertEqual(job.snapshot()["result"]["title"], "TEST CART")
-            deadline = time.time() + 5
-            while manager.active is not None and time.time() < deadline:
-                time.sleep(.02)
+                deadline = time.time() + 5
+                while manager.active is not None and time.time() < deadline:
+                    time.sleep(.02)
             info = manager.submit({"system":"md","command":"read_rom","filename":"mock"})
             job = manager.get(info["id"])
             deadline = time.time() + 5
