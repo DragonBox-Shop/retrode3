@@ -883,6 +883,7 @@ class AutomaticDetection(object):
                         "state": "pending" if status == "occupied" else "idle",
                         "ready_at": now + 0.35,
                         "job_id": None,
+                        "core_id": None,
                         "result": None,
                         "error": None}
                     continue
@@ -893,7 +894,7 @@ class AutomaticDetection(object):
                     if job["status"] == "done":
                         result = job.get("result") or {}
                         if (result.get("event") == "probe_result" and
-                                result.get("system") == slot_id):
+                                result.get("system") == record["core_id"]):
                             record["result"] = dict((key, result.get(key)) for key in
                                                     ("title", "mapping", "size_bytes", "checksum")
                                                     if key in result)
@@ -907,15 +908,35 @@ class AutomaticDetection(object):
                         record["error"] = (job.get("error") or {}).get("code", "probe_failed")
                 elif record["state"] == "pending" and now >= record["ready_at"]:
                     try:
+                        matches = [reader for reader in capability_probe()["systems"]
+                                   if reader and reader["slot"] == slot_id and reader["available"]
+                                   and "probe" in reader.get("capabilities", {}).get("commands", [])]
+                    except ApiError as error:
+                        record["state"] = "failed"
+                        record["error"] = error.code
+                        continue
+                    if not matches:
+                        record["state"] = "unavailable"
+                        record["error"] = "no_available_core"
+                        continue
+                    if len(matches) > 1:
+                        # GPIO sense does not identify an adapter. Do not
+                        # guess which electrical protocol is present.
+                        record["state"] = "choose_reader"
+                        record["error"] = None
+                        continue
+                    core_id = matches[0]["id"]
+                    try:
                         job = self.manager.submit(
-                            {"system": slot_id, "command": "probe"}, automatic=True)
+                            {"system": core_id, "command": "probe"}, automatic=True)
                     except ApiError as error:
                         if error.status == 409:
-                            # A manual job or an earlier auto probe owns the bus.
+                            # A manual or prior automatic job owns the bus.
                             continue
                         record["state"] = "unavailable" if error.status in (400, 503) else "failed"
                         record["error"] = error.code
                     else:
+                        record["core_id"] = core_id
                         record["job_id"] = job["id"]
                         record["state"] = "detecting"
 
@@ -929,11 +950,13 @@ class AutomaticDetection(object):
                 if record is not None and record["presence"] == slot["status"]:
                     slot["detection"] = {
                         "state": record["state"],
+                        "core_id": record["core_id"],
                         "result": record["result"],
                         "error": record["error"]}
                 else:
                     slot["detection"] = {
                         "state": "pending" if slot["status"] == "occupied" else "idle",
+                        "core_id": None,
                         "result": None, "error": None}
         return result
 
