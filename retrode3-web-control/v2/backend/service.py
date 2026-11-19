@@ -12,6 +12,7 @@ import json
 import os
 import re
 import select
+import socket
 import socketserver
 import subprocess
 import sys
@@ -40,7 +41,9 @@ READER_SPECS = {
     "snes": {"name": "Super Nintendo (SNES)", "slot": "snes",
              "binary": SNES_BIN, "folder": "SNES", "extension": "sfc"},
     "md": {"name": "Mega Drive / Genesis", "slot": "md",
-           "binary": MD_BIN, "folder": "MD", "extension": "md"}
+           "binary": MD_BIN, "folder": "MD", "extension": "md"},
+    "nes": {"name": "Nintendo Entertainment System (NES)", "slot": "nes",
+            "binary": None, "folder": "NES", "extension": "nes"}
 }
 PHYSICAL_SLOTS = (("md", "Mega Drive"), ("snes", "Super Nintendo"),
                   ("nes", "Nintendo / Famicom"))
@@ -430,7 +433,7 @@ def reader_capability(spec_id, registry=None):
     # Until the shared CLI is installed, preserve the proven SNES
     # development reader as an explicit legacy compatibility path.
     binary = spec["binary"]
-    if not os.path.isfile(binary) or not os.access(binary, os.X_OK):
+    if not binary or not os.path.isfile(binary) or not os.access(binary, os.X_OK):
         result["reason"] = "native_binary_missing"
         return result
     proc = None
@@ -502,16 +505,17 @@ def reader_capability(spec_id, registry=None):
 def capability_probe():
     """Only report truly negotiated native readers; no hardware bus scans."""
     registry = core_registry()
-    return {"systems": [reader_capability(key, registry) for key in ("snes", "md")]}
+    return {"systems": [reader_capability(key, registry) for key in ("snes", "md", "nes")]}
 
 
 class Job(object):
     def __init__(self, manager, reader_id, action, mapping, size, label,
-                 transport):
+                 transport, automatic=False):
         self.manager = manager
         self.reader_id = reader_id
         self.reader = READER_SPECS[reader_id]
         self.transport = transport
+        self.automatic = automatic
         self.id = uuid.uuid4().hex
         self.action = action
         self.mapping = mapping
@@ -531,6 +535,7 @@ class Job(object):
     def snapshot(self):
         with self.lock:
             return {"id": self.id, "command": self.action, "system": self.reader_id,
+                    "automatic": self.automatic,
                     "status": self.status, "events": self.events[-32:],
                     "progress": self.progress, "result": self.result,
                     "error": self.error, "output": self.output, "created": self.created}
@@ -673,7 +678,7 @@ class JobManager(object):
         self.lock = threading.RLock()
         self.bus_lock = threading.Lock()
 
-    def submit(self, data):
+    def submit(self, data, automatic=False):
         reader_id = data.get("system")
         if reader_id not in READER_SPECS or data.get("command") not in ("probe", "read_rom"):
             raise ApiError(400, "unsupported", "Unknown reader or unsupported command")
@@ -706,7 +711,7 @@ class JobManager(object):
             raise ApiError(400, "invalid_size", "ROM size exceeds reader capabilities")
         job = Job(self, reader_id, data["command"], mapping, size,
                   sanitized_filename(data.get("filename")),
-                  cap.get("transport", "legacy"))
+                  cap.get("transport", "legacy"), automatic=automatic)
         with self.lock:
             if self.active is not None:
                 raise ApiError(409, "busy", "Cartridge reader already busy")
@@ -738,6 +743,150 @@ class JobManager(object):
 
 
 MANAGER = JobManager()
+
+class AutomaticDetection(object):
+    """Keep cartridge identity in the backend, independent of browser sessions.
+
+    Linux slot uevents wake the worker, but every decision is verified
+    against passive kernel sense sysfs, never against untrusted event text.
+    A periodic reconciliation also handles lost events or absent netlink.
+    All probes are submitted through the same serialized JobManager as
+    manually requested ROM reads; no second raw device reader exists.
+    """
+    def __init__(self, manager):
+        self.manager = manager
+        self.lock = threading.RLock()
+        self.records = {}
+        self.running = False
+
+    def start(self):
+        if self.running:
+            return
+        self.running = True
+        worker = threading.Thread(target=self._watch)
+        worker.daemon = True
+        worker.start()
+
+    def reset(self):
+        """Re-evaluate installed/disabled cores after a registry change."""
+        with self.lock:
+            for slot_id, record in list(self.records.items()):
+                if record["state"] == "detecting":
+                    try:
+                        self.manager.get(record["job_id"]).cancel()
+                    except ApiError:
+                        pass
+                del self.records[slot_id]
+
+    def _watch(self):
+        netlink = None
+        try:
+            # NETLINK_KOBJECT_UEVENT = 15; listen only for wakeups.
+            # Some kernels restrict group joins; polling remains available.
+            netlink = socket.socket(socket.AF_NETLINK, socket.SOCK_DGRAM, 15)
+            netlink.bind((os.getpid(), 1))
+            netlink.setblocking(False)
+        except (OSError, AttributeError):
+            if netlink is not None:
+                netlink.close()
+            netlink = None
+        while self.running:
+            try:
+                self.tick()
+            except Exception as error:
+                sys.stderr.write("Retrode3 auto detect: %s\\n" % error)
+            if netlink is None:
+                time.sleep(0.3)
+            else:
+                try:
+                    ready, _, _ = select.select([netlink], [], [], 0.3)
+                    if ready:
+                        # All actions are validated via sysfs in tick().
+                        netlink.recv(16384)
+                except (OSError, ValueError):
+                    netlink.close()
+                    netlink = None
+        if netlink is not None:
+            netlink.close()
+
+    def tick(self, now=None):
+        """One deterministic reconciliation tick; safe to unit-test."""
+        now = time.time() if now is None else now
+        slots = slot_snapshot()["slots"]
+        with self.lock:
+            for slot in slots:
+                slot_id = slot["id"]
+                status = slot["status"]
+                record = self.records.get(slot_id)
+                if record is None or record["presence"] != status:
+                    if record and record["state"] == "detecting":
+                        try:
+                            self.manager.get(record["job_id"]).cancel()
+                        except ApiError:
+                            pass
+                    # A cartridge should be seated before any bus operation.
+                    self.records[slot_id] = {
+                        "presence": status,
+                        "state": "pending" if status == "occupied" else "idle",
+                        "ready_at": now + 0.35,
+                        "job_id": None,
+                        "result": None,
+                        "error": None}
+                    continue
+                if status != "occupied":
+                    continue
+                if record["state"] == "detecting":
+                    job = self.manager.get(record["job_id"]).snapshot()
+                    if job["status"] == "done":
+                        result = job.get("result") or {}
+                        if (result.get("event") == "probe_result" and
+                                result.get("system") == slot_id):
+                            record["result"] = dict((key, result.get(key)) for key in
+                                                    ("title", "mapping", "size_bytes", "checksum")
+                                                    if key in result)
+                            record["state"] = "detected"
+                            record["error"] = None
+                        else:
+                            record["state"] = "failed"
+                            record["error"] = "invalid_probe_result"
+                    elif job["status"] in ("failed", "cancelled"):
+                        record["state"] = "failed"
+                        record["error"] = (job.get("error") or {}).get("code", "probe_failed")
+                elif record["state"] == "pending" and now >= record["ready_at"]:
+                    try:
+                        job = self.manager.submit(
+                            {"system": slot_id, "command": "probe"}, automatic=True)
+                    except ApiError as error:
+                        if error.status == 409:
+                            # A manual job or an earlier auto probe owns the bus.
+                            continue
+                        record["state"] = "unavailable" if error.status in (400, 503) else "failed"
+                        record["error"] = error.code
+                    else:
+                        record["job_id"] = job["id"]
+                        record["state"] = "detecting"
+
+    def snapshot(self):
+        # Always show the current kernel sense, even before the background
+        # watcher processes a removal. Never show a title for a stale sense.
+        result = slot_snapshot()
+        with self.lock:
+            for slot in result["slots"]:
+                record = self.records.get(slot["id"])
+                if record is not None and record["presence"] == slot["status"]:
+                    slot["detection"] = {
+                        "state": record["state"],
+                        "result": record["result"],
+                        "error": record["error"]}
+                else:
+                    slot["detection"] = {
+                        "state": "pending" if slot["status"] == "occupied" else "idle",
+                        "result": None, "error": None}
+        return result
+
+
+AUTO = AutomaticDetection(MANAGER)
+
 
 
 class ThreadedServer(socketserver.ThreadingMixIn, HTTPServer):
@@ -840,7 +989,7 @@ class Handler(BaseHTTPRequestHandler):
             elif path == "/api/cores":
                 self._json(200, core_registry())
             elif path == "/api/slots":
-                self._json(200, slot_snapshot())
+                self._json(200, AUTO.snapshot())
             elif path == "/api/settings":
                 self._json(200, {"time": datetime.datetime.now().isoformat(),
                                  "timezone": time.tzname[time.daylight and time.localtime().tm_isdst > 0]})
@@ -870,7 +1019,9 @@ class Handler(BaseHTTPRequestHandler):
             if path == "/api/jobs":
                 self._json(202, MANAGER.submit(data))
             elif path == "/api/cores/toggle":
-                self._json(200, toggle_core(data))
+                changed = toggle_core(data)
+                AUTO.reset()
+                self._json(200, changed)
             elif re.match(r"^/api/jobs/[0-9a-f]{32}/cancel$", path):
                 job = MANAGER.get(path.split("/")[-2])
                 job.cancel()
@@ -940,6 +1091,7 @@ def main():
     parser.add_argument("--port", type=int, default=8765)
     args = parser.parse_args()
     server = ThreadedServer((HOST, args.port), Handler)
+    AUTO.start()
     print("Retrode3 v2 backend listening on %s:%s" % (HOST, server.server_port))
     try:
         server.serve_forever()
