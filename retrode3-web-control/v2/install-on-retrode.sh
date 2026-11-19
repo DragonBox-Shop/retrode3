@@ -110,16 +110,17 @@ chmod 0755 /usr/local/games/ROMs
 # Grant ONLY the dedicated reader group access; no world-writable lock/device.
 getent group retrode3-reader >/dev/null 2>&1 || groupadd -r retrode3-reader
 usermod -a -G retrode3-reader www-data
-for SLOT in snes md; do
-    DEVICE="/dev/slot-$SLOT"
-    if [ -c "$DEVICE" ]; then
-        chgrp retrode3-reader "$DEVICE"
-        chmod g+rw "$DEVICE"
-        info "Granted device-group access to $DEVICE (until reboot)."
-    else
-        info "WARNING: $DEVICE not present; $SLOT reads may be unavailable."
-    fi
+SLOT_COUNT=0
+for DEVICE in /dev/slot-*; do
+    [ -c "$DEVICE" ] || continue
+    [ ! -L "$DEVICE" ] || fail "Unexpected symlink for cartridge device $DEVICE"
+    chgrp retrode3-reader "$DEVICE"
+    chmod g+rw "$DEVICE"
+    SLOT_COUNT=$((SLOT_COUNT + 1))
+    info "Granted device-group access to $DEVICE (until reboot)."
 done
+[ "$SLOT_COUNT" -gt 0 ] ||
+    info "WARNING: No /dev/slot-* character devices found."
 
 # The CLI creates /run/lock/retrode3/bus.lock with O_RDWR|O_CREAT.
 # A previous root-run hardware test may already have left root:root/0640
