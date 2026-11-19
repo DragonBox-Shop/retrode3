@@ -27,24 +27,32 @@ transport, HTTP sessions/CSRF if enabled, service lifecycle / reconnect,
 filesystem UI permissions and conversion of CLI messages to HTTP responses.
 The browser consumes capabilities and status without knowing plugin internals.
 
-## Migration without a regression
+## Shared CLI integration status (2026-11-19)
 
-- **Currently deployed:** SNES web reads and progress work via the native
-  `oscr-snes-native` NDJSON v1 compatibility path.
-- **Current development branch:** `v2/backend/service.py` temporarily
-  validates NDJSON v1 for individual core binaries to avoid enabling a
-  one-shot CLI inadvertently. This is a temporary shim, **not** the intended
-  plugin architecture.
-- **Planned:** Once `retrode3-cli` publishes its versioned protocol and is
-  installed, replace the per-core probing and process spawning with a single
-  well-defined CLI client in the backend. Switch the capabilities endpoint
-  to the CLI's descriptor list. Do not add NDJSON transport to MegaDrive or
-  every later cartridge plugin solely to satisfy the current Web prototype.
-- Preserve the working SNES path until the new central path passes physical
-  SNES and MegaDrive read/cancel/progress tests.
-- Never invent protocol commands or advertise a native core without CLI
-  confirmation. The exact binary path, JSON schema, version negotiation and
-  error types are still to be supplied by retrode3-cli.
+The common CLI's operation runtime is now implemented and real Retrode3 2.9.5
+hardware has returned matching ROM CRCs for the original-OSCR-derived
+stage-1 SNES (`snes.so`) and Mega Drive (`md.so`) read-only adapters.
+Both modules report `status:"ready"`, `usable:true`, and
+`actions:["probe","read_rom"]` in the central `cores` event.
+
+Web v2 reads this registry and exposes only enabled, `ready`, usable
+cores with their actual actions. The web job manager starts
+`retrode3-cli --protocol ndjson-v1 --interactive` and sends
+`{"command":"probe","core":"snes","request_id":"..."}` or
+`{"command":"read_rom","core":"md","request_id":"...","output":"..."}`
+through stdin, forwarding correlated result/progress/error messages to the
+browser. The real CLI's `ready` event has `system:"multi"`, not the
+individual system ID. The frontend must not require separate per-plugin
+NDJSON handlers. The central CLI currently offers neither custom mapping
+nor ROM-size overrides, so the web must hide them for this transport.
+
+The former `oscr-snes-native` NDJSON runner remains a temporary fallback
+**only when the central CLI is absent**. With an installed common CLI, an
+unregistered, disabled, incompatible or unusable module is never replaced by
+an unrelated legacy runner. The tested read-only SNES/MD capability scope is
+limited to the original accepted standard stage-1 ROM types. This is still
+a development interface: hardware-specific web service permissions, full
+physical Web UI acceptance and release packaging remain pending.
 
 ## Slot and plugin detection
 
@@ -61,7 +69,7 @@ each system's binary to implement its own NDJSON progress interface.
 
 ## Core registry UI, staged implementation
 
-The Settings page requests `GET /api/cores`. The backend runs the fixed
+The Plugins tab requests `GET /api/cores`. The backend runs the fixed
 `retrode3-cli --list-cores --protocol ndjson-v1` executable and validates
 its sole `cores` NDJSON event. This displays preinstalled modules (including
 disabled ones), versions, required slots, ABI state, and actual operations.
@@ -86,11 +94,13 @@ non-interactive privilege delegation for this one helper. Only then set
 never grant arbitrary sudo/shell access. Protect the management interface
 on a trusted network (and use HTTPS for remote authentication).
 
-**Not production operation integration:** the current common CLI registry
-is discovery-only. Legacy SNES and MD native NDJSON read runners are retained
-as temporary compatibility paths for an unregistered reader. A registered
-core that is disabled, incompatible, or not `usable` with `read_rom` will
-not be offered for reading. Once the CLI's central operation runtime is
-implemented and verified on hardware, replace the remaining per-reader
-process logic in this backend. The existing registry does not yet provide
-real production `.so` readers.
+**Do not conflate discovery with operation support:** `ready` and
+`usable:true` are required for a core to become a Web reader. An
+`enabled:true` module may still lack usable read operations. The active
+CLI can read through the common core ABI, but Stage-1 SNES/MD support is
+not the complete original Sanni firmware feature set. The installer now
+copies an existing built CLI to `/usr/local/bin/retrode3-cli` if needed.
+It also grants the dedicated `retrode3-reader` group access to the
+MD/SNES character devices and the shared `/run/lock/retrode3/bus.lock`;
+device file permissions may reset at reboot pending permanent udev packaging.
+Real target Web read/cancel acceptance remains mandatory.
