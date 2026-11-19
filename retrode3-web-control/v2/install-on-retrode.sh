@@ -55,42 +55,37 @@ sys.exit(0 if state in ("idle", "done", "failed", "cancelled") else 2)
 fi
 
 
-# The shared core registry/operation host is built in retrode3-oscr,
-# not installed by the older native SNES/MD acceptance-reader setup.
-# Copy the built host to a root-owned fixed path. Never replace an existing
-# system-installed CLI or follow an unexpected destination symlink.
-CLI_BUILD=/usr/local/src/retrode3-oscr/build/migration/retrode3-cli
-CLI_INSTALL=/usr/local/bin/retrode3-cli
-if [ ! -e "$CLI_INSTALL" ] && [ ! -L "$CLI_INSTALL" ]; then
-    if [ -f "$CLI_BUILD" ] && [ -x "$CLI_BUILD" ]; then
-        install -o root -g root -m 0755 "$CLI_BUILD" "$CLI_INSTALL"
-        info "Installed central Retrode3 CLI for web core discovery."
-    else
-        info "WARNING: central CLI is not built at $CLI_BUILD."
-        info "Build it in retrode3-oscr with: make -f Makefile.migration native-core-registry"
-    fi
-elif [ -x "$CLI_INSTALL" ]; then
-    info "Using existing central CLI at $CLI_INSTALL (not replacing it)."
-else
-    info "WARNING: $CLI_INSTALL exists but cannot be executed; inspect it manually."
-fi
+# CLI and core modules are installed by the OS, never by the web installer.
+CLI=/usr/bin/retrode3-cli
+CORECTL=/usr/sbin/retrode3-corectl
+[ -x "$CLI" ] && [ ! -L "$CLI" ] || fail "Shared CLI not installed at $CLI"
+[ -x "$CORECTL" ] && [ ! -L "$CORECTL" ] || fail "Core helper not installed at $CORECTL"
+"$CLI" --list-cores --protocol ndjson-v1 | python3 -c '
+import json,sys
+value=json.load(sys.stdin)
+assert value.get("protocol") == "retrode3-ndjson"
+assert value.get("version") == 1 and value.get("event") == "cores"
+assert isinstance(value.get("cores"),list)
+' || fail "Shared CLI core registry unavailable."
 
-if [ ! -e /usr/local/bin/oscr-snes-native ]; then
-    if [ -x /usr/local/src/retrode3-oscr/build/migration/oscr-snes-native ]; then
-        ln -s /usr/local/src/retrode3-oscr/build/migration/oscr-snes-native /usr/local/bin/oscr-snes-native
-        info "Linked existing native SNES executable."
-    else
-        info "WARNING: native SNES executable not found, ROM reading remains disabled."
-    fi
+# OS SysV init prepares the lock before the Web backend starts.
+# Adopt the tested OS init script from develop without replacing an existing
+# installation. Do not remove or recreate a live bus.lock inode.
+CORE_INIT=/etc/init.d/retrode3-core-runtime
+CORE_SOURCE="$BASE/../../retrode3-core-runtime/etc/init.d/retrode3-core-runtime"
+[ ! -L "$CORE_INIT" ] || fail "Unsafe core runtime init symlink"
+if [ ! -e "$CORE_INIT" ]; then
+    [ -f "$CORE_SOURCE" ] || fail "Missing OS SysV init source: $CORE_SOURCE"
+    install -o root -g root -m 0755 "$CORE_SOURCE" "$CORE_INIT"
 fi
-
-# Link the read-only MegaDrive stage-1 binary if it was built locally.
-# The Web UI only enables it after a separate compatible NDJSON handshake.
-if [ ! -e /usr/local/bin/oscr-md-native ] &&
-   [ -x /usr/local/src/retrode3-oscr/build/migration/oscr-md-native ]; then
-    ln -s /usr/local/src/retrode3-oscr/build/migration/oscr-md-native /usr/local/bin/oscr-md-native
-    info "Linked native MegaDrive CLI (NDJSON web support still required)."
-fi
+[ -x "$CORE_INIT" ] || fail "OS core runtime service unavailable"
+command -v update-rc.d >/dev/null 2>&1 || fail "SysV init registration unavailable"
+update-rc.d retrode3-core-runtime defaults >/dev/null ||
+    fail "Cannot register core runtime on boot"
+service retrode3-core-runtime start || fail "OS bus lock initialization failed"
+service retrode3-core-runtime status >/dev/null 2>&1 ||
+    fail "OS bus lock not ready"
+info "Using the installed CLI, helper and OS-managed bus lock."
 
 if [ -e "$AUTH" ]; then
     info "Optional web password file is present. Authentication remains enabled."
@@ -122,22 +117,11 @@ done
 [ "$SLOT_COUNT" -gt 0 ] ||
     info "WARNING: No /dev/slot-* character devices found."
 
-# The CLI creates /run/lock/retrode3/bus.lock with O_RDWR|O_CREAT.
-# A previous root-run hardware test may already have left root:root/0640
-# there. The web service needs group write to acquire the same flock.
-LOCK_DIR=/run/lock/retrode3
-[ ! -L "$LOCK_DIR" ] || fail "Unsafe symlink in $LOCK_DIR"
-if [ -e "$LOCK_DIR" ]; then
-    [ -d "$LOCK_DIR" ] || fail "Invalid bus lock directory."
-fi
-install -d -o root -g retrode3-reader -m 2770 "$LOCK_DIR"
-if [ -e "$LOCK_DIR/bus.lock" ] || [ -L "$LOCK_DIR/bus.lock" ]; then
-    [ -f "$LOCK_DIR/bus.lock" ] && [ ! -L "$LOCK_DIR/bus.lock" ] ||
-        fail "Unsafe bus lock file."
-    chgrp retrode3-reader "$LOCK_DIR/bus.lock"
-    chmod 0660 "$LOCK_DIR/bus.lock"
-fi
-info "Configured shared CLI cartridge bus lock for retrode3-reader group."
+# The OS init script owns the lock directory and file permissions.
+[ -d /run/lock/retrode3 ] && [ ! -L /run/lock/retrode3 ] ||
+    fail "OS bus lock directory unavailable"
+[ -f /run/lock/retrode3/bus.lock ] && [ ! -L /run/lock/retrode3/bus.lock ] ||
+    fail "OS bus lock file unavailable"
 
 mkdir -p "$ROOT/backend" "$BACKUP_ROOT"
 cp "$BASE/backend/service.py" "$ROOT/backend/service.py"
