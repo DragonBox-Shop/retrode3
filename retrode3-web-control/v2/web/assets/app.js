@@ -349,7 +349,7 @@
       else { notify(t("read_finished")); }
     } else if (job.status === "failed") {
       if (job.command === "probe") probeTarget = null;
-      notify(t("failed") + ": " + (job.error && job.error.code || t("unknown")));
+      notify(t("failed") + ": " + (job.error && (job.error.message || job.error.code) || t("unknown")));
     } else if (job.status === "cancelled") {
       if (job.command === "probe") probeTarget = null;
       notify(t("cancelled"));
