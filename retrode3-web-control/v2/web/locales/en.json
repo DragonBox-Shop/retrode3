@@ -132,7 +132,7 @@
   "core_version": "Version",
   "core_slot": "Slot",
   "core_usable": "Operations available",
-  "core_not_usable": "No usable operations yet",
+  "core_not_usable": "No supported operations",
   "core_actions": "Supported actions",
   "core_no_actions": "None",
   "core_enable": "Enable",
@@ -148,5 +148,8 @@
   "plugins_title": "Installed plugins",
   "plugins_desc": "View and manage installed cartridge readers. The CLI reports their activation and supported operations.",
   "core_cli_not_executable": "The central CLI exists but cannot be executed. Check permissions.",
-  "core_cli_error": "CLI discovery failed. Check the backend log and CLI protocol."
+  "core_cli_error": "CLI discovery failed. Check the backend log and CLI protocol.",
+  "detecting_automatically": "Detecting cartridge…",
+  "core_status_ready": "Ready",
+  "core_status_choose_reader": "Choose reader"
 }
