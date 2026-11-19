@@ -324,5 +324,94 @@ class BackendTests(unittest.TestCase):
         finally:
             MODULE.CLI_BIN = old_cli
 
+
+    def test_dynamic_cli_reader_is_not_limited_to_known_console_ids(self):
+        custom = {"id": "supergb-adapter", "name": "Super Game Boy",
+                  "version": "1.0", "slot": "snes", "installed": True,
+                  "enabled": True, "status": "ready", "usable": True,
+                  "actions": ["probe", "read_rom"]}
+        result = MODULE.reader_capability(custom["id"], {
+            "available": True, "cores": [custom]})
+        self.assertTrue(result["available"])
+        self.assertEqual(result["id"], "supergb-adapter")
+        self.assertEqual(result["slot"], "snes")
+        self.assertEqual(result["transport"], "cli")
+        self.assertEqual(result["extension"], "bin")
+        self.assertEqual(result["folder"], "SUPERGB-ADAPTER")
+        self.assertEqual(result["capabilities"]["commands"], ["probe", "read_rom"])
+        self.assertIsNone(MODULE.reader_capability("snes", {
+            "available": True, "cores": [custom]}))
+
+    def test_autodetect_matches_core_slot_not_core_id(self):
+        old_snapshot, old_capabilities = MODULE.slot_snapshot, MODULE.capability_probe
+        slot = {"id": "md", "name": "Mega Drive", "status": "occupied"}
+        class FakeJob(object):
+            def __init__(self):
+                self.status = "running"
+            def snapshot(self):
+                return {"status": self.status, "result": {
+                    "event": "probe_result", "system": "sms-adapter",
+                    "title": "SONIC", "mapping": "linear", "size_bytes": 262144}}
+            def cancel(self):
+                self.status = "cancelled"
+        class FakeManager(object):
+            def __init__(self):
+                self.calls = []
+                self.job = FakeJob()
+            def submit(self, data, automatic=False):
+                self.calls.append((data, automatic))
+                return {"id": "1" * 32}
+            def get(self, key):
+                return self.job
+        manager = FakeManager()
+        watcher = MODULE.AutomaticDetection(manager)
+        try:
+            MODULE.slot_snapshot = lambda: {"slots": [dict(slot)]}
+            MODULE.capability_probe = lambda: {"systems": [{
+                "id": "sms-adapter", "name": "Master System",
+                "slot": "md", "available": True,
+                "capabilities": {"commands": ["probe", "read_rom"]}}]}
+            watcher.tick(now=1.0)
+            watcher.tick(now=1.4)
+            self.assertEqual(manager.calls[0], (
+                {"system": "sms-adapter", "command": "probe"}, True))
+            manager.job.status = "done"
+            watcher.tick(now=1.5)
+            self.assertEqual(
+                watcher.snapshot()["slots"][0]["detection"]["result"]["title"], "SONIC")
+            watcher._event_changed(
+                b"change@/devices/virtual/slot-md\\x00SLOT=slot-md\\x00SENSE=empty\\x00")
+            self.assertIsNone(watcher.snapshot()["slots"][0]["detection"]["result"])
+            slot["status"] = "empty"
+            watcher.tick(now=1.6)
+            self.assertEqual(watcher.snapshot()["slots"][0]["detection"]["state"], "idle")
+            slot["status"] = "occupied"
+            watcher.tick(now=1.7)
+            self.assertEqual(watcher.snapshot()["slots"][0]["detection"]["state"], "pending")
+        finally:
+            MODULE.slot_snapshot = old_snapshot
+            MODULE.capability_probe = old_capabilities
+
+    def test_ambiguous_slot_does_not_probe_random_adapter(self):
+        old_snapshot, old_capabilities = MODULE.slot_snapshot, MODULE.capability_probe
+        class FakeManager(object):
+            def submit(self, *args, **kwargs):
+                raise AssertionError("Ambiguous slot must not be probed")
+        watcher = MODULE.AutomaticDetection(FakeManager())
+        try:
+            MODULE.slot_snapshot = lambda: {"slots": [{
+                "id": "snes", "name": "Super Nintendo", "status": "occupied"}]}
+            MODULE.capability_probe = lambda: {"systems": [
+                {"id": x, "slot": "snes", "available": True,
+                 "capabilities": {"commands": ["probe"]}}
+                for x in ("snes", "sfc-adapter")]}
+            watcher.tick(now=5.0)
+            watcher.tick(now=5.4)
+            self.assertEqual(watcher.snapshot()["slots"][0]["detection"]["state"],
+                             "choose_reader")
+        finally:
+            MODULE.slot_snapshot = old_snapshot
+            MODULE.capability_probe = old_capabilities
+
 if __name__ == "__main__":
     unittest.main()
