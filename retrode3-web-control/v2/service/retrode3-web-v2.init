@@ -1,7 +1,7 @@
 #!/bin/sh
 ### BEGIN INIT INFO
 # Provides:          retrode3-web-v2
-# Required-Start:    $local_fs $network
+# Required-Start:    $local_fs $network retrode3-core-runtime
 # Required-Stop:     $local_fs $network
 # Default-Start:     2 3 4 5
 # Default-Stop:      0 1 6
@@ -14,6 +14,10 @@ PIDFILE=/var/run/retrode3-web-v2.pid
 DAEMON=/opt/retrode3-web-v2/start.sh
 case "$1" in
     start)
+        if ! /etc/init.d/retrode3-core-runtime status >/dev/null 2>&1; then
+            echo "OS cartridge bus lock not prepared" >&2
+            exit 1
+        fi
         if start-stop-daemon --status --pidfile "$PIDFILE" >/dev/null 2>&1; then
             echo "$NAME already running"
             exit 0
