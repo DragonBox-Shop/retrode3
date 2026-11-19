@@ -54,8 +54,8 @@ The device uses **SysV init**, not systemd. The tested OS-owned
 `/etc/init.d/retrode3-core-runtime` prepares
 `/run/lock/retrode3/bus.lock`. The lock directory is root:root 0755 and the
 lock file is root:www-data 0660. Never unlink a live lock file. The Web
-installer checks/registers this service; persistent `/dev/slot-*`
-permissions are a separate OS/udev packaging requirement. Test Web jobs as
+installer checks/registers this service; the Web SysV init temporarily restores restricted `/dev/slot-*` permissions
+at startup; permanent ownership belongs to the OS/udev package. Test Web jobs as
 `www-data` and after a reboot.
 
 ## Slot and plugin detection
