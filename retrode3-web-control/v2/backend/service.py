@@ -366,7 +366,7 @@ def toggle_core(data):
             return {"ok": True, "core": current}
         if enabled and current["status"] != "disabled":
             raise ApiError(409, "core_invalid_state", "Core cannot be enabled")
-        if not enabled and current["status"] not in ("discovered", "incompatible"):
+        if not enabled and current["status"] not in ("ready", "discovered", "incompatible"):
             raise ApiError(409, "core_invalid_state", "Core link requires repair")
         cmd = [CORECTL_BIN, "enable" if enabled else "disable", data["id"]]
         if CORECTL_SUDO:
@@ -405,15 +405,30 @@ def reader_capability(spec_id, registry=None):
     if registry is None:
         registry = core_registry()
     if registry["available"]:
-        known = [c for c in registry["cores"] if c["id"] == spec_id]
-        if known:
-            core = known[0]
-            if not core["enabled"] or core["status"] != "discovered":
-                result["reason"] = "core_disabled_or_incompatible"
-                return result
-            if not core["usable"] or "read_rom" not in core["actions"]:
-                result["reason"] = "core_operation_unavailable"
-                return result
+        matches = [core for core in registry["cores"] if core["id"] == spec_id]
+        if not matches:
+            result["reason"] = "core_not_installed"
+            return result
+        core = matches[0]
+        if not core["enabled"] or core["status"] != "ready" or not core["usable"]:
+            result["reason"] = "core_not_ready"
+            return result
+        commands = [name for name in ("probe", "read_rom")
+                    if name in core["actions"]]
+        if not commands:
+            result["reason"] = "core_operation_unavailable"
+            return result
+        # The CLI owns NDJSON, capabilities and all actual operations.
+        # No per-core process probing: the shared module has no NDJSON parser.
+        result.update({"available": True, "transport": "cli",
+                       "capabilities": {
+                           "system": spec_id, "core": core["id"],
+                           "commands": commands,
+                           "mappings": [], "size_override": False,
+                           "database_lookup": False, "write_operations": False}})
+        return result
+    # Until the shared CLI is installed, preserve the proven SNES
+    # development reader as an explicit legacy compatibility path.
     binary = spec["binary"]
     if not os.path.isfile(binary) or not os.access(binary, os.X_OK):
         result["reason"] = "native_binary_missing"
@@ -462,7 +477,8 @@ def reader_capability(spec_id, registry=None):
                     event.get("system") == spec_id and
                     isinstance(commands, list) and
                     all(x in commands for x in ("get_capabilities", "probe", "read_rom", "cancel"))):
-                result.update({"available": True, "capabilities": event})
+                result.update({"available": True, "transport": "legacy",
+                               "capabilities": event})
                 return result
     except (OSError, ValueError, KeyError, IOError):
         pass
@@ -490,10 +506,12 @@ def capability_probe():
 
 
 class Job(object):
-    def __init__(self, manager, reader_id, action, mapping, size, label):
+    def __init__(self, manager, reader_id, action, mapping, size, label,
+                 transport):
         self.manager = manager
         self.reader_id = reader_id
         self.reader = READER_SPECS[reader_id]
+        self.transport = transport
         self.id = uuid.uuid4().hex
         self.action = action
         self.mapping = mapping
@@ -549,8 +567,11 @@ class Job(object):
                         os.mkdir(system_folder)
                     filename = "%s-%s.%s" % (self.label, self.id[:8], self.reader["extension"])
                     self.output = os.path.join(system_folder, filename)
-                process = subprocess.Popen([self.reader["binary"], "--protocol", "ndjson-v1", "--interactive"],
-                                           stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                argv = ([CLI_BIN, "--protocol", "ndjson-v1", "--interactive"]
+                        if self.transport == "cli" else
+                        [self.reader["binary"], "--protocol", "ndjson-v1", "--interactive"])
+                process = subprocess.Popen(argv, stdin=subprocess.PIPE,
+                                           stdout=subprocess.PIPE,
                                            stderr=subprocess.DEVNULL, bufsize=0)
                 with self.lock:
                     self.process = process
@@ -568,12 +589,18 @@ class Job(object):
                         raise ApiError(502, "protocol_failure", "Oversized native event")
                     event = json.loads(line.decode("utf-8"))
                     kind = event.get("event")
-                    if kind == "ready" and not sent:
+                    if (kind == "ready" and not sent and
+                            event.get("protocol") == PROTOCOL and
+                            event.get("version") == 1 and
+                            event.get("system") == (
+                                "multi" if self.transport == "cli" else self.reader_id)):
                         with self.lock:
                             if self.cancel_requested:
                                 self.status = "cancelled"
                                 return
                             command = {"command": self.action, "request_id": self.id}
+                            if self.transport == "cli":
+                                command["core"] = self.reader_id
                             if self.action == "read_rom":
                                 command["output"] = self.output
                                 if self.mapping:
@@ -678,7 +705,8 @@ class JobManager(object):
         if size is not None and size > features.get("max_rom_bytes", 4194304):
             raise ApiError(400, "invalid_size", "ROM size exceeds reader capabilities")
         job = Job(self, reader_id, data["command"], mapping, size,
-                  sanitized_filename(data.get("filename")))
+                  sanitized_filename(data.get("filename")),
+                  cap.get("transport", "legacy"))
         with self.lock:
             if self.active is not None:
                 raise ApiError(409, "busy", "Cartridge reader already busy")
