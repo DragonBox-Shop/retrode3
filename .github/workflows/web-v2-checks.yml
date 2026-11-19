@@ -36,3 +36,4 @@ jobs:
         run: |
           for file in retrode3-web-control/v2/*on-retrode.sh; do sh -n "$file"; done
           sh -n retrode3-web-control/v2/service/retrode3-web-v2.init
+          sh -n retrode3-core-runtime/etc/init.d/retrode3-core-runtime
