@@ -380,7 +380,7 @@ class BackendTests(unittest.TestCase):
             self.assertEqual(
                 watcher.snapshot()["slots"][0]["detection"]["result"]["title"], "SONIC")
             watcher._event_changed(
-                b"change@/devices/virtual/slot-md\\x00SLOT=slot-md\\x00SENSE=empty\\x00")
+                b"change@/devices/virtual/slot-md\x00SLOT=slot-md\x00SENSE=empty\x00")
             self.assertIsNone(watcher.snapshot()["slots"][0]["detection"]["result"])
             slot["status"] = "empty"
             watcher.tick(now=1.6)
