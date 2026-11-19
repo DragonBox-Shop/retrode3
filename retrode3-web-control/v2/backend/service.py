@@ -35,18 +35,20 @@ CORE_CONTROL_ENABLED = os.environ.get("RETRODE3_CORE_CONTROL_ENABLED", "0") == "
 CORECTL_SUDO = os.environ.get("RETRODE3_CORECTL_SUDO", "1") == "1"
 CORE_ID = re.compile(r"^[a-z0-9_-]{1,48}$")
 
-# A slot is a physical connector, not an identified game system. Readers
-# are admitted only after successfully negotiating native NDJSON v1.
-READER_SPECS = {
+# Compatibility for old *standalone* acceptance readers when the central
+# CLI has not been installed. This is NEVER an allowlist for CLI plugins.
+LEGACY_READERS = {
     "snes": {"name": "Super Nintendo (SNES)", "slot": "snes",
              "binary": SNES_BIN, "folder": "SNES", "extension": "sfc"},
     "md": {"name": "Mega Drive / Genesis", "slot": "md",
            "binary": MD_BIN, "folder": "MD", "extension": "md"},
-    "nes": {"name": "Nintendo Entertainment System (NES)", "slot": "nes",
-            "binary": None, "folder": "NES", "extension": "nes"}
 }
+# Cosmetic, familiar labels only. New physical kernel slots still show up.
 PHYSICAL_SLOTS = (("md", "Mega Drive"), ("snes", "Super Nintendo"),
                   ("nes", "Nintendo / Famicom"))
+# File format defaults are NOT a reader allowlist; unknown core IDs work
+# and use .bin until the CLI reports a ROM file extension.
+KNOWN_ROM_EXTENSIONS = {"snes": "sfc", "md": "md", "nes": "nes"}
 WLAN_BIN = os.environ.get("RETRODE3_WLAN_BINARY", "/usr/local/bin/retrode3-wlan")
 NET_SYSFS_ROOT = os.environ.get("RETRODE3_NET_SYSFS_ROOT", "/sys/class/net")
 RUN_SUDO = os.environ.get("RETRODE3_WLAN_SUDO", "1") == "1"
@@ -396,42 +398,49 @@ def toggle_core(data):
         MANAGER.bus_lock.release()
 
 
-def reader_capability(spec_id, registry=None):
-    """Ask only a registered native reader for read-only command metadata.
+def reader_capability(core_id, registry=None):
+    """Derive any reader from CLI metadata without an ID allowlist.
 
-    A legacy one-shot MegaDrive binary does not support this handshake and
-    therefore remains unavailable to the web UI, even if it is executable.
+    In particular, neither a recognized device slot nor an installed .so
+    implies an executable ROM operation. Only `ready`, usable, enabled
+    and explicit CLI actions can open a cartridge.
     """
-    spec = READER_SPECS[spec_id]
-    result = {"id": spec_id, "name": spec["name"], "slot": spec["slot"],
-              "available": False}
     if registry is None:
         registry = core_registry()
     if registry["available"]:
-        matches = [core for core in registry["cores"] if core["id"] == spec_id]
-        if not matches:
-            result["reason"] = "core_not_installed"
-            return result
-        core = matches[0]
-        if not core["enabled"] or core["status"] != "ready" or not core["usable"]:
+        core = next((item for item in registry["cores"]
+                     if item["id"] == core_id), None)
+        if core is None:
+            return None
+        result = {"id": core["id"], "name": core["name"], "slot": core["slot"],
+                  "available": False, "transport": "cli",
+                  "folder": core["id"].upper(),
+                  "extension": KNOWN_ROM_EXTENSIONS.get(core["id"], "bin")}
+        if not (core["installed"] and core["enabled"] and
+                core["status"] == "ready" and core["usable"]):
             result["reason"] = "core_not_ready"
             return result
-        commands = [name for name in ("probe", "read_rom")
-                    if name in core["actions"]]
+        commands = [action for action in ("probe", "read_rom")
+                    if action in core["actions"]]
         if not commands:
             result["reason"] = "core_operation_unavailable"
             return result
-        # The CLI owns NDJSON, capabilities and all actual operations.
-        # No per-core process probing: the shared module has no NDJSON parser.
-        result.update({"available": True, "transport": "cli",
+        result.update({"available": True,
                        "capabilities": {
-                           "system": spec_id, "core": core["id"],
-                           "commands": commands,
+                           "system": core["id"], "core": core["id"],
+                           "slot": core["slot"], "commands": commands,
                            "mappings": [], "size_override": False,
-                           "database_lookup": False, "write_operations": False}})
+                           "database_lookup": False,
+                           "write_operations": False}})
         return result
-    # Until the shared CLI is installed, preserve the proven SNES
-    # development reader as an explicit legacy compatibility path.
+    # Only while the central CLI is absent: old proven native NDJSON runner.
+    spec = LEGACY_READERS.get(core_id)
+    if spec is None:
+        return None
+    result = {"id": core_id, "name": spec["name"], "slot": spec["slot"],
+              "folder": spec["folder"], "extension": spec["extension"],
+              "binary": spec["binary"], "transport": "legacy",
+              "available": False}
     binary = spec["binary"]
     if not binary or not os.path.isfile(binary) or not os.access(binary, os.X_OK):
         result["reason"] = "native_binary_missing"
@@ -455,12 +464,12 @@ def reader_capability(spec_id, registry=None):
             if (event.get("event") == "ready" and
                     event.get("protocol") == PROTOCOL and
                     event.get("version") == 1 and
-                    event.get("system") == spec_id):
+                    event.get("system") == core_id):
                 ready = True
                 break
         if not ready:
             raise ValueError("no compatible ready event")
-        proc.stdin.write(b'{"command":"get_capabilities","request_id":"webcap"}\n')
+        proc.stdin.write(b'{"command":"get_capabilities","request_id":"webcap"}\\n')
         proc.stdin.flush()
         deadline = time.time() + 3.0
         while time.time() < deadline:
@@ -477,11 +486,11 @@ def reader_capability(spec_id, registry=None):
                     event.get("version") == 1 and
                     event.get("event") == "capabilities" and
                     event.get("request_id") == "webcap" and
-                    event.get("system") == spec_id and
+                    event.get("system") == core_id and
                     isinstance(commands, list) and
-                    all(x in commands for x in ("get_capabilities", "probe", "read_rom", "cancel"))):
-                result.update({"available": True, "transport": "legacy",
-                               "capabilities": event})
+                    all(x in commands for x in (
+                        "get_capabilities", "probe", "read_rom", "cancel"))):
+                result.update({"available": True, "capabilities": event})
                 return result
     except (OSError, ValueError, KeyError, IOError):
         pass
@@ -503,18 +512,22 @@ def reader_capability(spec_id, registry=None):
 
 
 def capability_probe():
-    """Only report truly negotiated native readers; no hardware bus scans."""
+    """Every CLI-listed core, including unknown future systems and plugins."""
     registry = core_registry()
-    return {"systems": [reader_capability(key, registry) for key in ("snes", "md", "nes")]}
+    ids = ([item["id"] for item in registry["cores"]]
+           if registry["available"] else list(LEGACY_READERS))
+    return {"systems": [reader_capability(core_id, registry) for core_id in ids]}
+
+
 
 
 class Job(object):
     def __init__(self, manager, reader_id, action, mapping, size, label,
-                 transport, automatic=False):
+                 reader, automatic=False):
         self.manager = manager
         self.reader_id = reader_id
-        self.reader = READER_SPECS[reader_id]
-        self.transport = transport
+        self.reader = reader
+        self.transport = reader["transport"]
         self.automatic = automatic
         self.id = uuid.uuid4().hex
         self.action = action
@@ -680,7 +693,8 @@ class JobManager(object):
 
     def submit(self, data, automatic=False):
         reader_id = data.get("system")
-        if reader_id not in READER_SPECS or data.get("command") not in ("probe", "read_rom"):
+        if (not isinstance(reader_id, str) or not CORE_ID.match(reader_id) or
+                data.get("command") not in ("probe", "read_rom")):
             raise ApiError(400, "unsupported", "Unknown reader or unsupported command")
         mapping = data.get("mapping")
         size = data.get("size_bytes")
@@ -697,7 +711,7 @@ class JobManager(object):
         if data["command"] == "probe" and (mapping is not None or size is not None):
             raise ApiError(400, "invalid_command", "Probe does not accept overrides")
         cap = reader_capability(reader_id)
-        if not cap["available"]:
+        if not cap or not cap["available"]:
             raise ApiError(503, "native_protocol_unavailable",
                            "A compatible native reader is not installed")
         features = cap["capabilities"]
@@ -711,7 +725,7 @@ class JobManager(object):
             raise ApiError(400, "invalid_size", "ROM size exceeds reader capabilities")
         job = Job(self, reader_id, data["command"], mapping, size,
                   sanitized_filename(data.get("filename")),
-                  cap.get("transport", "legacy"), automatic=automatic)
+                  cap, automatic=automatic)
         with self.lock:
             if self.active is not None:
                 raise ApiError(409, "busy", "Cartridge reader already busy")
