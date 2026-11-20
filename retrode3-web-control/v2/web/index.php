@@ -46,10 +46,6 @@ header("Content-Security-Policy: default-src 'self'; img-src 'self'; style-src '
 <div id="advanced" hidden>
 <p class="muted small" data-i18n="advanced_note">Only readers with confirmed read operations are selectable. Selecting a system does not detect an adapter or change the voltage.</p>
 <label for="system" data-i18n="system">Reader / system</label><select id="system"><option value="">—</option></select>
-<div id="mapping-control"><label for="mapping" data-i18n="mapping">Mapping</label><select id="mapping"><option value="" data-i18n="auto">Automatic</option></select></div>
-<div id="size-control"><label for="rom-size" data-i18n="rom_size">ROM size override</label><select id="rom-size"><option value="" data-i18n="auto">Automatic</option></select></div>
-<p class="muted small" data-i18n="overrides_note">Overrides are optional. Use detected settings unless you know the cartridge's layout.</p>
-</div>
 <div id="generic-selection" class="generic-selection" hidden>
   <div id="generic-choice-control" hidden>
     <label for="generic-choice" data-i18n="generic_choice">Detected game / reading layout</label>
@@ -63,35 +59,6 @@ header("Content-Security-Policy: default-src 'self'; img-src 'self'; style-src '
     </label>
     <div id="generic-override-fields" hidden></div>
     <p id="generic-override-hint" class="muted small" role="status"></p>
-  </div>
-</div>
-<div id="nes-options" hidden>
-  <div id="nes-choice-control" hidden>
-    <label for="nes-choice" data-i18n="nes_choice">Detected NES game / mapper</label>
-    <select id="nes-choice"><option value="" data-i18n="auto">Automatic</option></select>
-  </div>
-  <p id="nes-choice-hint" class="muted small" role="status"></p>
-  <label for="nes-manual-toggle" class="nes-manual-label">
-    <input type="checkbox" id="nes-manual-toggle">
-    <span data-i18n="nes_manual">Choose NES mapper and ROM sizes manually</span>
-  </label>
-  <div id="nes-manual-control" hidden>
-    <label for="nes-mapper" data-i18n="nes_mapper">NES mapper / submapper</label>
-    <select id="nes-mapper"></select>
-    <label for="nes-prg" data-i18n="nes_prg">PRG-ROM size</label>
-    <select id="nes-prg"></select>
-    <label for="nes-chr" data-i18n="nes_chr">CHR-ROM size</label>
-    <select id="nes-chr"></select>
-    <label for="nes-mirroring" data-i18n="nes_mirroring">Mirroring (when unknown)</label>
-    <select id="nes-mirroring">
-      <option value="horizontal" data-i18n="nes_horizontal">Horizontal</option>
-      <option value="vertical" data-i18n="nes_vertical">Vertical</option>
-      <option value="four_screen" data-i18n="nes_four_screen">Four-screen</option>
-    </select>
-    <label for="nes-battery">
-      <input type="checkbox" id="nes-battery">
-      <span data-i18n="nes_battery">Battery-backed cartridge</span>
-    </label>
   </div>
 </div>
 <button id="read" class="btn primary" data-i18n="start_read">Read ROM</button>
