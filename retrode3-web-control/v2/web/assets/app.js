@@ -6,6 +6,7 @@
   var selectedReader = "";
   var detectedBySlot = {}, probeTarget = null, autoNames = {};
   var coreState = null, corePending = false;
+  var nesReaderOptions = null, nesProbeKey = "";
   var csrf = document.querySelector('meta[name="csrf-token"]').content;
   var $ = function (id) { return document.getElementById(id); };
   function t(key) { return messages[key] || key; }
@@ -83,13 +84,134 @@
   function readerById(id) {
     return readers().filter(function (entry) { return entry.id === id; })[0] || null;
   }
+  function selectedProbeData() {
+    var slot = selectedSlotId(), detected = slot && autoDetection(slot);
+    if (detected && detected.state === "detected" &&
+        detected.core_id === selectedReader && detected.result)
+      return detected.result;
+    var cached = slot && detectedBySlot[slot];
+    return cached && cached.reader === selectedReader ? cached.data : null;
+  }
+  function nesLayoutLabel(item, title) {
+    return (title ? title + " · " : "") +
+      "M" + item.mapper + (item.submapper ? "." + item.submapper : "") +
+      " · PRG " + item.prg_kib + " KiB · CHR " + item.chr_kib + " KiB";
+  }
+  function option(select, value, title, enabled) {
+    var el = document.createElement("option");
+    el.value = value; text(el, title);
+    if (enabled === false) el.disabled = true;
+    select.appendChild(el);
+  }
+  function populateNesManualSizes() {
+    var mappings = nesReaderOptions && nesReaderOptions.supported_mappers || [];
+    var chosen = $("nes-mapper").value.split(":");
+    var row = mappings.filter(function (m) {
+      return m.mapper === Number(chosen[0]) && m.submapper === Number(chosen[1]) &&
+        m.read_supported === true;
+    })[0];
+    [["nes-prg", "prg_kib"], ["nes-chr", "chr_kib"]].forEach(function (pair) {
+      var el = $(pair[0]), previous = el.value;
+      el.innerHTML = "";
+      (row && row[pair[1]] || []).forEach(function (n) {
+        option(el, String(n), n + " KiB");
+      });
+      if (previous && [].some.call(el.options, function (o) { return o.value === previous; }))
+        el.value = previous;
+    });
+    renderReaderState();
+  }
+  function loadNesReaderOptions() {
+    if (nesReaderOptions || selectedReader !== "nes") return;
+    api("/api/reader-options/nes").then(function (result) {
+      if (selectedReader !== "nes") return;
+      if (!result || !result.manual_layout || !Array.isArray(result.supported_mappers)) {
+        text($("nes-choice-hint"), t("nes_no_manual_options"));
+        return;
+      }
+      nesReaderOptions = result;
+      var select = $("nes-mapper");
+      select.innerHTML = "";
+      result.supported_mappers.filter(function (m) { return m.read_supported === true; })
+        .forEach(function (m) {
+          option(select, m.mapper + ":" + m.submapper,
+                 "Mapper " + m.mapper + (m.submapper ? " / " + m.submapper : ""));
+        });
+      populateNesManualSizes();
+      renderNesOptions();
+    }).catch(function () {
+      text($("nes-choice-hint"), t("nes_no_manual_options"));
+    });
+  }
+  function nesReadAllowed() {
+    if (selectedReader !== "nes") return true;
+    if ($("nes-manual-toggle").checked) {
+      var chosen = $("nes-mapper").value.split(":");
+      return Boolean($("nes-mapper").value && $("nes-prg").value &&
+          $("nes-chr").value && nesReaderOptions &&
+          !(Number(chosen[0]) === 1 && $("nes-battery").checked));
+    }
+    var probe = selectedProbeData();
+    if (!probe || !Array.isArray(probe.read_layouts)) return true;
+    var selected = $("nes-choice").value, layouts = probe.read_layouts;
+    if (selected.indexOf("candidate:") === 0) {
+      var c = (probe.candidates || []).filter(function (item) {
+        return item.id === selected.slice(10);
+      })[0];
+      return Boolean(c && c.read_supported && layouts.some(function (l) {
+        return l.id === c.layout_id && l.read_supported;
+      }));
+    }
+    if (selected.indexOf("layout:") === 0)
+      return layouts.some(function (l) {
+        return l.id === selected.slice(7) && l.read_supported;
+      });
+    return layouts.length === 1 && layouts[0].read_supported === true;
+  }
+  function renderNesOptions() {
+    var active = selectedReader === "nes", holder = $("nes-options");
+    holder.hidden = !active;
+    if (!active) return;
+    var probe = selectedProbeData();
+    var candidates = probe && Array.isArray(probe.candidates) ? probe.candidates : [];
+    var layouts = probe && Array.isArray(probe.read_layouts) ? probe.read_layouts : [];
+    var key = selectedSlotId() + ":" + JSON.stringify({candidates: candidates, layouts: layouts});
+    var select = $("nes-choice");
+    if (key !== nesProbeKey) {
+      nesProbeKey = key;
+      select.innerHTML = "";
+      option(select, "", t("auto"));
+      candidates.forEach(function (c) {
+        option(select, "candidate:" + c.id, nesLayoutLabel(c, c.title), c.read_supported);
+      });
+      // An explicit layout can be selected even when multiple games share
+      // it or none of Sanni's fingerprints identify the title uniquely.
+      layouts.forEach(function (l) {
+        option(select, "layout:" + l.id, nesLayoutLabel(l, null), l.read_supported);
+      });
+      select.value = "";
+    }
+    $("nes-choice-control").hidden = !probe || !Array.isArray(probe.read_layouts) ||
+      !(candidates.length > 1 || layouts.length > 1);
+    var hint = "";
+    if (!probe || !Array.isArray(probe.read_layouts))
+      hint = t("nes_probe_needed");
+    else if (!layouts.length) hint = t("nes_unknown_layout");
+    else if (!layouts.some(function (l) { return l.read_supported; }))
+      hint = t("nes_unreadable_layout");
+    else if (layouts.length > 1) hint = t("nes_select_layout");
+    text($("nes-choice-hint"), hint);
+    $("nes-manual-control").hidden = !$("nes-manual-toggle").checked;
+    renderReaderState();
+  }
   function renderReaderState() {
     var reader = readerById(selectedReader);
     text($("selected-reader"), reader ? reader.name : t("choose_reader"));
     text($("reader-support"), reader ? reader.name : t("reader_unavailable"));
     var commands = reader && reader.capabilities && reader.capabilities.commands || [];
     $("probe").disabled = !reader || commands.indexOf("probe") === -1 || Boolean(activeJob);
-    $("read").disabled = !reader || commands.indexOf("read_rom") === -1 || Boolean(activeJob);
+    $("read").disabled = !reader || commands.indexOf("read_rom") === -1 ||
+      Boolean(activeJob) || !nesReadAllowed();
 
   }
   function configureReaderOptions() {
@@ -128,6 +250,9 @@
     // A filename belongs to a reader/cartridge, not to the global dialog.
     // Preserve manual edits only when the same reader stays selected.
     if (selectedReader !== previous) {
+      nesProbeKey = "";
+      $("nes-choice").value = "";
+      $("nes-manual-toggle").checked = false;
       $("filename").value = reader ? suggestedFilename(reader) : "";
     } else if (reader && !$("filename").value) {
       $("filename").value = suggestedFilename(reader);
@@ -136,6 +261,7 @@
     renderReaderState();
     if (slotData) renderSlots();
     renderSelectedProbe();
+    if (selectedReader === "nes") loadNesReaderOptions();
   }
   function selectedSlotId() {
     var reader = readerById(selectedReader);
@@ -175,6 +301,7 @@
         t("detecting_automatically") : t("not_detected"));
       box.appendChild(empty);
     }
+    renderNesOptions();
   }
   function renderSlots() {
     if (!slotData) return;
@@ -232,6 +359,11 @@
         var previous = previousSlots.filter(function (entry) { return entry.id === slot.id; })[0];
         if (!previous || previous.status !== slot.status || slot.status !== "occupied") {
           delete detectedBySlot[slot.id];
+          if (slot.id === selectedSlotId()) {
+            nesProbeKey = "";
+            $("nes-choice").value = "";
+            $("nes-manual-toggle").checked = false;
+          }
           if (slot.status !== "occupied" && selectedSlotId() === slot.id &&
               autoNames[slot.id] && $("filename").value === autoNames[slot.id]) {
             $("filename").value = selectedReader.toUpperCase() + "-Dump";
@@ -306,8 +438,10 @@
       row.className = "keyval"; text(left, t(pair[0])); text(right, pair[1]);
       row.appendChild(left); row.appendChild(right); box.appendChild(row);
     });
-    var info = document.createElement("p"); info.className = "muted small";
-    text(info, t("not_integrated")); box.appendChild(info);
+    if (!Array.isArray(data.read_layouts)) {
+      var info = document.createElement("p"); info.className = "muted small";
+      text(info, t("not_integrated")); box.appendChild(info);
+    }
     if (updateFilename !== false && data.title) $("filename").value = data.title;
   }
   function startJob(command) {
@@ -319,6 +453,23 @@
       payload.filename = $("filename").value;
       if ($("mapping").value) payload.mapping = $("mapping").value;
       if ($("rom-size").value) payload.size_bytes = Number($("rom-size").value);
+      if (selectedReader === "nes") {
+        if ($("nes-manual-toggle").checked) {
+          var mapper = $("nes-mapper").value.split(":");
+          payload.mapper = Number(mapper[0]);
+          payload.submapper = Number(mapper[1]);
+          payload.prg_kib = Number($("nes-prg").value);
+          payload.chr_kib = Number($("nes-chr").value);
+          payload.mirroring = $("nes-mirroring").value;
+          payload.battery = $("nes-battery").checked ? 1 : 0;
+        } else {
+          var selection = $("nes-choice").value;
+          if (selection.indexOf("candidate:") === 0)
+            payload.candidate_id = selection.slice(10);
+          else if (selection.indexOf("layout:") === 0)
+            payload.layout_id = selection.slice(7);
+        }
+      }
     }
     $("read").disabled = $("probe").disabled = true;
     if (command === "probe") {
@@ -363,7 +514,11 @@
         probeTarget = null;
         notify(t("probe_finished"));
       }
-      else { notify(t("read_finished")); }
+      else {
+        notify(t("read_finished") + (job.result && job.result.verified === true ?
+          " · " + t("nes_verified") : job.result && job.result.verified === false ?
+          " · " + t("nes_unverified") : ""));
+      }
     } else if (job.status === "failed") {
       if (job.command === "probe") probeTarget = null;
       notify(t("failed") + ": " + (job.error && (job.error.message || job.error.code) || t("unknown")));
@@ -550,6 +705,26 @@
       $("advanced-toggle").setAttribute("aria-expanded", String(expanded));
     });
     $("system").addEventListener("change", function () { selectReader(this.value); });
+    $("nes-choice").addEventListener("change", function () {
+      var choice = this.value, probe = selectedProbeData();
+      if (probe && choice.indexOf("candidate:") === 0) {
+        var candidate = (probe.candidates || []).filter(function (c) {
+          return c.id === choice.slice(10);
+        })[0];
+        if (candidate && candidate.title) {
+          var filename = $("filename").value;
+          if (!filename || filename === probe.title ||
+              /^[a-z0-9_-]+-Dump$/i.test(filename))
+            $("filename").value = candidate.title;
+        }
+      }
+      renderReaderState();
+    });
+    $("nes-manual-toggle").addEventListener("change", renderNesOptions);
+    $("nes-mapper").addEventListener("change", populateNesManualSizes);
+    $("nes-prg").addEventListener("change", renderReaderState);
+    $("nes-chr").addEventListener("change", renderReaderState);
+    $("nes-battery").addEventListener("change", renderReaderState);
     $("probe").addEventListener("click", function () { startJob("probe"); });
     $("read").addEventListener("click", function () { startJob("read_rom"); });
     $("cancel").addEventListener("click", function () {
