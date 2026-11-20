@@ -235,6 +235,11 @@
           automatic.state === "pending" ? t("detecting_automatically") :
           automatic.state === "choose_reader" ? t("choose_reader") : t("unknown")));
         card.appendChild(game);
+        if (isKnown && automatic.result.voltage_status === "manual_required") {
+          var voltageNotice = document.createElement("small");
+          text(voltageNotice, t("voltage_manual_required"));
+          card.appendChild(voltageNotice);
+        }
       }
       card.addEventListener("click", function () {
         if (matching.length === 1) selectReader(matching[0].id);
