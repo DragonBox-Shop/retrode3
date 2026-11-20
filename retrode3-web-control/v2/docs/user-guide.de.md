@@ -1,69 +1,96 @@
-# Retrode3: Benutzeranleitung
+# Retrode3: Benutzeranleitung (Web Control v2)
 
-*Entwicklungsstand der neuen Weboberfläche (November 2026). Dieses Dokument lässt sich später unverändert als Grundlage für das Retrode3-Wiki verwenden.*
+Diese Anleitung beschreibt die Weboberfläche aus dem Retrode3-OS-Repository auf `master` (Stand November 2026). Die separate [Entwickleranleitung](developer-guide.de.md) dokumentiert die gemeinsame Kommandozeile `retrode3-cli` und ihre Schnittstellen.
 
-## 1. Anschließen und starten
+## 1. Anschließen
 
-Verbinde die Retrode3 per USB mit Deinem Computer. Über die eingerichtete USB-Netzwerkverbindung ist die Weboberfläche auf dem Entwicklungsgerät unter `http://172.31.255.1/` erreichbar. Die IP-Adresse kann sich bei späteren Softwareversionen ändern.
+Verbinde die Retrode3 per USB mit Deinem Computer und öffne `http://172.31.255.1/`. Diese Adresse gilt für die aktuelle USB-Netzwerkkonfiguration; sie ist keine allgemein garantierte Adresse für spätere Images.
 
-Die Weboberfläche ist standardmäßig **ohne Passwort** nutzbar. Optional kann der Gerätebesitzer über die Kommandozeile ein Passwort aktivieren. Die Retrode3 sollte nicht ohne zusätzliche Absicherung aus dem öffentlichen Internet erreichbar sein.
+Die Weboberfläche ist auf dem bisherigen Entwicklungsgerät standardmäßig ohne Passwort erreichbar. Ein Passwort lässt sich bei Bedarf mit `retrode3-web-v2-auth enable` einrichten. Die Oberfläche nicht ohne zusätzliche Absicherung ins öffentliche Internet stellen; Basic Auth über HTTP verschlüsselt die Anmeldung nicht.
 
-## 2. Spiel auslesen
+## 2. Modul automatisch erkennen und ROM auslesen
 
-1. Stecke das Spielmodul in den passenden Cartridge-Slot oder kompatiblen Adapter.
-2. Öffne **Modul auslesen**. Die Slot-Kacheln zeigen die vom Kernel gemeldete Belegung.
-3. Falls genau ein unterstützter Ausleser zum belegten Slot passt, wird er vorgeschlagen. Beachte: Die Slot-Belegung allein identifiziert **nicht** das Cartridge-System oder den Adapter.
-4. Klicke auf **Spielmodul erkennen**. Prüfe die erkannten Informationen.
-5. Wähle **ROM auslesen**. Die Fortschrittsanzeige basiert auf tatsächlich geschriebenen Daten.
-6. Warte auf die Erfolgsmeldung und öffne den **Dateimanager**.
+1. Stecke ein unterstütztes Spielmodul in den passenden Slot. Die Slot-Kacheln zeigen die physische Belegung.
+2. Das Web-v2-Backend reagiert auf Kernel-Ereignisse und führt bei einem eindeutig zugeordneten, unterstützten Core einen **automatischen, nur lesenden Probe** durch. Ein manuelles „Spielmodul erkennen“ ist im Normalfall nicht nötig.
+3. Wähle den Slot. Prüfe den erkannten Titel, das Mapping und die ROM-Größe. Der Dateiname wird passend zum gewählten Slot vorgeschlagen und kann angepasst werden.
+4. Klicke auf **ROM auslesen**. Die Fortschrittsanzeige zeigt tatsächlich verarbeitete Bytes.
+5. Öffne nach Abschluss den **Dateimanager** und lade die Datei bei Bedarf herunter.
 
-**Wichtig:** Ziehe ein Modul während des Auslesens nicht heraus. Bei Lesefehlern oder ungewöhnlichen Modulen nicht blind andere Mapper oder Spannungen ausprobieren.
+Falls mehrere Reader für denselben physischen Slot möglich sind, wählt das Backend aus Sicherheitsgründen nicht willkürlich einen aus. Der Reader muss dann passend zum angeschlossenen Adapter manuell gewählt werden. Ein bloßer `occupied`-Zustand bestimmt **weder Konsolentyp noch Adapter oder sichere Spannung**.
 
-## 3. Erweiterte Einstellungen
+Beim Entfernen eines Moduls verschwindet dessen Erkennung aus der Oberfläche. Ein laufender Lesevorgang auf diesem Slot wird abgebrochen. Ein Browser-Refresh startet **keine** erneute Hardware-Erkennung: Der Browser fragt lediglich den im Backend gespeicherten Zustand ab. Aufwendige ROM-Probes werden zentral über die gemeinsame CLI serialisiert.
 
-Wenn das Modul nicht automatisch erkannt wird, kannst Du die erweiterten Einstellungen öffnen. Dort erscheinen nur Ausleser und Optionen, die vom installierten Backend tatsächlich unterstützt werden. Die manuelle Auswahl erkennt keine Adapter-ID und ist keine Aufforderung zu einem elektrischen Experiment. Noch nicht unterstützte Cartridge-Systeme können nicht durch bloßes Umschalten in der Weboberfläche aktiviert werden.
+Modul während des Lesens nicht entfernen und keine nicht unterstützten Mapper oder Spannungen erzwingen.
 
-Die Ausleselogik wird künftig zentral über `retrode3-cli` mit den jeweiligen OSCR-Cores und Adaptern verbunden. Funktionen und unterstützte Systeme ändern sich daher im Verlauf der Entwicklung.
+## 3. Unterstützte Systeme
 
-## 4. Dateien verwalten
+Die folgenden **Stage-1-Cores** wurden auf der Entwicklungs-Retrode3 über die gemeinsame CLI physisch getestet:
 
-Unter **Dateimanager** kannst Du ausgelesene ROMs ansehen, herunterladen, umbenennen, verschieben und löschen. Die neue Webablage befindet sich auf dem Gerät unter `/usr/local/games/ROMs/`, beispielsweise `ROMs/SNES/`.
+| System | Core-ID | Unterstützter Umfang |
+| --- | --- | --- |
+| Super Nintendo | `snes` | Standard-LoROM/HiROM; keine Spezialchips oder SRAM-Operationen |
+| Mega Drive | `md` | Standard-Linear-ROMs; keine Spezialmapper oder Save-Schreibzugriffe |
+| NES / Famicom | `nes` | NROM, Mapper 0; keine weiteren Mapper oder Save-Schreibzugriffe |
 
-Die Samba-Freigabe **retrode** gibt `/usr/local/games` frei. **Achtung:** Das derzeitige USB-Mass-Storage-Image ist davon noch getrennt. Dateien auf der Web-/Samba-Ablage erscheinen deshalb noch nicht automatisch im USB-Mass-Storage-Laufwerk. Niemals ein und dasselbe Dateisystem gleichzeitig auf Gerät und Host schreibend verwenden.
+Die Verfügbarkeit in Deiner Installation hängt davon ab, welche Cores installiert, aktiviert und als `ready` gemeldet werden. Eine neue Software-Core-Datei ist nicht automatisch ein geeigneter Hardwareadapter.
 
-## 5. WLAN einrichten
+Der Bereich zum **Beschreiben von Modulen** ist nur vorbereitet. SRAM-Restore, Flashen und andere Cartridge-Schreiboperationen stehen in dieser Web-v2-Version nicht zur Verfügung. Die NES-Ausgabe umfasst den von der Core-Datenbank erzeugten 16-Byte-iNES-Header.
 
-Öffne **Allgemeine Einstellungen**. Dort findest Du WLAN-Status, den erkannten Interfacenamen, die IP-Adresse sowie Netzwerk-Suche und Verbindung.
+## 4. Erweiterte Einstellungen und Plugins
 
-- **Netzwerke suchen:** Zeigt verfügbare WLANs an, wenn der WLAN-Helper und das Gerät den Scan unterstützen.
-- **Verbinden:** SSID auswählen beziehungsweise eintragen und gegebenenfalls das WLAN-Passwort angeben.
-- **Trennen:** Beendet die vorhandene WLAN-Verbindung. Das kann die Netzwerkverbindung zum Browser unterbrechen.
+Unter **Erweiterte Einstellungen** lassen sich installierte, geeignete Reader manuell auswählen. Mapper- und Größen-Overrides erscheinen nur, wenn der jeweilige Core sie tatsächlich anbietet; die aktuellen Stage-1-Cores erlauben keine beliebigen Overrides.
 
-Wenn die Seite **Kein WLAN-Adapter** meldet, prüfe auf dem Gerät zunächst `iw dev` und `ls /sys/class/net`. Die alte WLAN-Verwaltung benutzte ausschließlich `iwconfig` und kann ein vorhandenes Interface übersehen. Die neue Statusanzeige prüft zusätzlich `iw dev` und die Kernel-Schnittstellen. Wenn das Gerät erkannt wird, die Verbindung aber scheitert, prüfe die ausführliche Fehlermeldung und den installierten `retrode3-wlan`-Helper.
+Unter **Plugins** werden installierte Cores, Aktivierung, ABI-Status und unterstützte Aktionen angezeigt. Die reine Anzeige ist möglich; die Web-Schalter zum Aktivieren/Deaktivieren sind standardmäßig gesperrt und erfordern eine eigens abgesicherte Administrationsfreigabe.
 
-Für Fehlersuche per SSH:
+## 5. Dateien und Netzwerk
+
+ROMs liegen unter `/usr/local/games/ROMs/`, etwa `ROMs/MD/`, `ROMs/SNES/` oder `ROMs/NES/`. Der Dateimanager kann Dateien herunterladen, verschieben, umbenennen und löschen. Die Samba-Freigabe `retrode` stellt `/usr/local/games` zur Verfügung.
+
+**Achtung:** Das USB-Massenspeicher-Image ist aktuell ein eigenständiger Datenträger. Web-/Samba-Dateien werden nicht automatisch dorthin gespiegelt. Dasselbe Dateisystem nie gleichzeitig auf Host und Retrode3 beschreibbar einhängen.
+
+In **Allgemeine Einstellungen** findest Du WLAN-Status und Verbindungsmöglichkeiten. Die WLAN-Funktionen setzen ein erkanntes Gerät sowie den installierten `retrode3-wlan`-Helper voraus; ein nicht verfügbarer ESP/WLAN-Treiber lässt sich nicht durch die Oberfläche ersetzen.
+
+## 6. Fehlerbehebung
+
+Zur Diagnose auf der Retrode3 (SSH oder serielle Konsole):
 
 ```sh
-iw dev
-ls /sys/class/net
-/usr/local/bin/retrode3-wlan status
+service retrode3-core-runtime status
 service retrode3-web-v2 status
+/usr/bin/retrode3-cli --list-cores --protocol ndjson-v1
+wget -qO- http://127.0.0.1:8765/api/slots
 tail -n 50 /var/log/retrode3-web-v2.log
+iw dev
 ```
 
-## 6. Unterstützte Funktionen und Einschränkungen
+Ein als `occupied` gemeldeter Slot garantiert **keine** erfolgreiche ROM-Erkennung. Fehlende oder inkompatible Cores werden nicht durch alte Reader-Programme ersetzt. Für reproduzierbare CLI-Probes und ROM-Dumps siehe die Entwickleranleitung.
 
-- **SNES:** Standard-LoROM/HiROM: Der aktuelle Web-Prototyp wurde bereits auf echter Hardware mit Fortschrittsanzeige erfolgreich getestet.
-- **MegaDrive:** Ein nativer Standard-Linear-ROM-Leser wurde separat hardwaregetestet. Der Übergang zum gemeinsamen `retrode3-cli`-Protokoll läuft noch. Deshalb sind GUI-Unterstützung und automatisches Erkennen noch nicht vollständig.
-- **NES und Adapter:** Je nach Core und Hardwarestand noch nicht über die neue Oberfläche verfügbar.
-- **Schreiben:** Das Tab zum Beschreiben von Modulen ist nur vorbereitet. Cartridge-/SRAM-/Flash-Schreibzugriffe sind derzeit nicht über diesen Web-Prototyp freigeschaltet.
-- **Spielerkennung:** Nicht jedes Spiel oder Spezialmodul lässt sich automatisch identifizieren. Ein angezeigter ROM-Header ist noch keine Datenbank-Verifizierung.
+## 7. Für Entwickler: neue gemeinsame CLI
 
-## 7. Quellcode, Updates und weitere Informationen
+Alle Cartridge-Operationen verwenden **`/usr/bin/retrode3-cli`** und die aktivierten dynamischen Cores. Beispiele für eine **freie Hardware-Bus-Sperre** und ein bekanntes, unterstütztes Spiel:
 
-- [Retrode3-System und Weboberfläche](https://github.com/DragonBox-Shop/retrode3)
-- [Ausleselogik und OSCR-Integration](https://github.com/DragonBox-Shop/retrode3-oscr)
-- [Kernel-Treiber](https://github.com/DragonBox-Shop/retrode3-kernel)
+```sh
+# Cores und ihre tatsächlichen Aktionen anzeigen
+/usr/bin/retrode3-cli --list-cores --protocol ndjson-v1
+
+# Nur lesender Probe, beispielsweise für Mega Drive
+/usr/bin/retrode3-cli --protocol ndjson-v1 --core md --action probe
+
+# Komplettes ROM in eine NEUE Datei schreiben
+/usr/bin/retrode3-cli --protocol ndjson-v1 --core md \
+  --action read-rom --output /tmp/retrode3-test.md
+```
+
+Diese Befehle nicht parallel zu einem Web-ROM-Dump ausführen. Die CLI verwendet `/run/lock/retrode3/bus.lock`; der Webserver startet für Hardwarejobs dieselbe CLI. Der Ausgabepfad muss absolut sein, und eine vorhandene Datei darf nicht überschrieben werden. Bei direkter CLI-Nutzung bist Du selbst für einen sicheren Zielordner verantwortlich.
+
+Die [ausführliche Entwickleranleitung](developer-guide.de.md) beschreibt den interaktiven NDJSON-v1-Modus (`ready`, `probe_result`, `progress`, `result`, `error`), Core-Verzeichnisstruktur, `retrode3-corectl`, SysV-Init, die Web-API und das Hinzufügen weiterer Cores. Es gibt **keine separaten SNES-, MegaDrive- oder NES-Reader-Programme mehr im regulären Laufzeitpfad**.
+
+## 8. Quellcode und Dokumentation
+
+- [Retrode3 OS, Web v2 und Debian-Paketierung](https://github.com/DragonBox-Shop/retrode3)
+- [Gemeinsame CLI und OSCR-Cores](https://github.com/DragonBox-Shop/retrode3-oscr)
+- [Kernel und Slot-Treiber](https://github.com/DragonBox-Shop/retrode3-kernel)
 - [Hardware und Adapter](https://github.com/DragonBox-Shop/retrode3-hardware)
+- [Technischer Web-v2-/CLI-Vertrag](cli-integration.md)
 
-Die vollständige Benutzeranleitung soll später im öffentlichen Retrode3-Wiki gepflegt werden. Der Online-Link in der Weboberfläche verweist bis dahin auf dieses Markdown-Dokument.
+Der neue Web-v2-Quellstand liegt auf `master`. Debian-Paketkandidaten werden getrennt auf `develop` getestet; ein freigegebener Quellstand ist noch kein vollständig geprüftes Kunden-SD-Image.
