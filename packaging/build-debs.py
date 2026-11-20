@@ -9,6 +9,7 @@ import argparse
 import hashlib
 import json
 import os
+import re
 import shutil
 import stat
 import subprocess
@@ -267,6 +268,19 @@ def build_one(work, package, layout, lock, stage, epoch):
     return filename, destination
 
 
+def symbol_version_report(stage):
+    """Record linked ABI versions, without asserting target libc compatibility."""
+    report = {}
+    for rel in MODES:
+        if not (rel.endswith(".so") or rel.endswith("retrode3-cli") or
+                rel.endswith("retrode3-corectl")):
+            continue
+        output = cmd(["readelf", "-W", "--version-info", str(stage / rel)])
+        report[rel] = sorted(set(re.findall(
+            r"(?:GLIBC|GLIBCXX|CXXABI)_[0-9]+(?:\.[0-9]+)*", output)))
+    return report
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--oscr-source", required=True,
@@ -308,7 +322,9 @@ def main():
                     "native_version": lock["native_version"],
                     "web_version": lock["web_version"],
                     "source_date_epoch": epoch, "packages": records,
-                    "hardware_accepted": False, "apt_published": False}
+                    "hardware_accepted": False, "apt_published": False,
+                    "target_sysroot_verified": False,
+                    "required_symbol_versions": symbol_version_report(stage)}
         (out / "build-manifest.json").write_text(
             json.dumps(manifest, indent=2, sort_keys=True) + "\n",
             encoding="utf-8")
