@@ -1085,8 +1085,9 @@ class Handler(BaseHTTPRequestHandler):
                 self._json(200, capability_probe())
             elif path == "/api/cores":
                 self._json(200, core_registry())
-            elif path == "/api/reader-options":
-                self._json(200, native_reader_options(self._query(url, "system")))
+            elif path.startswith("/api/reader-options/") and re.match(
+                    r"^/api/reader-options/[a-z][a-z0-9_-]{0,31}$", path):
+                self._json(200, native_reader_options(path.rsplit("/", 1)[-1]))
             elif path == "/api/slots":
                 self._json(200, AUTO.snapshot())
             elif path == "/api/settings":
