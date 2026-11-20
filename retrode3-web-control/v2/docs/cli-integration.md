@@ -1,5 +1,36 @@
 # Web v2 contract: retrode3-cli is the sole NDJSON publisher
 
+## MMC1 integration into the normal CLI and Web v2 (develop, 2026-11-20)
+
+The ordinary `retrode3-oscr/develop` `native-nes-module`
+now includes MMC1 PRG-ROM and CHR-ROM bank reads without a special
+laboratory build or runtime opt-in. The central CLI publishes
+`probe_result` with `identification_status`, `candidates`,
+`read_layouts`, `selection_required` and normal ROM metadata.
+The 1024-byte automatic probe remains read-only. Before reading,
+the user may choose `candidate_id` or `layout_id`, or provide
+the full manual `mapper`, `submapper`, `prg_kib`, `chr_kib`,
+`mirroring` and `battery` fields.
+
+The Web backend preserves all these fields in its automatic
+slot detection cache and forwards validated selections through the
+same `POST /api/jobs` command to the shared CLI. The browser
+reads actual supported mapper ranges from
+`GET /api/reader-options/nes` (the PHP gateway permits this
+fixed path). Unambiguous layouts work without selection; if
+multiple layouts are possible, the user chooses before reading.
+For unknown ROMs the manual override is available in the normal
+read panel. Cartridge replacement clears the previous selector
+and filename where appropriate. No background MMC1 writes, new
+reader process, separate Web protocol or bypass of the bus lock.
+
+Standard MMC1 ROM reads currently reject battery-backed
+layouts until the kernel's M2/ROMSEL pulses are verified SRAM-safe.
+Actual physical 32/32-KiB and 128/32-KiB PRG/CHR acceptance
+remains outstanding. `master` and customer Debian releases have
+not been updated.
+
+
 Decision: 2026-11-18. The central **retrode3-cli**, not individual
 cartridge-system plugins, will provide the browser-facing NDJSON stream,
 progress events and job control. The Web UI must not impose a requirement
