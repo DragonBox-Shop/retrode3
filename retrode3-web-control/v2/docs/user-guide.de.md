@@ -4,7 +4,7 @@
 
 ## 1. Anschließen und starten
 
-Verbinde die Retrode3 per USB mit Deinem Computer. Über die eingerichtete USB-Netzwerkverbindung ist die Weboberfläche auf dem Entwicklungsgerät unter `http://192.168.0.202/` erreichbar. Die IP-Adresse kann sich bei späteren Softwareversionen ändern.
+Verbinde die Retrode3 per USB mit Deinem Computer. Über die eingerichtete USB-Netzwerkverbindung ist die Weboberfläche auf dem Entwicklungsgerät unter `http://172.31.255.1/` erreichbar. Die IP-Adresse kann sich bei späteren Softwareversionen ändern.
 
 Die Weboberfläche ist standardmäßig **ohne Passwort** nutzbar. Optional kann der Gerätebesitzer über die Kommandozeile ein Passwort aktivieren. Die Retrode3 sollte nicht ohne zusätzliche Absicherung aus dem öffentlichen Internet erreichbar sein.
 
