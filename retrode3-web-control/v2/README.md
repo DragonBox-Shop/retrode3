@@ -85,6 +85,14 @@ First checkout:
       https://github.com/DragonBox-Shop/retrode3.git /root/retrode3-web-src
     sh /root/retrode3-web-src/retrode3-web-control/v2/install-on-retrode.sh
 
+On a Debian-8/Apache 2.4 development device, the installer also
+enables the low-memory `retrode3-prefork` configuration from
+`packaging/assets/retrode3-prefork.conf` (maximum four prefork workers).
+It does not replace the Debian-owned `mpm_prefork.conf` and preserves
+an existing manually edited override file. Apache is syntax-checked
+and reloaded when possible. These limits are also packaged into the
+new Web Debian development candidate.
+
 The installer preflights Python 3.4+, PHP, Python/PHP syntax and the webroot.
 It configures a no-login-by-default development UI, a localhost
 backend service and an on-device updater, but requires the preinstalled
