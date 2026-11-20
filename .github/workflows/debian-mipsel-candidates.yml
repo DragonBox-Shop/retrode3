@@ -14,12 +14,16 @@ permissions:
 jobs:
   cross-build-offline-debs:
     runs-on: ubuntu-latest
+    container:
+      image: debian:bookworm
     steps:
-      - uses: actions/checkout@v4
-      - name: Install Debian MIPS little-endian cross toolchain
+      - name: Install pinned Debian cross-build dependencies
         run: |
-          sudo apt-get update
-          sudo apt-get install -y gcc-mipsel-linux-gnu g++-mipsel-linux-gnu binutils-mipsel-linux-gnu
+          apt-get update
+          DEBIAN_FRONTEND=noninteractive apt-get install -y \
+            git ca-certificates make python3 gcc g++ dpkg-dev file binutils \
+            gcc-mipsel-linux-gnu g++-mipsel-linux-gnu binutils-mipsel-linux-gnu
+      - uses: actions/checkout@v4
       - name: Checkout exact source and Sanni revision
         run: |
           set -eu
