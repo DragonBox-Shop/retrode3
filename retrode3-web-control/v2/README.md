@@ -73,7 +73,7 @@ checkout, but that method does not install the Git-updater command. If the
 checkout directory already exists from a previous attempt, inspect its state
 first rather than recloning into it.
 
-Access the new site at http://192.168.0.202/ on the trusted USB/device network.
+Access the new site at http://172.31.255.1/ on the trusted USB/device network.
 The interface requires **no password by default**; enable optional authentication
 with `retrode3-web-v2-auth enable` or remove it using `retrode3-web-v2-auth disable`.
 Even with optional Basic auth, HTTP does not encrypt credentials; **do not expose
