@@ -1,5 +1,15 @@
 # Retrode3: Benutzeranleitung (Web Control v2)
 
+> **Neu auf `develop`:** NES Mapper 1 (MMC1) ist Teil
+> des normalen NES-Cores. Beim Einlegen versucht die automatische
+> Erkennung das Spiel über Sannis Datenbank zu identifizieren. Bei
+> mehreren möglichen Spielen/Layouts erscheint eine Auswahl im
+> regulären Auslesedialog. Unbekannte ROMs können dort mit Mapper,
+> PRG-/CHR-Größe und Mirroring manuell konfiguriert werden.
+> Batteriegestützte MMC1-Module bleiben bis zur Freigabe der
+> SRAM-sicheren Kernel-Timings gesperrt. Das ist noch nicht auf
+> `master` bzw. per Geräteupdate ausgeliefert.
+
 Diese Anleitung beschreibt die Weboberfläche aus dem Retrode3-OS-Repository auf `master` (Stand November 2026). Die separate [Entwickleranleitung](developer-guide.de.md) dokumentiert die gemeinsame Kommandozeile `retrode3-cli` und ihre Schnittstellen.
 
 ## 1. Anschließen
@@ -30,7 +40,7 @@ Die folgenden **Stage-1-Cores** wurden auf der Entwicklungs-Retrode3 über die g
 | --- | --- | --- |
 | Super Nintendo | `snes` | Standard-LoROM/HiROM; keine Spezialchips oder SRAM-Operationen |
 | Mega Drive | `md` | Standard-Linear-ROMs; keine Spezialmapper oder Save-Schreibzugriffe |
-| NES / Famicom | `nes` | NROM, Mapper 0; keine weiteren Mapper oder Save-Schreibzugriffe |
+| NES / Famicom | `nes` | NROM (Mapper 0) und MMC1 (Mapper 1, ohne Batterie); keine Save-/Flash-Schreibzugriffe auf develop |
 
 Die Verfügbarkeit in Deiner Installation hängt davon ab, welche Cores installiert, aktiviert und als `ready` gemeldet werden. Eine neue Software-Core-Datei ist nicht automatisch ein geeigneter Hardwareadapter.
 
