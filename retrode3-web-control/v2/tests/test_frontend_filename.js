@@ -16,12 +16,15 @@ const readers = {
   nes: {id: "nes", slot: "nes"},
   snes: {id: "snes", slot: "snes"}
 };
-const elements = {filename: {value: ""}, system: {value: ""}};
+const elements = {filename: {value: ""}, system: {value: ""},
+  "nes-choice": {value: ""}, "nes-manual-toggle": {checked: false}};
 const ctx = {
   selectedReader: "",
   readerById: function (id) { return readers[id] || null; },
   $: function (id) { return elements[id]; },
   configureReaderOptions: function () {},
+  loadNesReaderOptions: function () {},
+  nesProbeKey: "",
   renderReaderState: function () {},
   renderSlots: function () {},
   renderSelectedProbe: function () {},
