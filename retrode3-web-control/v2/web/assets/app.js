@@ -192,7 +192,7 @@
       select.value = "";
     }
     $("nes-choice-control").hidden = !probe || !Array.isArray(probe.read_layouts) ||
-      !(candidates.length > 1 || layouts.length > 1);
+      !(layouts.length > 1);
     var hint = "";
     if (!probe || !Array.isArray(probe.read_layouts))
       hint = t("nes_probe_needed");
