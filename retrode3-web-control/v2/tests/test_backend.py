@@ -223,11 +223,17 @@ class BackendTests(unittest.TestCase):
             stream.write("for line in sys.stdin:\n")
             stream.write("  cmd=json.loads(line)\n")
             stream.write("  assert cmd['core'] in ('snes','md','nes')\n")
-            stream.write("  assert cmd['command'] in ('probe','read_rom')\n")
+            stream.write("  assert cmd['command'] in ('probe','read_rom','get_capabilities')\n")
             stream.write("  rid=cmd['request_id']\n")
             stream.write("  event={'protocol':'retrode3-ndjson','version':1,"
                          "'request_id':rid,'system':cmd['core']}\n")
-            stream.write("  if cmd['command']=='probe':\n")
+            stream.write("  if cmd['command']=='get_capabilities':\n")
+            stream.write("    event.update({'event':'capabilities','database_lookup':True,\n")
+            stream.write("                  'manual_layout':True,'supported_mappers':[\n")
+            stream.write("                    {'mapper':1,'submapper':0,'read_supported':True,\n")
+            stream.write("                     'prg_kib':[32,64,128],'chr_kib':[0,8,32]}]})\n")
+            stream.write("    print(json.dumps(event),flush=True)\n")
+            stream.write("  elif cmd['command']=='probe':\n")
             stream.write("    event.update({'event':'probe_result','title':'TEST CART',"
                          "'mapping':'hi','size_bytes':524288})\n")
             stream.write("    print(json.dumps(event),flush=True)\n")
@@ -252,6 +258,9 @@ class BackendTests(unittest.TestCase):
             self.assertEqual(by_id["md"]["transport"], "cli")
             self.assertFalse(by_id["md"]["capabilities"]["size_override"])
             self.assertEqual(by_id["md"]["capabilities"]["mappings"], [])
+            native = MODULE.native_reader_options("nes")
+            self.assertTrue(native["manual_layout"])
+            self.assertEqual(native["supported_mappers"][0]["mapper"], 1)
             manager = MODULE.JobManager()
             for system in ("snes", "nes"):
                 job_info = manager.submit({"system":system,"command":"probe"})
@@ -275,11 +284,51 @@ class BackendTests(unittest.TestCase):
             self.assertTrue(os.path.isfile(snap["output"]))
             with open(snap["output"], "rb") as fh:
                 self.assertEqual(fh.read(), b"rom data")
+            deadline = time.time() + 5
+            while manager.active is not None and time.time() < deadline:
+                time.sleep(.02)
+            for suffix, options in (
+                    ("selected", {"candidate_id": "mmc1-0007"}),
+                    ("manual", {"mapper": 1, "submapper": 0, "prg_kib": 128,
+                                "chr_kib": 32, "mirroring": "horizontal",
+                                "battery": 0})):
+                command = {"system": "nes", "command": "read_rom",
+                           "filename": "nes-" + suffix}
+                command.update(options)
+                self.assertEqual(MODULE.validate_nes_options(
+                    command, "nes", "read_rom"), options)
+                info = manager.submit(command)
+                job = manager.get(info["id"])
+                deadline = time.time() + 5
+                while job.snapshot()["status"] not in ("done", "failed", "cancelled") and time.time() < deadline:
+                    time.sleep(.02)
+                self.assertEqual(job.snapshot()["status"], "done", job.snapshot())
+                deadline = time.time() + 5
+                while manager.active is not None and time.time() < deadline:
+                    time.sleep(.02)
             with self.assertRaises(MODULE.ApiError):
                 manager.submit({"system":"md","command":"read_rom","size_bytes":131072})
         finally:
             MODULE.CLI_BIN = old_cli
 
+
+    def test_nes_v2_layout_options_are_rejected_on_wrong_core_or_probe(self):
+        valid = {"candidate_id": "mmc1-0007"}
+        invalid = (
+            (valid, "snes", "read_rom"),
+            (valid, "nes", "probe"),
+            ({"candidate_id": "../evil"}, "nes", "read_rom"),
+            ({"mapper": 1, "prg_kib": 128}, "nes", "read_rom"),
+            ({"mapper": 1, "submapper": 0, "prg_kib": 128,
+              "chr_kib": 32, "mirroring": "horizontal", "battery": True},
+             "nes", "read_rom"),
+            ({"mapper": 100, "submapper": 0, "prg_kib": 128,
+              "chr_kib": 32, "mirroring": "horizontal", "battery": 0},
+             "nes", "read_rom"),
+        )
+        for options, system, action in invalid:
+            with self.assertRaises(MODULE.ApiError):
+                MODULE.validate_nes_options(options, system, action)
 
     def test_dynamic_cli_reader_is_not_limited_to_known_console_ids(self):
         custom = {"id": "supergb-adapter", "name": "Super Game Boy",
@@ -361,7 +410,15 @@ class BackendTests(unittest.TestCase):
                 self.cancel_calls = 0
             def snapshot(self):
                 return {"status": self.status, "result": {
-                    "event": "probe_result", "system": "nes", "title": "Excitebike"}}
+                    "event": "probe_result", "system": "nes", "title": "Dr. Mario",
+                    "mapping": "mmc1", "identification_status": "unique",
+                    "selection_required": False,
+                    "candidates": [{"id":"mmc1-0007","title":"Dr. Mario",
+                                    "layout_id":"m1s5-32-32","mapper":1,
+                                    "submapper":5,"prg_kib":32,"chr_kib":32,
+                                    "read_supported":True}],
+                    "read_layouts":[{"id":"m1s5-32-32","mapper":1,"submapper":5,
+                                     "prg_kib":32,"chr_kib":32,"read_supported":True}]}}
             def cancel(self):
                 self.cancel_calls += 1
                 self.status = "cancelled"
@@ -401,7 +458,10 @@ class BackendTests(unittest.TestCase):
             manager.job.status = "done"
             watcher.tick(now=10.6)
             self.assertEqual(watcher.snapshot()["slots"][0]["detection"]["result"]["title"],
-                             "Excitebike")
+                             "Dr. Mario")
+            detection = watcher.snapshot()["slots"][0]["detection"]["result"]
+            self.assertEqual(detection["candidates"][0]["mapper"], 1)
+            self.assertEqual(detection["read_layouts"][0]["id"], "m1s5-32-32")
             watcher._event_changed(active_event)
             watcher.tick(now=11.0)
             self.assertEqual(len(manager.calls), 1)
