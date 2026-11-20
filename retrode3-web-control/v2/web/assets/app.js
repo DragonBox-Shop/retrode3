@@ -502,6 +502,12 @@
     $("job-fill").style.width = percent + "%";
     text($("job-detail"), progress.bytes_total ?
       humanSize(progress.bytes_done) + " / " + humanSize(progress.bytes_total) : "");
+    var result = job.command === "read_rom" && job.status === "done" && job.result || null;
+    text($("job-result-details"), result && result.title ?
+      result.title + (result.layout_id ? " · " + result.layout_id : "") +
+      (result.crc32 ? " · CRC32 " + result.crc32 : "") +
+      (typeof result.verified === "boolean" ?
+        " · " + t(result.verified ? "nes_verified" : "nes_unverified") : "") : "");
     if (job.status === "done") {
       if (job.command === "probe") {
         var target = probeTarget;
