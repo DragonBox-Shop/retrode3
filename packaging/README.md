@@ -138,6 +138,35 @@ webroot to `/var/backups/retrode3-web-control/`. It never removes
 pre-existing backup files. A package upgrade may replace the
 development installer version of Web v2: keep and verify the backup.
 
+## Low-memory Apache prefork profile (Debian 8)
+
+The original development unit ran Debian 8 with Apache 2.4
+`mpm_prefork` and `mod_php5`. Its distribution defaults
+(`StartServers=5`, `MinSpareServers=5`, `MaxSpareServers=10`,
+`MaxRequestWorkers=150`) were not suited to approximately 50 MiB RAM.
+
+The Web package now includes the **dpkg conffile**
+`/etc/apache2/conf-available/retrode3-prefork.conf` with
+`StartServers=2`, `MinSpareServers=1`, `MaxSpareServers=2`,
+`MaxRequestWorkers=4` and `MaxConnectionsPerChild=100`.
+`web.postinst` enables the snippet via `a2enconf`, validates the
+Apache configuration and reloads a running Apache when possible.
+`web.prerm` disables the snippet on package removal (not upgrade).
+
+The direct Git-based development installer uses this **same source file**,
+installs it only when absent, and does not overwrite a manually edited
+existing override. Neither installer modifies Debian's
+`/etc/apache2/mods-available/mpm_prefork.conf`, so Apache package
+upgrades can safely retain distribution settings. The directives are
+wrapped in `<IfModule mpm_prefork_module>` and do not change other
+Apache MPMs. They affect the Apache process count but **do not fix or
+diagnose the intermittent USB-network outage**; this is a separate issue.
+
+The profile belongs to the existing Web package/build and development
+installer. There is not yet a verified flashable Retrode3 image:
+test package installation, `apache2ctl configtest`, RAM usage and
+the full Web stack on the actual device before promoting to `master`.
+
 ## Physical acceptance and rollback (not yet performed)
 
 **Preparation:** save `dpkg -l`, `dpkg -S` for any shared file,

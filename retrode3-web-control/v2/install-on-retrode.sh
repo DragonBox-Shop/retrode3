@@ -212,6 +212,46 @@ if command -v update-rc.d >/dev/null 2>&1; then
     update-rc.d retrode3-web-v2 defaults >/dev/null || true
 fi
 
+# Keep the stock Apache MPM config package-owned. Install a separate
+# site-specific override only once; preserve future local admin edits.
+APACHE_SOURCE="$BASE/../../packaging/assets/retrode3-prefork.conf"
+APACHE_CONF=/etc/apache2/conf-available/retrode3-prefork.conf
+if [ -f "$APACHE_SOURCE" ] && [ -d /etc/apache2/conf-available ] &&
+   command -v a2enconf >/dev/null 2>&1 &&
+   command -v apache2ctl >/dev/null 2>&1; then
+    CREATED_APACHE_CONF=0
+    if [ -L "$APACHE_CONF" ]; then
+        info "WARNING: refusing to overwrite symlink $APACHE_CONF"
+    else
+        if [ ! -e "$APACHE_CONF" ]; then
+            install -o root -g root -m 0644 "$APACHE_SOURCE" "$APACHE_CONF"
+            CREATED_APACHE_CONF=1
+        else
+            info "Preserving existing Apache prefork override $APACHE_CONF"
+        fi
+        ENABLED_APACHE_CONF=0
+        [ -L /etc/apache2/conf-enabled/retrode3-prefork.conf ] &&
+            ENABLED_APACHE_CONF=1
+        a2enconf retrode3-prefork
+        if apache2ctl configtest; then
+            if [ -x /etc/init.d/apache2 ] &&
+               /etc/init.d/apache2 status >/dev/null 2>&1; then
+                service apache2 reload ||
+                    info "WARNING: Apache reload failed; check service apache2 status"
+            fi
+            info "Low-memory Apache prefork limits configured."
+        else
+            info "WARNING: Apache syntax check failed, reverting the new enablement."
+            if [ "$ENABLED_APACHE_CONF" -eq 0 ]; then
+                a2disconf retrode3-prefork || true
+            fi
+            if [ "$CREATED_APACHE_CONF" -eq 1 ]; then
+                rm -f "$APACHE_CONF"
+            fi
+        fi
+    fi
+fi
+
 info "SUCCESS: New frontend is installed at http://172.31.255.1/"
 info "Check service: service retrode3-web-v2 status"
 info "Read logs: tail -n 50 /var/log/retrode3-web-v2.log"

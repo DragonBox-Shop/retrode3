@@ -46,13 +46,16 @@ WEB_EXTRA = (
      "opt/retrode3-web-v2/start.sh", 0o755),
     ("packaging/assets/retrode3-web-v2.default",
      "etc/default/retrode3-web-v2", 0o644),
+    ("packaging/assets/retrode3-prefork.conf",
+     "etc/apache2/conf-available/retrode3-prefork.conf", 0o644),
     ("packaging/assets/retrode3-corectl.sudoers",
      "etc/sudoers.d/retrode3-corectl", 0o440),
 )
 CONFFILES = {
     "retrode3-core-runtime": ("/etc/init.d/retrode3-core-runtime",),
     WEB: ("/etc/init.d/retrode3-web-v2", "/etc/default/retrode3-web-v2",
-          "/etc/sudoers.d/retrode3-corectl")
+          "/etc/sudoers.d/retrode3-corectl",
+          "/etc/apache2/conf-available/retrode3-prefork.conf")
 }
 DESCRIPTIONS = {
     "retrode3-core-runtime":
