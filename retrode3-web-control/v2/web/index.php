@@ -49,6 +49,35 @@ header("Content-Security-Policy: default-src 'self'; img-src 'self'; style-src '
 <div id="size-control"><label for="rom-size" data-i18n="rom_size">ROM size override</label><select id="rom-size"><option value="" data-i18n="auto">Automatic</option></select></div>
 <p class="muted small" data-i18n="overrides_note">Overrides are optional. Use detected settings unless you know the cartridge's layout.</p>
 </div>
+<div id="nes-options" hidden>
+  <div id="nes-choice-control" hidden>
+    <label for="nes-choice" data-i18n="nes_choice">Detected NES game / mapper</label>
+    <select id="nes-choice"><option value="" data-i18n="auto">Automatic</option></select>
+  </div>
+  <p id="nes-choice-hint" class="muted small" role="status"></p>
+  <label for="nes-manual-toggle" class="nes-manual-label">
+    <input type="checkbox" id="nes-manual-toggle">
+    <span data-i18n="nes_manual">Choose NES mapper and ROM sizes manually</span>
+  </label>
+  <div id="nes-manual-control" hidden>
+    <label for="nes-mapper" data-i18n="nes_mapper">NES mapper / submapper</label>
+    <select id="nes-mapper"></select>
+    <label for="nes-prg" data-i18n="nes_prg">PRG-ROM size</label>
+    <select id="nes-prg"></select>
+    <label for="nes-chr" data-i18n="nes_chr">CHR-ROM size</label>
+    <select id="nes-chr"></select>
+    <label for="nes-mirroring" data-i18n="nes_mirroring">Mirroring (when unknown)</label>
+    <select id="nes-mirroring">
+      <option value="horizontal" data-i18n="nes_horizontal">Horizontal</option>
+      <option value="vertical" data-i18n="nes_vertical">Vertical</option>
+      <option value="four_screen" data-i18n="nes_four_screen">Four-screen</option>
+    </select>
+    <label for="nes-battery">
+      <input type="checkbox" id="nes-battery">
+      <span data-i18n="nes_battery">Battery-backed cartridge</span>
+    </label>
+  </div>
+</div>
 <button id="read" class="btn primary" data-i18n="start_read">Read ROM</button>
 <div id="job-panel" class="job-panel" hidden><div class="progress-line"><strong id="job-label"></strong><span id="job-percent"></span></div><div class="progress"><div id="job-fill"></div></div><p id="job-detail" class="muted small"></p><button id="cancel" class="btn danger" data-i18n="cancel">Cancel</button></div>
 </div></div>
