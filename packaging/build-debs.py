@@ -58,7 +58,7 @@ DESCRIPTIONS = {
         "Shared Retrode3 cartridge CLI and SysV bus-lock preparation",
     "retrode3-core-snes": "Read-only SNES cartridge module for Retrode3",
     "retrode3-core-md": "Read-only Mega Drive cartridge module for Retrode3",
-    "retrode3-core-nes": "Read-only NES NROM cartridge module for Retrode3",
+    "retrode3-core-nes": "NES NROM and MMC1 ROM reader module for Retrode3",
     WEB: "Retrode3 Web Control v2 with Python backend and SysV service"
 }
 

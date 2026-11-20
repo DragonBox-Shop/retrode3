@@ -6,12 +6,23 @@ a verified customer image. Work only on OS `develop`, never promote to
 `make-all -b`: it is deliberately retired because it rebuilt OSCR readers
 and previously supported automatic device installation.
 
+
+**Mapper-1 source update (2026-11-20):** The pinned
+`retrode3-oscr` commit now contains the normal NES `nes.so`
+with MMC1 ROM read support and Sanni 695-record fingerprint catalog.
+The Web-v2 package from this branch presents the automatic
+candidate/layout selection and optional manual mapper configuration.
+This is a new **development-only** source lock. MIPS cross-build,
+installation, hardware verification and APT distribution remain
+separate gates. Previous package candidates from the older pin
+do **not** contain MMC1 support.
+
 ## Source pin and reproducible MIPS stage
 
 `native-source-lock.json` fixes:
 
 - OSCR `DragonBox-Shop/retrode3-oscr` commit
-  `04e75c89698684b18a491943b7ff7fe78a85166d`
+  `ed6e6e780a3cc8e0a0077d556651118e8329cd71`
 - Sanni submodule `third_party/oscr-firmware` gitlink
   `e5a08326dfc8fff67193f7fc5a7bc36b5282b28c`
 - Discovery and operation ABI v1, and one development package revision.
@@ -24,7 +35,7 @@ device-compatible artifacts.
 ```sh
 git clone https://github.com/DragonBox-Shop/retrode3-oscr.git
 cd retrode3-oscr
-git checkout 04e75c89698684b18a491943b7ff7fe78a85166d
+git checkout ed6e6e780a3cc8e0a0077d556651118e8329cd71
 git submodule update --init third_party/oscr-firmware
 git rev-parse HEAD:third_party/oscr-firmware
 git -C third_party/oscr-firmware rev-parse HEAD
