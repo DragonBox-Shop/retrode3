@@ -1,5 +1,13 @@
 # Retrode3: User guide (Web Control v2)
 
+> **New on `develop`:** NES mapper 1 (MMC1) ROM reading
+> is integrated into the standard NES core. The automatic read-only
+> detector provides Sanni database game candidates; the regular Read
+> ROM panel offers layout selection where ambiguous and a manual
+> mapper/PRG/CHR override for unknown titles. Battery-backed
+> MMC1 cartridges remain unavailable pending SRAM-safe kernel
+> timings. These changes are not yet in the released `master` build.
+
 This guide describes the Web v2 interface from the Retrode3 OS `master` branch (November 2026). See the [developer guide](developer-guide.en.md) for the actual `retrode3-cli` commands and interfaces.
 
 ## 1. Connecting
@@ -30,7 +38,7 @@ These **stage-1 cores** were physically tested with the shared CLI on a developm
 | --- | --- | --- |
 | Super Nintendo | `snes` | Ordinary LoROM/HiROM; no special chips or SRAM operations |
 | Mega Drive / Genesis | `md` | Standard linear ROMs; no specialty mappers or save writes |
-| NES / Famicom | `nes` | NROM, mapper 0 only; no other mappers or save writes |
+| NES / Famicom | `nes` | NROM (mapper 0) and no-battery MMC1 (mapper 1) on develop; no save/flash writes |
 
 Actual availability depends on the installed, enabled and `ready` modules. A software core does not establish electrical compatibility with a physical adapter.
 
