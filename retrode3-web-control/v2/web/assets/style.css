@@ -23,14 +23,6 @@
 .slot-card .slot-game{font-weight:700;font-size:14px;color:var(--text);line-height:1.35;overflow-wrap:anywhere}
 .slot-card.selected .slot-game{color:var(--accent)}
 
-/* NES v2 read options are part of the ordinary read panel, not a lab view. */
-#nes-options{margin-top:14px;border-top:1px solid var(--line);padding-top:8px}
-#nes-options[hidden],#nes-choice-control[hidden],#nes-manual-control[hidden]{display:none}
-#nes-options input[type=checkbox]{width:auto;max-width:none;padding:0;margin:0 9px 0 0;vertical-align:middle;accent-color:var(--accent)}
-#nes-options label:has(input[type=checkbox]){font-weight:500;cursor:pointer}
-#nes-choice-hint:empty{display:none}
-#nes-manual-control{padding:0 0 12px 18px;border-left:2px solid var(--line)}
-
 /* Schema-driven v3 cartridge selection. Core labels/fields are never hardcoded. */
 .generic-selection{margin-top:16px;border-top:1px solid var(--line);padding-top:10px}
 .generic-selection p:empty{display:none}
