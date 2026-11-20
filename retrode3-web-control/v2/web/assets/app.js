@@ -56,7 +56,9 @@
   function setLocale(lang) {
     if (!/^(en|de)$/.test(lang)) lang = "en";
     locale = lang; $("locale").value = lang;
-    $("help-online-link").href = "https://github.com/DragonBox-Shop/retrode3/blob/feature/web-control-v2/retrode3-web-control/v2/docs/user-guide." + lang + ".md";
+    var docsRoot = "https://github.com/DragonBox-Shop/retrode3/blob/master/retrode3-web-control/v2/docs/";
+    $("help-online-link").href = docsRoot + "user-guide." + lang + ".md";
+    $("help-developer-link").href = docsRoot + "developer-guide." + lang + ".md";
     fetch("locales/" + lang + ".json", {cache: "no-store"})
       .then(function (r) { if (!r.ok) throw new Error("locale"); return r.json(); })
       .then(function (data) { messages = data; localize(); })

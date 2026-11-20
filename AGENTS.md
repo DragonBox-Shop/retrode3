@@ -1,12 +1,16 @@
 # Retrode3 OS and Web: instructions for contributors and assistant chats
 
-**Read [docs/WEB-V2-HANDOFF.md](docs/WEB-V2-HANDOFF.md) for the Web v2
-source contract, and [docs/DEBIAN-PACKAGING-TODO.md](docs/DEBIAN-PACKAGING-TODO.md)
-for the separate unfinished Debian package / update / image tasks.**
-If this branch does not yet contain that document, see the same path on
-the OS repo's `develop` branch. This file is deliberately copied into
-the currently active web feature branch so its development chat gets the
-correct native paths immediately, without relying on earlier messages.
+**Current Web v2 documentation:**
+- [German developer guide](retrode3-web-control/v2/docs/developer-guide.de.md)
+  or [English developer guide](retrode3-web-control/v2/docs/developer-guide.en.md)
+- [Web v2 / shared CLI implementation contract](retrode3-web-control/v2/docs/cli-integration.md)
+- [Debian packaging / image status](docs/DEBIAN-PACKAGING-TODO.md) and
+  [packaging candidate instructions](packaging/README.md) on `develop`.
+
+The older `docs/WEB-V2-HANDOFF.md` records the **historical migration**
+from Web v1 and the feature branch. Do not treat its former TODOs,
+feature-branch references or obsolete reader paths as active instructions.
+Always inspect the current branch and installed CLI before changing code.
 
 ## Repository responsibilities (preserve Nikolaus' original structure)
 
@@ -21,9 +25,10 @@ correct native paths immediately, without relying on earlier messages.
   The new Web v2 source is `retrode3-web-control/v2/`.
 - `retrode3-kernel` owns slot drivers and timing.
   `retrode3-hardware` owns boards, plugins and pinouts.
-- The new core-runtime and individual console Debian packages
-  and full SD-image builder are **not yet implemented/published**.
-  The production .deb package layout is specified at
+- Development **Debian package recipes and candidate builds** exist on
+  `develop` under `packaging/`, but native package installation,
+  rollback, APT publication and a complete customer SD-image are **not yet
+  hardware accepted or released**. The package layout is specified at
   `packaging/retrode3-core-layout.json`.
 
 ## Verified installed runtime contract (real Retrode3 2.9.5)
@@ -63,35 +68,25 @@ later experimental changes; do not assume those are automatically in
 the release. The older section below records its prior migration
 requirements, **not its current release status**.
 
-Native runtime and per-core `.deb` package recipes, the Web v2 Debian
-package, modernized `make-all`, APT publication, and customer
-SD-image verification remain **unfinished**. See
-[`docs/DEBIAN-PACKAGING-TODO.md`](docs/DEBIAN-PACKAGING-TODO.md)
-for an executable handoff. Source merged into master is not a
-published Debian package.
+The package implementation on `develop` now generates
+**development candidates** for the native runtime/cores and Web v2.
+Physical package acceptance, APT publication and the complete customer
+SD-image remain unfinished. See
+[`docs/DEBIAN-PACKAGING-TODO.md`](docs/DEBIAN-PACKAGING-TODO.md).
+Source merged into `master` is not a published Debian package.
 
-## Historical Web v2 integration instructions (superseded)
+## Current Web v2 development rules
 
-The existing web feature branch `feature/web-control-v2`
-has older defaults/fallbacks: its Python backend expects
-`/usr/local/bin/retrode3-cli`, and its installer tries to
-install an extra CLI / standalone readers. Correct those to use
-**only the already installed** `/usr/bin/retrode3-cli`
-and `/usr/sbin/retrode3-corectl`. Confirm via actual device tests
-on SNES/MD/NES, auto insert/remove/probe, reader permissions,
-error handling, background SysV service, cancellation, and no
-regression in local file/network management.
-
-`master` is stable, `develop` is the shared integration branch.
-Feature branches are temporary and are **not** separate permanent
-console/CLI branches. The Web branch is not yet in `develop`;
-reconcile its old base with the verified SysV/init improvements
-before promotion. Integrate into `develop`, then use a reviewed,
-hardware-accepted **squash PR** into `master`. Align `develop`
-back to master afterward without losing other work. No raw
-feature-branch merge into master without tests.
-
-New chats must read the current source/CI before changing anything;
-do not trust old branch-specific README status statements over
-this contract. Avoid unrelated refactors and never treat a green
-mock CI as a physical cartridge test.
+- Read `retrode3-web-control/v2/docs/developer-guide.de.md` and the
+  actual installed `/usr/bin/retrode3-cli` core registry before making
+  reader, UI or integration changes. No independent console reader commands.
+- Web v2 on `master` was verified with manual MegaDrive/NES flows and
+  mock regressions; real package upgrade/reboot verification is separate.
+- `master` is the stable Web-v2 source, `develop` is ongoing integration.
+  **Do not promote unfinished Debian package candidates to `master`**
+  merely as a side effect of a Web documentation change.
+- The Web UI should never issue hardware operations on browser refresh.
+  The Python backend serializes safe auto-probes and manual CLI reads.
+- Check code and CI, verify against real hardware where a change affects
+  cartridge IO, and keep users' ROMs, core enablement, USB services and
+  shared `bus.lock` intact.

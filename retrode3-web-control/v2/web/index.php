@@ -82,7 +82,8 @@ header("Content-Security-Policy: default-src 'self'; img-src 'self'; style-src '
 <div class="panel">
 <h2 data-i18n="help_web_title">Online documentation</h2>
 <p class="muted" data-i18n="help_web_desc">The complete guide covers connection methods, supported systems, troubleshooting and limitations. It can later be moved into the public Wiki without changing this page.</p>
-<a id="help-online-link" class="btn primary help-link" href="https://github.com/DragonBox-Shop/retrode3/blob/feature/web-control-v2/retrode3-web-control/v2/docs/user-guide.en.md" target="_blank" rel="noopener noreferrer" data-i18n="help_open_online">Open online guide</a>
+<a id="help-online-link" class="btn primary help-link" href="https://github.com/DragonBox-Shop/retrode3/blob/master/retrode3-web-control/v2/docs/user-guide.en.md" target="_blank" rel="noopener noreferrer" data-i18n="help_open_online">Open online guide</a>
+<a id="help-developer-link" class="btn secondary help-link" href="https://github.com/DragonBox-Shop/retrode3/blob/master/retrode3-web-control/v2/docs/developer-guide.en.md" target="_blank" rel="noopener noreferrer" data-i18n="help_open_developer">Developer guide (CLI)</a>
 <p class="muted small" data-i18n="help_note">Only documented read-only operations are currently supported. Do not remove cartridges during a read.</p>
 </div>
 </div>

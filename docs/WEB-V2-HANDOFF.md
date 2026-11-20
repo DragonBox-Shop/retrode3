@@ -1,4 +1,12 @@
-# Web v2 handoff: final native Retrode3 runtime paths
+# Historical Web v2 migration handoff (archived)
+
+**Archived handoff, not current development instructions.** Web v2 was
+squash-promoted to `master` on 2026-11-20. For current developer commands
+and supported operations, use
+[the Web v2 developer guide](../retrode3-web-control/v2/docs/developer-guide.de.md)
+and [the CLI integration contract](../retrode3-web-control/v2/docs/cli-integration.md).
+The remaining text below documents the earlier feature-branch migration.
+
 
 Date: 2026-11-19. Read this with the repository root `AGENTS.md`.
 This is a **handoff for the chat working on
