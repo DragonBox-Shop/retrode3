@@ -39,3 +39,10 @@ jobs:
           for file in retrode3-web-control/v2/*on-retrode.sh; do sh -n "$file"; done
           sh -n retrode3-web-control/v2/service/retrode3-web-v2.init
           sh -n retrode3-core-runtime/etc/init.d/retrode3-core-runtime
+          bash -n make-all retrode3.qcodeproj retrode3-web-control/retrode3-web-control.qcodeproj
+      - name: Legacy Web v1 must not be included in default OS build
+        run: |
+          ! grep -Fq 'retrode3-web-control/retrode3-web-control.qcodeproj' retrode3.qcodeproj
+          ! grep -Fq 'DEBIAN_DEPENDS+=", retrode3-web-control"' retrode3.qcodeproj
+          ! grep -Fq 'PACKAGES+=" retrode3-web-control"' make-all
+          grep -Fq 'exit 1' retrode3-web-control/retrode3-web-control.qcodeproj
