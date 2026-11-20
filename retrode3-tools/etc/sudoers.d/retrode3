@@ -1,1 +1,3 @@
-www-data ALL=NOPASSWD: /usr/local/bin/oscr, /usr/local/bin/retrode3-admin, /usr/local/bin/retrode3-dump, /usr/local/bin/retrode3-info, /usr/local/bin/retrode3-read, /usr/local/bin/retrode3-wlan
+# Legacy admin and WLAN commands only. No standalone readers or OSCR.
+# Core toggling has separate exact-argument rules in retrode3-web-control.
+www-data ALL=(root) NOPASSWD: /usr/local/bin/retrode3-admin, /usr/local/bin/retrode3-wlan

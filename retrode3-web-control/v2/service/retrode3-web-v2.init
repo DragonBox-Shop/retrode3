@@ -12,6 +12,11 @@ set -e
 NAME=retrode3-web-v2
 PIDFILE=/var/run/retrode3-web-v2.pid
 DAEMON=/opt/retrode3-web-v2/start.sh
+# User-controlled configuration; never source a file writable by www-data.
+if [ -r /etc/default/retrode3-web-v2 ]; then
+    . /etc/default/retrode3-web-v2
+fi
+export RETRODE3_CORE_CONTROL_ENABLED RETRODE3_CORECTL_SUDO
 case "$1" in
     start)
         if ! /etc/init.d/retrode3-core-runtime status >/dev/null 2>&1; then
@@ -36,6 +41,10 @@ case "$1" in
         if start-stop-daemon --status --pidfile "$PIDFILE" >/dev/null 2>&1; then
             echo "$NAME already running"
             exit 0
+        fi
+        if [ -L "$PIDFILE" ]; then
+            echo "Unsafe pidfile symlink" >&2
+            exit 1
         fi
         rm -f "$PIDFILE"
         start-stop-daemon --start --quiet --background --make-pidfile \

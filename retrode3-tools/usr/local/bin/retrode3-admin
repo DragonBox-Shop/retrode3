@@ -58,7 +58,7 @@ case "$1" in
 		service ntp start
 		;;
 	version )
-		oscr -v
+		dpkg-query -W -f=\'${Version}\\n\' retrode3-core-runtime
 		;;
 	* )
 		echo unknown command "$1"
