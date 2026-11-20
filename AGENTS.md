@@ -75,6 +75,34 @@ SD-image remain unfinished. See
 [`docs/DEBIAN-PACKAGING-TODO.md`](docs/DEBIAN-PACKAGING-TODO.md).
 Source merged into `master` is not a published Debian package.
 
+## New on develop: NES MMC1 integrated with Web v2 (2026-11-20)
+
+`retrode3-oscr/develop` now builds ordinary `nes.so` with MMC1
+Mapper 1 PRG-/CHR-ROM bank reads in the **production core build**,
+and `retrode3/develop` Web v2 displays the CLI's
+`probe_result.candidates`/`read_layouts` directly in the usual
+**Read ROM** panel. The browser sends `candidate_id`, `layout_id`
+or complete manual mapper/submapper/PRG/CHR/mirroring/battery fields to
+the existing `POST /api/jobs` route. The backend forwards these options
+unaltered to `/usr/bin/retrode3-cli`; no independent NES reader and
+no special laboratory `.so`. On insertion, automatic detection
+still performs only the harmless **1024-byte read-only fingerprint**;
+actual MMC1 register bank switching occurs only after user initiates a
+ROM read.
+
+The installed OS binaries/webroot do not change just because `develop`
+source was committed. Verify device-specific building and deployment
+separately. The pinned MMC1 DB has 695 title/CRC/geometry entries.
+Mapper 1 battery-backed layouts remain unavailable because safe
+M2/ROMSEL timing for PRG-WRAM has not been demonstrated; mappers
+2/3/4/7 remain experimental. These changes are **not on master**
+and newly integrated MMC1 physical cases are **not yet accepted**.
+
+Web test workflow runs on `develop`, including Python mocked
+jobs, browser JavaScript syntax and localization. Web's
+`GET /api/reader-options/nes` is a gateway-safe capability query;
+it only exposes options reported by the installed CLI.
+
 ## Current Web v2 development rules
 
 - Read `retrode3-web-control/v2/docs/developer-guide.de.md` and the
