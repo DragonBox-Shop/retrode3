@@ -1,5 +1,16 @@
 # Retrode3 Web v2: Entwickleranleitung
 
+> **Neuer Stand auf `develop` (20.11.2026):** Das gemeinsame
+> NES-`nes.so` unterstützt jetzt Mapper 1 MMC1 mit Sannis
+> 695 Datenbank-Metadatensätzen, automatischem 1024-Byte-Fingerprint
+> und PRG-/CHR-ROM-Banklesen. Keine separate Labor-`.so`.
+> Die normale Web-v2-Oberfläche zeigt bei Mehrdeutigkeit die
+> Kandidaten/Mapper-/ROM-Größen-Auswahl, bei unbekannten Modulen
+> einen manuellen Override. Batterie-Layouts bleiben bis zu
+> SRAM-sicherem Kernel-Timing gesperrt. Das ist Entwicklersource
+> auf `develop`, noch kein Update der installierten Geräte oder
+> Veröffentlichung nach `master`.
+
 **Stand: November 2026.** Dies ist die technische Dokumentation des **gemeinsamen CLI-Systems** und seiner Web-v2-Anbindung. Die [Benutzeranleitung](user-guide.de.md) beschreibt die Bedienung im Browser. Maßgeblich sind die tatsächlich installierten CLI-Versionen und die `--list-cores`-Ausgabe; Funktionen, die eine Core-Version nicht meldet, dürfen nicht vorausgesetzt werden.
 
 ## 1. Architektur und Zuständigkeiten
