@@ -27,6 +27,7 @@ jobs:
         run: |
           node --check retrode3-web-control/v2/web/assets/app.js
           node retrode3-web-control/v2/tests/test_frontend_filename.js
+          node retrode3-web-control/v2/tests/test_frontend_nes_selection.js
           node retrode3-web-control/v2/tests/test_documentation_links.js
       - name: Localized strings syntax
         run: |
