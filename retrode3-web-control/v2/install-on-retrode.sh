@@ -212,7 +212,7 @@ if command -v update-rc.d >/dev/null 2>&1; then
     update-rc.d retrode3-web-v2 defaults >/dev/null || true
 fi
 
-info "SUCCESS: New frontend is installed at http://192.168.0.202/"
+info "SUCCESS: New frontend is installed at http://172.31.255.1/"
 info "Check service: service retrode3-web-v2 status"
 info "Read logs: tail -n 50 /var/log/retrode3-web-v2.log"
 info "Rollback: /usr/local/sbin/retrode3-web-v2-rollback"
