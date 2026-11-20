@@ -235,6 +235,11 @@
           automatic.state === "pending" ? t("detecting_automatically") :
           automatic.state === "choose_reader" ? t("choose_reader") : t("unknown")));
         card.appendChild(game);
+        if (isKnown && automatic.result.voltage_status === "manual_required") {
+          var voltageNotice = document.createElement("small");
+          text(voltageNotice, t("voltage_manual_required"));
+          card.appendChild(voltageNotice);
+        }
       }
       card.addEventListener("click", function () {
         if (matching.length === 1) selectReader(matching[0].id);
@@ -280,6 +285,21 @@
           selectReader(selectedReader);
         else selectReader(matches.length ? matches[0].id : "");
       }
+      // Follow a new positive slot identification once. Do not repeatedly
+      // override a user's explicit manual reader choice on later refreshes.
+      data.slots.forEach(function (slot) {
+        var current = slot.detection || {};
+        var previous = previousSlots.filter(function (entry) { return entry.id === slot.id; })[0];
+        var prior = previous && previous.detection || {};
+        if (!activeJob && slot.status === "occupied" &&
+            current.state === "detected" && current.core_id &&
+            (prior.state !== "detected" || prior.core_id !== current.core_id) &&
+            readers().some(function (reader) {
+              return reader.id === current.core_id && reader.slot === slot.id;
+            })) {
+          selectReader(current.core_id);
+        }
+      });
       renderSlots();
       var chosen = selectedSlotId();
       if (chosen) {

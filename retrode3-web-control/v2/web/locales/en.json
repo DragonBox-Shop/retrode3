@@ -160,5 +160,6 @@
   "verification_mismatch": "ROM data differs from the selected database entry",
   "verification_not_found": "ROM read, but no unique database match",
   "verification_ambiguous": "ROM read, but identification remains ambiguous",
-  "verification_not_checked": "ROM read; database verification was not performed"
+  "verification_not_checked": "ROM read; database verification was not performed",
+  "voltage_manual_required": "Voltage must be checked/set manually before reading."
 }
