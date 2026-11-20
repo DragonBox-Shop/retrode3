@@ -22,6 +22,12 @@ Die Weboberfläche verwendet ausschließlich die gemeinsame
 Der Browser liest gespeicherte Erkennungsdaten des Backends und löst
 **beim Aktualisieren keine Cartridge-Probes** aus.
 
+**Aktuelle Dokumentation:** [Benutzeranleitung (DE)](retrode3-web-control/v2/docs/user-guide.de.md),
+[Benutzeranleitung (EN)](retrode3-web-control/v2/docs/user-guide.en.md),
+[Entwickleranleitung für das neue CLI (DE)](retrode3-web-control/v2/docs/developer-guide.de.md)
+und [Developer Guide (EN)](retrode3-web-control/v2/docs/developer-guide.en.md).
+Der Hilfe-Tab der Weboberfläche verweist auf diese Dokumente in `master`.
+
 **Web v1 ist außer Betrieb:** Die historische PHP-Oberfläche in
 `retrode3-web-control/var/www/html/` bleibt nur zur Nachvollziehbarkeit
 im Git erhalten. Ihr QuantumSTEP-Bauziel ist deaktiviert. Weder das
