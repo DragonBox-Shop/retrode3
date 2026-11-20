@@ -722,10 +722,11 @@ class AutomaticDetection(object):
             active.cancel()
 
     def _event_changed(self, payload):
-        """Invalidate cached identity on KOBJ_CHANGE even for rapid swaps.
+        """Wake auto detection only for an actual, confirmed sense transition.
 
-        The event only invalidates. The sysfs sense must be reread
-        before probing, so no event can choose a voltage or core.
+        Repeated KOBJ_CHANGE notifications for an unchanged occupied slot
+        must not discard a completed probe or cancel an ongoing one.
+        Sysfs sense is authoritative; stale uevents do not choose a core.
         """
         if len(payload) > 16384:
             return
@@ -740,9 +741,16 @@ class AutomaticDetection(object):
         slot_id = name[5:] if name.startswith("slot-") else ""
         if not CORE_ID.match(slot_id) or sense not in ("active", "empty"):
             return
+        expected = "occupied" if sense == "active" else "empty"
+        current = next((s for s in slot_snapshot()["slots"] if s["id"] == slot_id), None)
+        if current is None or current["status"] != expected:
+            return
         if sense == "empty":
             self._cancel_removed_slot(slot_id)
         with self.lock:
+            previous = self.records.get(slot_id)
+            if previous is not None and previous["presence"] == expected:
+                return
             previous = self.records.pop(slot_id, None)
             if previous and previous["state"] == "detecting":
                 try:
@@ -828,6 +836,12 @@ class AutomaticDetection(object):
                         record["state"] = "failed"
                         record["error"] = (job.get("error") or {}).get("code", "probe_failed")
                 elif record["state"] == "pending" and now >= record["ready_at"]:
+                    # Waiting must be passive. Do not spawn repeated CLI
+                    # inventory processes every 300 ms while another slot's
+                    # probe or a manual ROM dump owns the shared bus.
+                    with self.manager.lock:
+                        if self.manager.active is not None:
+                            continue
                     try:
                         matches = [reader for reader in capability_probe()["systems"]
                                    if reader and reader["slot"] == slot_id and reader["available"]
