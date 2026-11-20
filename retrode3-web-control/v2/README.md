@@ -1,6 +1,6 @@
 # Retrode3 Web Control v2: shared CLI integration
 
-Branch: `feature/web-control-v2`. Hardware end-to-end acceptance is pending.
+**Release source:** merged via `develop` to `master` after manual Web v2 MegaDrive/NES reader tests and passing mocked CI. Full production image / Debian runtime packaging remains a separate release gate.
 The OS-installed runtime contract is defined in repository `AGENTS.md`
 and `docs/WEB-V2-HANDOFF.md`.
 
@@ -21,8 +21,9 @@ and `docs/WEB-V2-HANDOFF.md`.
 - The Web backend provides slot insertion/removal monitoring, safe read-only
   auto-probe, job serialization, cancellable reads and restricted file/network
   operations. Physical presence is not cartridge identity.
-- All three stage-1 read-only cores are hardware-tested through the CLI,
-  but the **Web v2 integration is not yet hardware accepted**. Unsupported
+- All three stage-1 read-only cores are hardware-tested through the CLI.
+  The Web v2 MegaDrive/NES workflows, automatic detection and reader switching
+  were manually exercised on the development device. Unsupported
   mappers, special chips, SRAM/flash writes and unknown adapters remain blocked.
 
 ## Storage and limitations
@@ -37,7 +38,7 @@ and secure file-manager race review remain outstanding.
 
 ## Install and update directly from Git on the Retrode
 
-The user approved replacing the existing development device's web UI, with a backup.
+The tested Web v2 installation replaced the development device's legacy web UI, with a backup.
 The Retrode has direct Internet access, so there is no need to clone on another
 machine and transfer source via scp. Perform these commands **on the Retrode**
 over SSH, as root.
@@ -45,7 +46,7 @@ over SSH, as root.
 First checkout:
 
     git --version
-    git clone --depth 1 --single-branch --branch feature/web-control-v2 \
+    git clone --depth 1 --single-branch --branch master \
       https://github.com/DragonBox-Shop/retrode3.git /root/retrode3-web-src
     sh /root/retrode3-web-src/retrode3-web-control/v2/install-on-retrode.sh
 
@@ -60,7 +61,7 @@ Later updates, **one command on the Retrode**:
 
     retrode3-web-v2-update
 
-That command runs a fast-forward-only Git pull of feature/web-control-v2, then
+That command runs a fast-forward-only Git pull of the checkout's allowed branch (normally `master`), then
 installs the new frontend and backend, checks service health, and retains a
 rollback copy. It refuses a dirty working tree, an unexpected branch, or an
 active native cartridge read. The Git checkout is stored under /root rather
@@ -99,9 +100,9 @@ Rollback on the device:
     /usr/local/sbin/retrode3-web-v2-rollback
 
 Rollback restores the prior webroot and stops/disables the v2 service; it
-leaves the OS-installed shared CLI, cores and existing ROM files alone. New
-versions remain development builds until tested with Web v2 on real SNES,
-MegaDrive and NES hardware. USB mass storage
+leaves the OS-installed shared CLI, cores and existing ROM files alone. Released source is not the same as a finished customer image: the native CLI/core
+Debian packages, full image upgrade, and broader USB/Windows compatibility still
+require their own release validation. USB mass storage
 still uses an independent FAT image and is not synchronized automatically
 with Samba/Web.
 
@@ -133,8 +134,28 @@ The browser consumes `/api/slots`, `/api/capabilities`, `/api/cores`
 and the job endpoints. Shared CLI error messages are retained and displayed.
 No JavaScript cartridge hardware operations or per-core executables exist.
 
-For Web hardware acceptance, verify all three known-good cartridges,
+For final image acceptance, verify all three known-good cartridges,
 automatic insert/remove, reader permissions after reboot, cancellation,
 file management, Wi-Fi/network and USB gadget behavior. Mock tests are not
 a replacement for device tests. See `docs/cli-integration.md` and
 `docs/slot-discovery.md`.
+
+## Branch promotion and legacy Web v1 retirement
+
+- Web v2 is the maintained source for future Retrode3 OS releases.
+- The previous PHP UI at `retrode3-web-control/var/www/html` is retained only
+  as historical source; its QuantumSTEP package target is disabled and its
+  dependency was removed from the legacy `retrode3` meta-package and `make-all`.
+- This does **not** imply that the old QuantumSTEP image builder automatically
+  produces a new Web v2 Debian package. The CLI/core runtime and Web v2 Debian
+  package dependencies and a tested customer-image upgrade path must be built
+  before shipping a new image. Do not fall back to the old PHP frontend.
+- Existing development checkouts on `feature/web-control-v2` must be switched
+  explicitly to `master` to receive future stable updates:
+
+      git -C /root/retrode3-web-src fetch origin master
+      git -C /root/retrode3-web-src checkout -B master FETCH_HEAD
+      retrode3-web-v2-update
+
+  Do this only while no cartridge operation is active and no local source edits
+  need preservation. The updater never silently switches branches.
