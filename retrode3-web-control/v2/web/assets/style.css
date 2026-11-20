@@ -30,3 +30,13 @@
 #nes-options label:has(input[type=checkbox]){font-weight:500;cursor:pointer}
 #nes-choice-hint:empty{display:none}
 #nes-manual-control{padding:0 0 12px 18px;border-left:2px solid var(--line)}
+
+/* Schema-driven v3 cartridge selection. Core labels/fields are never hardcoded. */
+.generic-selection{margin-top:16px;border-top:1px solid var(--line);padding-top:10px}
+.generic-selection p:empty{display:none}
+.generic-override-label{display:flex;align-items:center;gap:9px;cursor:pointer;color:var(--text);font-size:14px}
+.generic-override-label input[type=checkbox]{width:auto;max-width:none;margin:0;accent-color:var(--accent)}
+#generic-override-fields{padding:2px 0 14px 15px;border-left:2px solid var(--line)}
+#generic-override-fields input[type=checkbox]{width:auto;max-width:none;accent-color:var(--accent)}
+#generic-override-fields .generic-field p{margin:5px 0 10px}
+#generic-override-hint:not(:empty){color:var(--danger)}
