@@ -48,6 +48,7 @@ const probe = {
 };
 const ctx = {
   selectedReader: "nes", nesProbeKey: "", nesReaderOptions: null,
+  readerOptions: null,
   detectedBySlot: {},
   selectedSlotId: function () { return "nes"; },
   autoDetection: function () {

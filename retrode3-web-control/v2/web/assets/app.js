@@ -7,6 +7,8 @@
   var detectedBySlot = {}, probeTarget = null, autoNames = {};
   var coreState = null, corePending = false;
   var nesReaderOptions = null, nesProbeKey = "";
+  var readerOptions = null, readerOptionsLoading = false, readerOptionsRequest = 0;
+  var genericWidget = null;
   var csrf = document.querySelector('meta[name="csrf-token"]').content;
   var $ = function (id) { return document.getElementById(id); };
   function t(key) { return messages[key] || key; }
@@ -121,27 +123,65 @@
     });
     renderReaderState();
   }
-  function loadNesReaderOptions() {
+  function loadNesReaderOptions(result) {
+    // Transitional NES v2 compatibility only; v3 is entirely schema-driven.
     if (nesReaderOptions || selectedReader !== "nes") return;
-    api("/api/reader-options/nes").then(function (result) {
-      if (selectedReader !== "nes") return;
-      if (!result || !result.manual_layout || !Array.isArray(result.supported_mappers)) {
-        text($("nes-choice-hint"), t("nes_no_manual_options"));
-        return;
-      }
-      nesReaderOptions = result;
-      var select = $("nes-mapper");
-      select.innerHTML = "";
-      result.supported_mappers.filter(function (m) { return m.read_supported === true; })
-        .forEach(function (m) {
-          option(select, m.mapper + ":" + m.submapper,
-                 "Mapper " + m.mapper + (m.submapper ? " / " + m.submapper : ""));
-        });
-      populateNesManualSizes();
-      renderNesOptions();
-    }).catch(function () {
+    if (!result || !result.manual_layout || !Array.isArray(result.supported_mappers)) {
       text($("nes-choice-hint"), t("nes_no_manual_options"));
+      return;
+    }
+    nesReaderOptions = result;
+    var select = $("nes-mapper");
+    select.innerHTML = "";
+    result.supported_mappers.filter(function (m) { return m.read_supported === true; })
+      .forEach(function (m) {
+        option(select, m.mapper + ":" + m.submapper,
+               "Mapper " + m.mapper + (m.submapper ? " / " + m.submapper : ""));
+      });
+    populateNesManualSizes();
+    renderNesOptions();
+  }
+  function genericSchema() {
+    return readerOptions && readerOptions.system === selectedReader &&
+      readerOptions.selection_schema || null;
+  }
+  function loadReaderOptions() {
+    var id = selectedReader, reader = readerById(id);
+    if (!reader || readerOptionsLoading ||
+        (readerOptions && readerOptions.system === id)) return;
+    var serial = ++readerOptionsRequest;
+    readerOptionsLoading = true;
+    renderReaderState();
+    api("/api/reader-options/" + encodeURIComponent(id)).then(function (data) {
+      if (serial !== readerOptionsRequest || selectedReader !== id) return;
+      if (!data || data.system !== id || data.slot !== reader.slot)
+        throw new Error(t("generic_schema_error"));
+      readerOptions = data;
+      readerOptionsLoading = false;
+      if (!data.selection_schema) loadNesReaderOptions(data);
+      configureReaderOptions();
+      renderSelectedProbe();
+    }).catch(function (err) {
+      if (serial !== readerOptionsRequest || selectedReader !== id) return;
+      readerOptionsLoading = false;
+      readerOptions = null;
+      renderReaderState();
+      fail(err);
     });
+  }
+  function renderGenericOptions() {
+    if (!genericWidget) return;
+    var schema = genericSchema();
+    if (schema) {
+      genericWidget.update(selectedReader, schema, selectedProbeData());
+      $("nes-options").hidden = true;
+      $("mapping-control").hidden = true;
+      $("size-control").hidden = true;
+    } else {
+      if (genericWidget.active()) genericWidget.reset();
+      renderNesOptions();
+    }
+    renderReaderState();
   }
   function nesReadAllowed() {
     if (selectedReader !== "nes") return true;
@@ -169,7 +209,7 @@
     return layouts.length === 1 && layouts[0].read_supported === true;
   }
   function renderNesOptions() {
-    var active = selectedReader === "nes", holder = $("nes-options");
+    var active = selectedReader === "nes" && !genericSchema(), holder = $("nes-options");
     holder.hidden = !active;
     if (!active) return;
     var probe = selectedProbeData();
@@ -211,7 +251,8 @@
     var commands = reader && reader.capabilities && reader.capabilities.commands || [];
     $("probe").disabled = !reader || commands.indexOf("probe") === -1 || Boolean(activeJob);
     $("read").disabled = !reader || commands.indexOf("read_rom") === -1 ||
-      Boolean(activeJob) || !nesReadAllowed();
+      Boolean(activeJob) || readerOptionsLoading ||
+      (genericSchema() ? !genericWidget || !genericWidget.allowed() : !nesReadAllowed());
 
   }
   function configureReaderOptions() {
@@ -229,7 +270,7 @@
     });
     $("mapping-control").hidden = !(caps.mappings && caps.mappings.length);
     $("size-control").hidden = !caps.size_override;
-    if (caps.size_override) {
+    if (caps.size_override && !genericSchema()) {
       var choices = Array.isArray(caps.size_choices_bytes) ? caps.size_choices_bytes.slice() : [];
       if (!choices.length) {
         for (var n = 131072; n <= Math.min(caps.max_rom_bytes || 4194304, 4194304); n *= 2)
@@ -250,9 +291,14 @@
     // A filename belongs to a reader/cartridge, not to the global dialog.
     // Preserve manual edits only when the same reader stays selected.
     if (selectedReader !== previous) {
+      readerOptionsRequest += 1;
+      readerOptions = null;
+      readerOptionsLoading = false;
+      nesReaderOptions = null;
       nesProbeKey = "";
       $("nes-choice").value = "";
       $("nes-manual-toggle").checked = false;
+      if (genericWidget) genericWidget.reset();
       $("filename").value = reader ? suggestedFilename(reader) : "";
     } else if (reader && !$("filename").value) {
       $("filename").value = suggestedFilename(reader);
@@ -261,7 +307,7 @@
     renderReaderState();
     if (slotData) renderSlots();
     renderSelectedProbe();
-    if (selectedReader === "nes") loadNesReaderOptions();
+    if (reader) loadReaderOptions();
   }
   function selectedSlotId() {
     var reader = readerById(selectedReader);
@@ -301,7 +347,7 @@
         t("detecting_automatically") : t("not_detected"));
       box.appendChild(empty);
     }
-    renderNesOptions();
+    renderGenericOptions();
   }
   function renderSlots() {
     if (!slotData) return;
@@ -363,6 +409,7 @@
             nesProbeKey = "";
             $("nes-choice").value = "";
             $("nes-manual-toggle").checked = false;
+            if (genericWidget) genericWidget.reset();
           }
           if (slot.status !== "occupied" && selectedSlotId() === slot.id &&
               autoNames[slot.id] && $("filename").value === autoNames[slot.id]) {
@@ -443,6 +490,7 @@
       text(info, t("not_integrated")); box.appendChild(info);
     }
     if (updateFilename !== false && data.title) $("filename").value = data.title;
+    renderGenericOptions();
   }
   function startJob(command) {
     var reader = readerById(selectedReader);
@@ -451,9 +499,17 @@
     var payload = {system: selectedReader, command: command};
     if (command === "read_rom") {
       payload.filename = $("filename").value;
-      if ($("mapping").value) payload.mapping = $("mapping").value;
-      if ($("rom-size").value) payload.size_bytes = Number($("rom-size").value);
-      if (selectedReader === "nes") {
+      if (genericSchema()) {
+        if (!genericWidget || !genericWidget.allowed())
+          return notify(t("generic_invalid"));
+        payload.selection = genericWidget.selection();
+      } else {
+        if (readerOptionsLoading || !readerOptions)
+          return notify(t("generic_schema_error"));
+        if ($("mapping").value) payload.mapping = $("mapping").value;
+        if ($("rom-size").value) payload.size_bytes = Number($("rom-size").value);
+      }
+      if (!genericSchema() && selectedReader === "nes") {
         if ($("nes-manual-toggle").checked) {
           var mapper = $("nes-mapper").value.split(":");
           payload.mapper = Number(mapper[0]);
@@ -503,11 +559,26 @@
     text($("job-detail"), progress.bytes_total ?
       humanSize(progress.bytes_done) + " / " + humanSize(progress.bytes_total) : "");
     var result = job.command === "read_rom" && job.status === "done" && job.result || null;
-    text($("job-result-details"), result && result.title ?
-      result.title + (result.layout_id ? " · " + result.layout_id : "") +
-      (result.crc32 ? " · CRC32 " + result.crc32 : "") +
-      (typeof result.verified === "boolean" ?
-        " · " + t(result.verified ? "nes_verified" : "nes_unverified") : "") : "");
+    var identity = result && result.identity || {};
+    var verification = result && result.verification || {};
+    var title = result && (identity.title || result.title) || "";
+    var configuration = result && result.read_configuration;
+    var configurationText = configuration && typeof configuration === "object" &&
+      !Array.isArray(configuration) ? Object.keys(configuration).map(function (id) {
+        return id + ": " + configuration[id];
+      }).join(" · ") : "";
+    var verifyText = verification.status ?
+      t("verification_" + verification.status) :
+      result && typeof result.verified === "boolean" ?
+        t(result.verified ? "nes_verified" : "nes_unverified") : "";
+    text($("job-result-details"), result ?
+      (title ? title + " · " : "") +
+      (result.layout_id ? result.layout_id + " · " : "") +
+      (configurationText ? configurationText + " · " : "") +
+      (result.crc32 ? "CRC32 " + result.crc32 : "") +
+      (verifyText ? " · " + verifyText : "") +
+      (verification.status === "mismatch" && verification.expected && verification.actual ?
+        " (" + verification.expected + " / " + verification.actual + ")" : "") : "");
     if (job.status === "done") {
       if (job.command === "probe") {
         var target = probeTarget;
@@ -731,6 +802,21 @@
     $("nes-prg").addEventListener("change", renderReaderState);
     $("nes-chr").addEventListener("change", renderReaderState);
     $("nes-battery").addEventListener("change", renderReaderState);
+    genericWidget = window.RetrodeSelection.create({
+      panel: $("generic-selection"),
+      choiceBox: $("generic-choice-control"), choice: $("generic-choice"),
+      overrideBox: $("generic-override-box"), override: $("generic-override"),
+      fields: $("generic-override-fields"), hint: $("generic-selection-hint"),
+      overrideHint: $("generic-override-hint"), translate: t,
+      onChange: renderReaderState,
+      onCandidateTitle: function (title, probe) {
+        var current = $("filename").value;
+        if (!current || current === probe.title ||
+            /^[a-z0-9_-]+-Dump$/i.test(current) ||
+            current === autoNames[selectedSlotId()])
+          $("filename").value = title;
+      }
+    });
     $("probe").addEventListener("click", function () { startJob("probe"); });
     $("read").addEventListener("click", function () { startJob("read_rom"); });
     $("cancel").addEventListener("click", function () {

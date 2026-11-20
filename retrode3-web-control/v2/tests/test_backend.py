@@ -124,6 +124,83 @@ class BackendTests(unittest.TestCase):
             with self.assertRaises(MODULE.ApiError):
                 manager.submit({"system": "snes", "command": "read_rom", "size_bytes": size})
 
+    def test_generic_v3_selection_structure_and_no_mixed_fields(self):
+        good = {"version": 1, "mode": "override",
+                "schema_id": "some-adapter-v1",
+                "parameters": {"banks": 2, "safe": True, "mode": "linear"}}
+        self.assertEqual(MODULE.validate_generic_selection(good, "read_rom"), good)
+        self.assertEqual(MODULE.validate_generic_selection({
+            "version": 1, "mode": "candidate",
+            "schema_id": "some-adapter-v1", "candidate_id": "game-42"
+        }, "read_rom")["candidate_id"], "game-42")
+        invalid = [
+            dict(good, version=2),
+            dict(good, mode="auto"),
+            dict(good, candidate_id="game-42"),
+            dict(good, parameters={"banks": 2, "voltage": [3.3]}),
+            dict(good, parameters={"banks": True, "safe": object()}),
+            dict(good, parameters={"banks": -1}),
+            dict(good, parameters={"banks": "x" * 128}),
+            {"version": 1, "mode": "candidate",
+             "schema_id": "some-adapter-v1", "candidate_id": "../wrong"},
+            {"version": 1, "mode": "layout", "schema_id": "some-adapter-v1"},
+            {"version": 1, "mode": "override",
+             "schema_id": "some-adapter-v1", "parameters": {}}
+        ]
+        for choice in invalid:
+            with self.assertRaises(MODULE.ApiError):
+                MODULE.validate_generic_selection(choice, "read_rom")
+        with self.assertRaises(MODULE.ApiError):
+            MODULE.validate_generic_selection(good, "probe")
+
+    def test_generic_v3_selection_forwards_to_job_on_any_core(self):
+        old_reader = MODULE.reader_capability
+        old_options = MODULE.native_reader_options
+        old_job = MODULE.Job
+        received = []
+        schema = {"schema_version": 1, "schema_id": "adapter-layout-v1",
+                  "selection_modes": ["auto", "candidate", "layout", "override"],
+                  "fields": [{"id": "bank_count", "type": "integer"}]}
+        choice = {"version": 1, "mode": "override",
+                  "schema_id": "adapter-layout-v1",
+                  "parameters": {"bank_count": 4, "safe": True}}
+        class FakeJob(object):
+            def __init__(self, *args, **kwargs):
+                self.id = "a" * 32
+                self.created = 0
+                self.selection = kwargs.get("selection")
+                received.append(self.selection)
+            def snapshot(self):
+                return {"id": self.id, "status": "done"}
+            def run(self):
+                return
+        try:
+            MODULE.reader_capability = lambda core_id: {
+                "id": core_id, "slot": "snes", "folder": "TEST",
+                "extension": "bin", "available": True,
+                "capabilities": {"commands": ["probe", "read_rom"],
+                                 "mappings": [], "size_override": False}}
+            MODULE.native_reader_options = lambda core_id: {
+                "system": core_id, "slot": "snes", "selection_schema": schema}
+            MODULE.Job = FakeJob
+            payload = {"system": "new-console-adapter",
+                       "command": "read_rom", "filename": "safe-dump",
+                       "selection": choice}
+            self.assertEqual(MODULE.JobManager().submit(payload)["status"], "done")
+            self.assertEqual(received, [choice])
+            for invalid in (
+                    dict(payload, mapping="lo"),
+                    dict(payload, mapper=0),
+                    dict(payload, unexpected=True),
+                    dict(payload, command="probe"),
+                    dict(payload, selection=dict(choice, schema_id="stale"))):
+                with self.assertRaises(MODULE.ApiError):
+                    MODULE.JobManager().submit(invalid)
+        finally:
+            MODULE.reader_capability = old_reader
+            MODULE.native_reader_options = old_options
+            MODULE.Job = old_job
+
     def test_cli_registry_missing_and_untrusted_output(self):
         original = MODULE.CLI_BIN
         try:

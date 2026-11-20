@@ -169,5 +169,19 @@
   "detecting_automatically": "Modul wird erkannt…",
   "core_status_ready": "Bereit",
   "core_status_choose_reader": "Ausleser auswählen",
-  "help_open_developer": "Entwickleranleitung (CLI)"
+  "help_open_developer": "Entwickleranleitung (CLI)",
+  "generic_choice": "Erkanntes Spiel / Leselayout",
+  "generic_override": "Override (erweiterte Einstellung)",
+  "generic_choice_required": "Mehrere mögliche Lese-Konfigurationen: Bitte Spiel oder Layout auswählen.",
+  "generic_unknown": "Modul nicht erkannt: Nur mit einem freigegebenen manuellen Override auslesen.",
+  "generic_optional_title": "Mehrere Titel möglich. Auswahl optional, wenn dasselbe sichere Layout genutzt wird.",
+  "generic_choose_value": "Bitte auswählen…",
+  "generic_unavailable": "Die gewählte Konfiguration ist nicht freigegeben.",
+  "generic_invalid": "Bitte eine vollständige, freigegebene Konfiguration auswählen.",
+  "generic_schema_error": "CLI-Parameter konnten nicht geladen werden. Core und Version prüfen.",
+  "verification_verified": "Nach ROM-Prüfsumme verifiziert",
+  "verification_mismatch": "ROM-Daten weichen vom gewählten Datenbankeintrag ab",
+  "verification_not_found": "ROM gelesen, aber kein eindeutiger Datenbanktreffer",
+  "verification_ambiguous": "ROM gelesen, aber weiterhin mehrdeutig",
+  "verification_not_checked": "ROM gelesen; Datenbankprüfung nicht durchgeführt"
 }
