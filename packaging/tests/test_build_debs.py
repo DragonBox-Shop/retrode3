@@ -93,8 +93,8 @@ class TestPackaging(unittest.TestCase):
         self.assertIn("<IfModule mpm_prefork_module>", contents)
         import re
         options = dict(re.findall(
-            r"^\\s*(StartServers|MinSpareServers|MaxSpareServers|"
-            r"MaxRequestWorkers|MaxConnectionsPerChild)\\s+(\\d+)\\s*$",
+            r"^\s*(StartServers|MinSpareServers|MaxSpareServers|"
+            r"MaxRequestWorkers|MaxConnectionsPerChild)\s+(\d+)\s*$",
             contents, re.MULTILINE))
         self.assertEqual(options, {
             "StartServers": "2", "MinSpareServers": "1",
