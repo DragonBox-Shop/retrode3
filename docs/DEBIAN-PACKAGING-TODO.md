@@ -4,6 +4,32 @@
 Dies ist eine technische Aufgabenliste, **keine Behauptung**, dass
 die neuen `.deb`-Dateien bereits gebaut oder veröffentlicht sind.
 
+## Implementierungsstand auf `develop` (2026-11-20)
+
+Die ersten Paketrezepte sind jetzt unter `packaging/` vorhanden:
+`build-debs.py` trennt den gepinnten OSCR-MIPS-Staging-Baum in
+`retrode3-core-runtime`, drei Core-Pakete und
+`retrode3-web-control` (Web v2). Maintainer-Skripte für SysV-Init,
+privilegierte Core-Schaltung, ROM-Datenpersistenz und Bootrechte
+sind enthalten. `retrode3.qcodeproj`, `retrode3-tools.qcodeproj`,
+`make-all` und die vorhandenen udev-Regeln wurden migriert.
+
+`debian-packaging.yml` prüft **nur Mock-MIPS-Paketdateien**.
+`debian-mipsel-candidates.yml` baut die tatsächlichen MIPS-Binaries
+mit gepinnter Toolchain und stellt Entwicklungs-.debs als
+GitHub-Artefakt bereit, falls der Build erfolgreich ist. Diese
+Artefakte werden weder automatisch installiert noch in APT
+veröffentlicht. Der Status eines laufenden oder fehlgeschlagenen
+CI-Builds ist im GitHub Actions-Lauf nachzusehen, nicht aus dem
+Vorhandensein der Workflow-Datei abzuleiten.
+
+**Weiter offen:** tatsächliche MIPS-Build-Abnahme, Paket-Upgrade und
+Rollback auf der Retrode3, Laufzeitrechte nach Reboot, Tests aller drei
+bekannten ROMs, signierte Entwicklungs-/Release-APT-Suites und
+spätere SD-Image-Erzeugung. `master` ist unberührt.
+Testbefehle und die Rückfall-Checkliste stehen in
+[`packaging/README.md`](../packaging/README.md).
+
 ## Eingangsdokumente
 
 Vor Änderungen lesen:
