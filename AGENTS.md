@@ -75,33 +75,30 @@ SD-image remain unfinished. See
 [`docs/DEBIAN-PACKAGING-TODO.md`](docs/DEBIAN-PACKAGING-TODO.md).
 Source merged into `master` is not a published Debian package.
 
-## New on develop: NES MMC1 integrated with Web v2 (2026-11-20)
+## Current develop: generic Core ABI v3, Web v2-only read protocol (2026-11-20)
 
-`retrode3-oscr/develop` now builds ordinary `nes.so` with MMC1
-Mapper 1 PRG-/CHR-ROM bank reads in the **production core build**,
-and `retrode3/develop` Web v2 displays the CLI's
-`probe_result.candidates`/`read_layouts` directly in the usual
-**Read ROM** panel. The browser sends `candidate_id`, `layout_id`
-or complete manual mapper/submapper/PRG/CHR/mirroring/battery fields to
-the existing `POST /api/jobs` route. The backend forwards these options
-unaltered to `/usr/bin/retrode3-cli`; no independent NES reader and
-no special laboratory `.so`. On insertion, automatic detection
-still performs only the harmless **1024-byte read-only fingerprint**;
-actual MMC1 register bank switching occurs only after user initiates a
-ROM read.
+`retrode3-oscr/develop` provides versioned `retrode3_core_get_operations_v3`
+for **NES, MegaDrive and SNES**. The common CLI now emits
+`get_capabilities.selection_schema`, `probe_result.candidates`/
+`read_layouts`, `selection_required` and a physical `slot`.
+NES MMC1 support is present in the standard core build, with physical
+safety limitations described in the CLI repository. Battery-backed
+MMC1 and unapproved mapper writes must remain blocked.
 
-The installed OS binaries/webroot do not change just because `develop`
-source was committed. Verify device-specific building and deployment
-separately. The pinned MMC1 DB has 695 title/CRC/geometry entries.
-Mapper 1 battery-backed layouts remain unavailable because safe
-M2/ROMSEL timing for PRG-WRAM has not been demonstrated; mappers
-2/3/4/7 remain experimental. These changes are **not on master**
-and newly integrated MMC1 physical cases are **not yet accepted**.
+Web v2 on `develop` now drives **only** the generic v3 `selection`
+object in `read_rom`. It contains no NES-v2-specific controls,
+manual `mapper`/`prg_kib` handling or old SNES/MD mapping/size fields.
+`get_capabilities` without a valid v3 schema is rejected for Web
+reads. Candidate/layout selection and the explicitly enabled Override
+come from schema metadata, not a list of consoles hardcoded into JS/Python.
 
-Web test workflow runs on `develop`, including Python mocked
-jobs, browser JavaScript syntax and localization. Web's
-`GET /api/reader-options/nes` is a gateway-safe capability query;
-it only exposes options reported by the installed CLI.
+The central CLI may retain ABI v1/v2 for other clients. Web
+legacy reader binaries must never be resurrected. The Web's cached
+event-triggered probes, shared bus lock and SysV boot model remain.
+The v3 Web migration and its CI mocks are **not a real-device or
+Debian-package acceptance**; do not promote it to `master` prematurely.
+See [generic v3 Web specification](retrode3-web-control/v2/docs/generic-selection-v3.md)
+and [CLI v3 contract](https://github.com/DragonBox-Shop/retrode3-oscr/blob/develop/docs/generic-cartridge-selection-v3.md).
 
 ## Current Web v2 development rules
 
