@@ -69,7 +69,10 @@ class TestPackaging(unittest.TestCase):
                 if name == pkg.WEB:
                     self.assertIn("./etc/init.d/retrode3-web-v2", contents)
                     self.assertIn("./var/www/html/assets/app.js", contents)
+                    self.assertIn("./etc/apache2/conf-available/retrode3-prefork.conf", contents)
                     self.assertIn("Architecture: all", info)
+                    self.assertIn("/etc/apache2/conf-available/retrode3-prefork.conf",
+                                  pkg.CONFFILES[pkg.WEB])
                 elif name == pkg.NATIVE[0]:
                     self.assertIn("Provides: retrode3-core-abi-1", info)
                     self.assertIn("./etc/init.d/retrode3-core-runtime", contents)
@@ -81,6 +84,32 @@ class TestPackaging(unittest.TestCase):
                                   core + ".so", contents)
                     self.assertIn("./usr/lib/retrode3/cores-available/" +
                                   core + ".core", contents)
+
+    def test_apache_prefork_profile_preserves_distribution_config(self):
+        # Exact limits tested on a real 50-MiB Retrode3, and no upstream
+        # /etc/apache2/mods-available/mpm_prefork.conf file is packaged.
+        path = ROOT / "packaging/assets/retrode3-prefork.conf"
+        contents = path.read_text(encoding="utf-8")
+        self.assertIn("<IfModule mpm_prefork_module>", contents)
+        import re
+        options = dict(re.findall(
+            r"^\\s*(StartServers|MinSpareServers|MaxSpareServers|"
+            r"MaxRequestWorkers|MaxConnectionsPerChild)\\s+(\\d+)\\s*$",
+            contents, re.MULTILINE))
+        self.assertEqual(options, {
+            "StartServers": "2", "MinSpareServers": "1",
+            "MaxSpareServers": "2", "MaxRequestWorkers": "4",
+            "MaxConnectionsPerChild": "100"})
+        self.assertFalse(any("mods-available" in target
+                             for _, target, _ in pkg.WEB_EXTRA))
+        install = (ROOT / "retrode3-web-control/v2/install-on-retrode.sh").read_text()
+        postinst = (ROOT / "packaging/maintainer/web.postinst").read_text()
+        prerm = (ROOT / "packaging/maintainer/web.prerm").read_text()
+        self.assertIn("a2enconf retrode3-prefork", install)
+        self.assertIn("apache2ctl configtest", install)
+        self.assertIn("a2enconf retrode3-prefork", postinst)
+        self.assertIn("apache2ctl configtest", postinst)
+        self.assertIn("a2disconf retrode3-prefork", prerm)
 
     def test_static_privilege_rules(self):
         policy = (ROOT / "packaging/assets/retrode3-corectl.sudoers").read_text()
