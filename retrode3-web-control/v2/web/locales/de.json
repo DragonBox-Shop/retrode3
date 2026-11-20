@@ -160,5 +160,6 @@
   "verification_mismatch": "ROM-Daten weichen vom gewählten Datenbankeintrag ab",
   "verification_not_found": "ROM gelesen, aber kein eindeutiger Datenbanktreffer",
   "verification_ambiguous": "ROM gelesen, aber weiterhin mehrdeutig",
-  "verification_not_checked": "ROM gelesen; Datenbankprüfung nicht durchgeführt"
+  "verification_not_checked": "ROM gelesen; Datenbankprüfung nicht durchgeführt",
+  "voltage_manual_required": "Spannung muss vor dem Auslesen manuell geprüft/eingestellt werden."
 }
