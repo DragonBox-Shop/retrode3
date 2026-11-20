@@ -201,8 +201,8 @@ def control_text(package, lock):
                 "php5-cli | php-cli, php5 | php, letux-httpd, "
                 "sudo, passwd, adduser, init-system-helpers")
     else:
-        deps = ("retrode3-core-runtime (= " + native_version +
-                "), libc6, libstdc++6")
+        deps = ("retrode3-core-runtime (>= " + native_version +
+                "), retrode3-core-abi-1, libc6, libstdc++6")
     lines = [
         "Package: " + package, "Version: " + version,
         "Section: utils", "Priority: optional", "Architecture: " + arch,
@@ -215,6 +215,8 @@ def control_text(package, lock):
         "Description: " + DESCRIPTIONS[package],
         " Built from pinned source for offline development-device acceptance."
     ]
+    if package == "retrode3-core-runtime":
+        lines.insert(6, "Provides: retrode3-core-abi-1")
     return "\n".join(lines) + "\n"
 
 
