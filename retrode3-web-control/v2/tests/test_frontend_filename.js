@@ -17,16 +17,14 @@ const readers = {
   snes: {id: "snes", slot: "snes"}
 };
 const elements = {filename: {value: ""}, system: {value: ""},
-  "nes-choice": {value: ""}, "nes-manual-toggle": {checked: false}};
+};
 const ctx = {
   selectedReader: "",
   readerById: function (id) { return readers[id] || null; },
   $: function (id) { return elements[id]; },
-  configureReaderOptions: function () {},
   loadReaderOptions: function () {},
   readerOptionsRequest: 0, readerOptionsLoading: false,
-  readerOptions: null, nesReaderOptions: null, genericWidget: null,
-  nesProbeKey: "",
+  readerOptions: null, genericWidget: null,
   renderReaderState: function () {},
   renderSlots: function () {},
   renderSelectedProbe: function () {},
