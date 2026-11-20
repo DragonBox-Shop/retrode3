@@ -193,8 +193,11 @@
         var modes = schema.selection_modes || [];
         if (modes.indexOf("candidate") !== -1) candidates.forEach(function (item) {
           if (!item || typeof item.id !== "string") return;
-          addOption(choice, "candidate:" + item.id, labelFor(item),
-                    item.read_supported === false);
+          var layout = layouts.filter(function (l) { return l.id === item.layout_id; })[0];
+          var title = labelFor(item) + (layout && layout.label ?
+            " · " + layout.label : item.layout_id ? " · " + item.layout_id : "");
+          addOption(choice, "candidate:" + item.id, title,
+                    item.read_supported === false || Boolean(layout && layout.read_supported === false));
         });
         if (modes.indexOf("layout") !== -1) layouts.forEach(function (item) {
           if (!item || typeof item.id !== "string") return;
