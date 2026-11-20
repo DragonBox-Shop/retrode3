@@ -25,7 +25,7 @@ device-compatible artifacts.
 git clone https://github.com/DragonBox-Shop/retrode3-oscr.git
 cd retrode3-oscr
 git checkout 04e75c89698684b18a491943b7ff7fe78a85166d
-git submodule update --init --recursive
+git submodule update --init third_party/oscr-firmware
 git rev-parse HEAD:third_party/oscr-firmware
 git -C third_party/oscr-firmware rev-parse HEAD
 
