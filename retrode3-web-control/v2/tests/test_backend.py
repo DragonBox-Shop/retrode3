@@ -337,10 +337,10 @@ class BackendTests(unittest.TestCase):
             watcher.tick(now=1.5)
             self.assertEqual(
                 watcher.snapshot()["slots"][0]["detection"]["result"]["title"], "SONIC")
+            slot["status"] = "empty"
             watcher._event_changed(
                 b"change@/devices/virtual/slot-md\x00SLOT=slot-md\x00SENSE=empty\x00")
             self.assertIsNone(watcher.snapshot()["slots"][0]["detection"]["result"])
-            slot["status"] = "empty"
             watcher.tick(now=1.6)
             self.assertEqual(watcher.snapshot()["slots"][0]["detection"]["state"], "idle")
             slot["status"] = "occupied"
@@ -350,9 +350,92 @@ class BackendTests(unittest.TestCase):
             MODULE.slot_snapshot = old_snapshot
             MODULE.capability_probe = old_capabilities
 
+    def test_autodetect_deduplicates_events_and_waits_passively_when_busy(self):
+        old_snapshot, old_capabilities = MODULE.slot_snapshot, MODULE.capability_probe
+        slot = {"id": "nes", "name": "Nintendo", "status": "occupied"}
+        discovery_calls = [0]
+
+        class FakeJob(object):
+            def __init__(self):
+                self.status = "running"
+                self.cancel_calls = 0
+            def snapshot(self):
+                return {"status": self.status, "result": {
+                    "event": "probe_result", "system": "nes", "title": "Excitebike"}}
+            def cancel(self):
+                self.cancel_calls += 1
+                self.status = "cancelled"
+
+        class FakeManager(object):
+            def __init__(self):
+                self.lock = MODULE.threading.RLock()
+                self.active = None
+                self.job = FakeJob()
+                self.calls = []
+            def get(self, key):
+                return self.job
+            def submit(self, data, automatic=False):
+                self.calls.append((data, automatic))
+                return {"id": "2" * 32}
+
+        manager = FakeManager()
+        watcher = MODULE.AutomaticDetection(manager)
+
+        def capabilities():
+            discovery_calls[0] += 1
+            return {"systems": [{"id": "nes", "slot": "nes",
+                      "available": True, "capabilities": {"commands": ["probe"]}}]}
+
+        active_event = b"change@/devices/virtual/slot-nes\x00SLOT=slot-nes\x00SENSE=active\x00"
+        empty_event = b"change@/devices/virtual/slot-nes\x00SLOT=slot-nes\x00SENSE=empty\x00"
+        try:
+            MODULE.slot_snapshot = lambda: {"slots": [dict(slot)]}
+            MODULE.capability_probe = capabilities
+            watcher.tick(now=10.0)
+            watcher.tick(now=10.4)
+            self.assertEqual(len(manager.calls), 1)
+            watcher._event_changed(active_event)
+            watcher.tick(now=10.5)
+            self.assertEqual(len(manager.calls), 1)
+            self.assertEqual(manager.job.cancel_calls, 0)
+            manager.job.status = "done"
+            watcher.tick(now=10.6)
+            self.assertEqual(watcher.snapshot()["slots"][0]["detection"]["result"]["title"],
+                             "Excitebike")
+            watcher._event_changed(active_event)
+            watcher.tick(now=11.0)
+            self.assertEqual(len(manager.calls), 1)
+            self.assertEqual(discovery_calls[0], 1)
+
+            # Stale empty notification must not discard an occupied slot.
+            watcher._event_changed(empty_event)
+            self.assertEqual(watcher.snapshot()["slots"][0]["detection"]["state"],
+                             "detected")
+            slot["status"] = "empty"
+            watcher._event_changed(empty_event)
+            watcher.tick(now=11.1)
+            self.assertEqual(watcher.snapshot()["slots"][0]["detection"]["state"], "idle")
+            slot["status"] = "occupied"
+            watcher._event_changed(active_event)
+            watcher.tick(now=11.2)
+            manager.active = object()  # A manual MegaDrive dump holds the bus.
+            watcher.tick(now=11.6)
+            self.assertEqual(len(manager.calls), 1)
+            self.assertEqual(discovery_calls[0], 1)
+            manager.active = None
+            watcher.tick(now=11.7)
+            self.assertEqual(len(manager.calls), 2)
+            self.assertEqual(discovery_calls[0], 2)
+        finally:
+            MODULE.slot_snapshot = old_snapshot
+            MODULE.capability_probe = old_capabilities
+
     def test_ambiguous_slot_does_not_probe_random_adapter(self):
         old_snapshot, old_capabilities = MODULE.slot_snapshot, MODULE.capability_probe
         class FakeManager(object):
+            def __init__(self):
+                self.lock = MODULE.threading.RLock()
+                self.active = None
             def submit(self, *args, **kwargs):
                 raise AssertionError("Ambiguous slot must not be probed")
         watcher = MODULE.AutomaticDetection(FakeManager())
