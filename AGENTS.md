@@ -1,7 +1,8 @@
 # Retrode3 OS and Web: instructions for contributors and assistant chats
 
-**Read [docs/WEB-V2-HANDOFF.md](docs/WEB-V2-HANDOFF.md) first when
-working on Web v2, cartridge auto-detection or its install/update scripts.**
+**Read [docs/WEB-V2-HANDOFF.md](docs/WEB-V2-HANDOFF.md) for the Web v2
+source contract, and [docs/DEBIAN-PACKAGING-TODO.md](docs/DEBIAN-PACKAGING-TODO.md)
+for the separate unfinished Debian package / update / image tasks.**
 If this branch does not yet contain that document, see the same path on
 the OS repo's `develop` branch. This file is deliberately copied into
 the currently active web feature branch so its development chat gets the
@@ -53,7 +54,23 @@ no unspecified mappers, special chips, SRAM save or flash writes.
 `/usr/local/bin/retrode3-info`. The old web's dependencies
 must be migrated to the central CLI rather than resurrected.
 
-## Web v2 task and promotion gate
+## Current release status (2026-11-20)
+
+Web Control v2 source **has been tested and squash-promoted into OS
+`master`**, then `develop` was aligned to the same release commit
+`5b2b5f6`. The old `feature/web-control-v2` branch may contain
+later experimental changes; do not assume those are automatically in
+the release. The older section below records its prior migration
+requirements, **not its current release status**.
+
+Native runtime and per-core `.deb` package recipes, the Web v2 Debian
+package, modernized `make-all`, APT publication, and customer
+SD-image verification remain **unfinished**. See
+[`docs/DEBIAN-PACKAGING-TODO.md`](docs/DEBIAN-PACKAGING-TODO.md)
+for an executable handoff. Source merged into master is not a
+published Debian package.
+
+## Historical Web v2 integration instructions (superseded)
 
 The existing web feature branch `feature/web-control-v2`
 has older defaults/fallbacks: its Python backend expects
