@@ -32,6 +32,29 @@ case "${1:-}" in
             chown root:www-data /etc/retrode3-web-control.auth
             chmod 0640 /etc/retrode3-web-control.auth
         fi
+        # Apache 2.4 / Debian 8: limit prefork workers on the 50 MiB device.
+        # The shipped conf-available file overrides the distribution's MPM
+        # defaults without editing the package-owned mpm_prefork.conf.
+        if [ -f /etc/apache2/conf-available/retrode3-prefork.conf ] &&
+           command -v a2enconf >/dev/null 2>&1 &&
+           command -v apache2ctl >/dev/null 2>&1; then
+            enabled_before=0
+            [ -e /etc/apache2/conf-enabled/retrode3-prefork.conf ] &&
+                enabled_before=1
+            a2enconf retrode3-prefork
+            if ! apache2ctl configtest; then
+                if [ "$enabled_before" -eq 0 ]; then
+                    a2disconf retrode3-prefork || true
+                fi
+                echo "Apache configuration invalid; verify the prefork snippet" >&2
+                exit 1
+            fi
+            if [ -x /etc/init.d/apache2 ] &&
+               /etc/init.d/apache2 status >/dev/null 2>&1; then
+                # Do not interrupt ongoing connections with a hard restart.
+                invoke-rc.d apache2 reload || true
+            fi
+        fi
         update-rc.d retrode3-web-v2 defaults
         /etc/init.d/retrode3-core-runtime start
         if /etc/init.d/retrode3-web-v2 status >/dev/null 2>&1; then
