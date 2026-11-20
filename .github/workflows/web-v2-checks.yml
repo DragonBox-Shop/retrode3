@@ -23,8 +23,10 @@ jobs:
         run: |
           python3 -m py_compile retrode3-web-control/v2/backend/service.py
           python3 -m unittest discover -s retrode3-web-control/v2/tests -p 'test_*.py' -v
-      - name: JavaScript syntax
-        run: node --check retrode3-web-control/v2/web/assets/app.js
+      - name: JavaScript syntax and reader selection regression
+        run: |
+          node --check retrode3-web-control/v2/web/assets/app.js
+          node retrode3-web-control/v2/tests/test_frontend_filename.js
       - name: Localized strings syntax
         run: |
           python3 -m json.tool retrode3-web-control/v2/web/locales/de.json >/dev/null
