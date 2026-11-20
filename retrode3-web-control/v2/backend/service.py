@@ -432,6 +432,82 @@ def reader_capability(core_id, registry=None):
     return result
 
 
+NES_OPTION_KEYS = ("candidate_id", "layout_id", "mapper", "submapper",
+                   "prg_kib", "chr_kib", "mirroring", "battery")
+NES_ID = re.compile(r"^[a-zA-Z0-9_-]{1,31}$")
+NES_SIZES_PRG = (16, 32, 64, 128, 256, 512)
+NES_SIZES_CHR = (0, 8, 16, 32, 64, 128, 256)
+
+
+def validate_nes_options(data, reader_id, action):
+    """Keep native NES-v2 selection structured, never reinterpret as v1 mapping.
+
+    The shared CLI/core is the final authority on selected cartridge layout.
+    """
+    options = dict((k, data[k]) for k in NES_OPTION_KEYS if k in data)
+    if not options:
+        return {}
+    if reader_id != "nes" or action != "read_rom":
+        raise ApiError(400, "invalid_nes_options",
+                       "NES layout selection is only valid for NES ROM reads")
+    manual_keys = ("mapper", "submapper", "prg_kib", "chr_kib",
+                   "mirroring", "battery")
+    manual = any(k in options for k in manual_keys)
+    if manual:
+        if (set(options) != set(manual_keys) or
+                options["mirroring"] not in ("horizontal", "vertical", "four_screen") or
+                type(options["battery"]) is not int or options["battery"] not in (0, 1) or
+                any(type(options[k]) is not int for k in manual_keys[:4]) or
+                options["mapper"] not in (0, 1, 2, 3, 4, 7) or
+                options["submapper"] not in (0, 5) or
+                options["prg_kib"] not in NES_SIZES_PRG or
+                options["chr_kib"] not in NES_SIZES_CHR):
+            raise ApiError(400, "invalid_nes_options", "Incomplete or invalid manual NES layout")
+    else:
+        if not all(isinstance(v, str) and NES_ID.match(v)
+                   for v in options.values()):
+            raise ApiError(400, "invalid_nes_options", "Invalid NES candidate/layout ID")
+    return options
+
+
+def native_reader_options(core_id):
+    """Query capabilities from the actual shared CLI only on explicit UI request."""
+    cap = reader_capability(core_id)
+    if cap is None or not cap["available"]:
+        raise ApiError(503, "native_protocol_unavailable", "Core not ready")
+    command = {"command": "get_capabilities", "core": core_id,
+               "request_id": "web-options"}
+    try:
+        process = subprocess.Popen(
+            [CLI_BIN, "--protocol", "ndjson-v1", "--interactive"],
+            stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL)
+        try:
+            stdout, _ = process.communicate(
+                (json.dumps(command) + "\n").encode("ascii"), timeout=5)
+        except subprocess.TimeoutExpired:
+            process.kill()
+            process.communicate()
+            raise ApiError(504, "operation_timeout", "CLI capabilities timed out")
+        if process.returncode != 0:
+            raise ApiError(502, "native_protocol_unavailable", "CLI capabilities unavailable")
+        for line in stdout.decode("utf-8").splitlines():
+            event = json.loads(line)
+            if (event.get("event") == "capabilities" and
+                    event.get("request_id") == "web-options" and
+                    event.get("system") == core_id and
+                    event.get("protocol") == PROTOCOL and
+                    event.get("version") == 1):
+                return {"system": core_id,
+                        "database_lookup": event.get("database_lookup") is True,
+                        "manual_layout": event.get("manual_layout") is True,
+                        "supported_mappers": event.get("supported_mappers", [])}
+    except (OSError, ValueError, UnicodeError) as error:
+        raise ApiError(502, "native_protocol_unavailable", str(error))
+    raise ApiError(502, "native_protocol_unavailable",
+                   "No CLI capability event for reader")
+
+
 def capability_probe():
     """List only registered shared-CLI cores, never legacy readers."""
     registry = core_registry()
@@ -444,10 +520,11 @@ def capability_probe():
 
 class Job(object):
     def __init__(self, manager, reader_id, action, mapping, size, label,
-                 reader, automatic=False):
+                 reader, automatic=False, nes_options=None):
         self.manager = manager
         self.reader_id = reader_id
         self.reader = reader
+        self.nes_options = dict(nes_options or {})
         self.automatic = automatic
         self.id = uuid.uuid4().hex
         self.action = action
@@ -541,6 +618,7 @@ class Job(object):
                                     command["mapping"] = self.mapping
                                 if self.size:
                                     command["size_bytes"] = self.size
+                                command.update(self.nes_options)
                             self._send(command)
                             sent = True
                         continue
@@ -615,6 +693,7 @@ class JobManager(object):
             raise ApiError(400, "unsupported", "Unknown reader or unsupported command")
         mapping = data.get("mapping")
         size = data.get("size_bytes")
+        nes_options = validate_nes_options(data, reader_id, data["command"])
         # Validate input before invoking any process or touching hardware.
         if mapping is not None and (not isinstance(mapping, str) or len(mapping) > 32):
             raise ApiError(400, "invalid_mapping", "Invalid mapping")
@@ -625,6 +704,9 @@ class JobManager(object):
                 raise ApiError(400, "invalid_size", "SNES ROM size incompatible with mapping")
             if reader_id == "md" and size % 2:
                 raise ApiError(400, "invalid_size", "MegaDrive ROM size must be even")
+        if nes_options and (mapping is not None or size is not None):
+            raise ApiError(400, "invalid_nes_options",
+                           "Legacy mapping/size and NES-v2 layouts cannot be combined")
         if data["command"] == "probe" and (mapping is not None or size is not None):
             raise ApiError(400, "invalid_command", "Probe does not accept overrides")
         cap = reader_capability(reader_id)
@@ -644,7 +726,7 @@ class JobManager(object):
             raise ApiError(400, "invalid_size", "ROM size exceeds reader capabilities")
         job = Job(self, reader_id, data["command"], mapping, size,
                   sanitized_filename(data.get("filename")),
-                  cap, automatic=automatic)
+                  cap, automatic=automatic, nes_options=nes_options)
         with self.lock:
             if self.active is not None:
                 raise ApiError(409, "busy", "Cartridge reader already busy")
@@ -824,8 +906,12 @@ class AutomaticDetection(object):
                         result = job.get("result") or {}
                         if (result.get("event") == "probe_result" and
                                 result.get("system") == record["core_id"]):
+                            # Preserve the CLI's v2 mapper/layout choices for
+                            # the browser. Never scan the full ROM on insert.
                             record["result"] = dict((key, result.get(key)) for key in
-                                                    ("title", "mapping", "size_bytes", "checksum")
+                                                    ("title", "mapping", "size_bytes", "checksum",
+                                                     "identification_status", "selection_required",
+                                                     "candidate_lookup", "candidates", "read_layouts")
                                                     if key in result)
                             record["state"] = "detected"
                             record["error"] = None
@@ -999,6 +1085,8 @@ class Handler(BaseHTTPRequestHandler):
                 self._json(200, capability_probe())
             elif path == "/api/cores":
                 self._json(200, core_registry())
+            elif path == "/api/reader-options":
+                self._json(200, native_reader_options(self._query(url, "system")))
             elif path == "/api/slots":
                 self._json(200, AUTO.snapshot())
             elif path == "/api/settings":
