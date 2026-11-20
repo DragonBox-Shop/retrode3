@@ -40,7 +40,7 @@ jobs:
           make -C "$RUNNER_TEMP/retrode3-oscr" -f Makefile.migration clean-migration
           make -C "$RUNNER_TEMP/retrode3-oscr" -f Makefile.migration \
             CC=mipsel-linux-gnu-gcc CXX=mipsel-linux-gnu-g++ \
-            AR=mipsel-linux-gnu-ar stage-retrode3-runtime
+            AR=mipsel-linux-gnu-ar test-release-stage
           file "$RUNNER_TEMP/retrode3-oscr/build/migration/stage/usr/bin/retrode3-cli"
           file "$RUNNER_TEMP/retrode3-oscr/build/migration/stage/usr/lib/retrode3/cores-available/"*.so
       - name: Build five offline Debian test candidates
