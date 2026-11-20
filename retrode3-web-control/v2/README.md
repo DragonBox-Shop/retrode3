@@ -1,5 +1,15 @@
 # Retrode3 Web Control v2: shared CLI integration
 
+> **Development integration (2026-11-20):** `develop`
+> now uses the regular NES `nes.so` with MMC1 mapper-1 ROM
+> support and a database-driven candidate/layout selector in Web v2.
+> The 1024-byte auto-detect remains read-only; ROM banking starts
+> only when a user clicks Read ROM. Unknown layouts can be set
+> manually, while battery-backed MMC1 boards remain disabled until
+> the kernel can switch MMC1 without threatening save RAM.
+> These changes have not been shipped to `master` or deployed
+> onto the real Retrode3 yet.
+
 **Release source:** merged via `develop` to `master` after manual Web v2 MegaDrive/NES reader tests and passing mocked CI. Full production image / Debian runtime packaging remains a separate release gate.
 The current developer commands and runtime contract are documented in
 [Deutsch](docs/developer-guide.de.md) and
