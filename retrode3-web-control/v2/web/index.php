@@ -79,7 +79,7 @@ header("Content-Security-Policy: default-src 'self'; img-src 'self'; style-src '
   </div>
 </div>
 <button id="read" class="btn primary" data-i18n="start_read">Read ROM</button>
-<div id="job-panel" class="job-panel" hidden><div class="progress-line"><strong id="job-label"></strong><span id="job-percent"></span></div><div class="progress"><div id="job-fill"></div></div><p id="job-detail" class="muted small"></p><button id="cancel" class="btn danger" data-i18n="cancel">Cancel</button></div>
+<div id="job-panel" class="job-panel" hidden><div class="progress-line"><strong id="job-label"></strong><span id="job-percent"></span></div><div class="progress"><div id="job-fill"></div></div><p id="job-detail" class="muted small"></p><p id="job-result-details" class="muted small" aria-live="polite"></p><button id="cancel" class="btn danger" data-i18n="cancel">Cancel</button></div>
 </div></div>
 </section>
 <section id="files" class="page"><p class="eyebrow" data-i18n="shared_storage">SHARED STORAGE</p><h1 data-i18n="files_title">Your game library</h1><p class="muted" data-i18n="files_desc">Browse, rename, move, download or delete ROM files in shared storage.</p>
