@@ -119,11 +119,16 @@
     }
   }
   function selectReader(id) {
+    var previous = selectedReader;
     var reader = readerById(id);
     selectedReader = reader ? id : "";
     $("system").value = selectedReader;
-    if (reader && (!$("filename").value || /^[a-z0-9_-]+-Dump$/i.test($("filename").value))) {
-      $("filename").value = reader.id.toUpperCase() + "-Dump";
+    // A filename belongs to a reader/cartridge, not to the global dialog.
+    // Preserve manual edits only when the same reader stays selected.
+    if (selectedReader !== previous) {
+      $("filename").value = reader ? suggestedFilename(reader) : "";
+    } else if (reader && !$("filename").value) {
+      $("filename").value = suggestedFilename(reader);
     }
     configureReaderOptions();
     renderReaderState();
@@ -139,6 +144,16 @@
       return s.id === slotId && s.status === "occupied";
     })[0];
     return entry && entry.detection || null;
+  }
+  function suggestedFilename(reader) {
+    var detected = autoDetection(reader.slot);
+    if (detected && detected.state === "detected" &&
+        detected.core_id === reader.id && detected.result && detected.result.title)
+      return detected.result.title;
+    var cached = detectedBySlot[reader.slot];
+    if (cached && cached.reader === reader.id && cached.data && cached.data.title)
+      return cached.data.title;
+    return reader.id.toUpperCase() + "-Dump";
   }
   function renderSelectedProbe() {
     var slot = selectedSlotId();
