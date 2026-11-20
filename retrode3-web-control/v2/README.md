@@ -1,8 +1,10 @@
 # Retrode3 Web Control v2: shared CLI integration
 
 **Release source:** merged via `develop` to `master` after manual Web v2 MegaDrive/NES reader tests and passing mocked CI. Full production image / Debian runtime packaging remains a separate release gate.
-The OS-installed runtime contract is defined in repository `AGENTS.md`
-and `docs/WEB-V2-HANDOFF.md`.
+The current developer commands and runtime contract are documented in
+[Deutsch](docs/developer-guide.de.md) and
+[English](docs/developer-guide.en.md). The historical
+`docs/WEB-V2-HANDOFF.md` is an archived feature-branch handoff.
 
 ## Architecture
 
