@@ -1,11 +1,14 @@
-# Retrode3 OS and Web: instructions for contributors and assistant chats
+# Retrode3 OS and Web: instructions for contributors
 
-**Read [docs/WEB-V2-HANDOFF.md](docs/WEB-V2-HANDOFF.md) first when
-working on Web v2, cartridge auto-detection or its install/update scripts.**
-If this branch does not yet contain that document, see the same path on
-the OS repo's `develop` branch. This file is deliberately copied into
-the currently active web feature branch so its development chat gets the
-correct native paths immediately, without relying on earlier messages.
+**Current Web v2 development instructions:**
+[German CLI developer guide](retrode3-web-control/v2/docs/developer-guide.de.md),
+[English CLI developer guide](retrode3-web-control/v2/docs/developer-guide.en.md),
+and [the shared CLI integration contract](retrode3-web-control/v2/docs/cli-integration.md).
+
+The older [Web v2 handoff](docs/WEB-V2-HANDOFF.md) is a **historical
+migration record**, not a current task list. Inspect the actual branch,
+CLI and repository state before coding. Do not resurrect standalone
+cartridge-reader executables or use former feature-branch instructions.
 
 ## Repository responsibilities (preserve Nikolaus' original structure)
 
@@ -53,28 +56,23 @@ no unspecified mappers, special chips, SRAM save or flash writes.
 `/usr/local/bin/retrode3-info`. The old web's dependencies
 must be migrated to the central CLI rather than resurrected.
 
-## Web v2 task and promotion gate
+## Current Web v2 and release boundaries
 
-The existing web feature branch `feature/web-control-v2`
-has older defaults/fallbacks: its Python backend expects
-`/usr/local/bin/retrode3-cli`, and its installer tries to
-install an extra CLI / standalone readers. Correct those to use
-**only the already installed** `/usr/bin/retrode3-cli`
-and `/usr/sbin/retrode3-corectl`. Confirm via actual device tests
-on SNES/MD/NES, auto insert/remove/probe, reader permissions,
-error handling, background SysV service, cancellation, and no
-regression in local file/network management.
+Web Control v2 has been promoted through `develop` to `master` after
+manual device acceptance of MegaDrive and NES UI flows and passing mocked
+tests. The supported reader executable is the one shared
+`/usr/bin/retrode3-cli`; the Web frontend is
+`retrode3-web-control/v2/`. The browser never probes a cartridge merely
+because a page is refreshed.
 
-`master` is stable, `develop` is the shared integration branch.
-Feature branches are temporary and are **not** separate permanent
-console/CLI branches. The Web branch is not yet in `develop`;
-reconcile its old base with the verified SysV/init improvements
-before promotion. Integrate into `develop`, then use a reviewed,
-hardware-accepted **squash PR** into `master`. Align `develop`
-back to master afterward without losing other work. No raw
-feature-branch merge into master without tests.
+`master` is stable source and `develop` is the active OS integration
+branch. Development Debian package candidates exist on `develop` and
+are **not automatically released** into `master`. Hardware installation,
+upgrade/rollback, APT publication and customer SD image verification are
+separate release gates. Check their current status on `develop` rather
+than copying unfinished packaging into a Web documentation-only PR.
 
-New chats must read the current source/CI before changing anything;
-do not trust old branch-specific README status statements over
-this contract. Avoid unrelated refactors and never treat a green
-mock CI as a physical cartridge test.
+Use SysV init, keep core enablement and the shared `bus.lock` inode
+intact, and never assume an occupied slot identifies an electrical adapter.
+Review the current CLI metadata and CI, and confirm hardware behavior for
+changes affecting cartridge IO.
