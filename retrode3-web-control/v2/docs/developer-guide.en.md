@@ -1,5 +1,13 @@
 # Retrode3 Web v2: Developer guide
 
+> **Update on `develop` (2026-11-20):** The normal NES
+> `nes.so` now supports MMC1 mapper-1 ROM bank reads and 695
+> pinned Sanni database records. Web v2 exposes its read-only 1 KiB
+> fingerprints, candidate/layout selector, and manual NES overrides
+> through the existing shared CLI. Battery-backed MMC1 layouts remain
+> blocked until kernel PRG-RAM-safe timing is verified. This source
+> change is not yet physically accepted or promoted to `master`.
+
 **November 2026.** This is the technical reference for the **shared Retrode3 CLI** and its Web v2 integration. For browser usage, see the [user guide](user-guide.en.md). Treat the installed CLI's `--list-cores` result as authoritative for available operations.
 
 ## 1. Architecture
