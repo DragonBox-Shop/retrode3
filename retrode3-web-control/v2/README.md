@@ -38,6 +38,28 @@ The current developer commands and runtime contract are documented in
   were manually exercised on the development device. Unsupported
   mappers, special chips, SRAM/flash writes and unknown adapters remain blocked.
 
+## Generic core selection / override (develop only)
+
+Web v2 can now render a **versioned generic v3 selection schema** from
+`get_capabilities.selection_schema` for any registered core. A physical slot
+comes exclusively from CLI core registry metadata, not the system name.
+Candidate and layout choices come from `probe_result` and are displayed
+without console-specific mapping logic. Different layouts require an explicit
+supported choice; title-only ambiguity permits automatic safe reading.
+
+A per-cartridge **Override** checkbox reveals generic enum, integer,
+boolean and string fields with declarative constraints and dependency rules.
+The frontend sends one `selection` object to the Python job manager, which
+validates its version/schema/mode before forwarding it to the shared CLI.
+The actual dynamic core still authorizes the read; browser options cannot
+override blocked mapper or save/flash operations.
+
+The older NES-v2 UI remains a **temporary compatibility path** for cores
+not yet migrated. No new system should use it. The full v3 Web contract,
+test matrix and migration boundary are in
+[docs/generic-selection-v3.md](docs/generic-selection-v3.md).
+This code is on `develop`, not a hardware-accepted `master` release.
+
 ## Storage and limitations
 
 ROM files are managed beneath `/usr/local/games/ROMs/` and exposed by the
