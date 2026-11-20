@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "oscr_repository": "DragonBox-Shop/retrode3-oscr",
+  "oscr_commit": "04e75c89698684b18a491943b7ff7fe78a85166d",
+  "sanni_submodule": "third_party/oscr-firmware",
+  "sanni_commit": "e5a08326dfc8fff67193f7fc5a7bc36b5282b28c",
+  "core_discovery_abi": 1,
+  "core_operations_abi": 1,
+  "native_version": "0.1.0~dev20261120+git04e75c8-1",
+  "web_version": "2.0.0~dev20261120-1",
+  "release_channel": "develop-test-only"
+}
