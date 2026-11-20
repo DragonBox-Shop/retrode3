@@ -169,5 +169,19 @@
   "detecting_automatically": "Detecting cartridge…",
   "core_status_ready": "Ready",
   "core_status_choose_reader": "Choose reader",
-  "help_open_developer": "Developer guide (CLI)"
+  "help_open_developer": "Developer guide (CLI)",
+  "generic_choice": "Detected game / read layout",
+  "generic_override": "Override (advanced setting)",
+  "generic_choice_required": "Multiple read layouts are possible. Select a game or layout.",
+  "generic_unknown": "Cartridge not identified. A supported manual override is required.",
+  "generic_optional_title": "Multiple titles possible. Choosing one is optional when the safe layout is identical.",
+  "generic_choose_value": "Choose…",
+  "generic_unavailable": "This read configuration is not approved.",
+  "generic_invalid": "Choose a complete, supported read configuration.",
+  "generic_schema_error": "CLI selection capabilities unavailable. Check core and CLI version.",
+  "verification_verified": "Verified against ROM checksum",
+  "verification_mismatch": "ROM data differs from the selected database entry",
+  "verification_not_found": "ROM read, but no unique database match",
+  "verification_ambiguous": "ROM read, but identification remains ambiguous",
+  "verification_not_checked": "ROM read; database verification was not performed"
 }
