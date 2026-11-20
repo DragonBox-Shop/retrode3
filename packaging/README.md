@@ -58,6 +58,15 @@ done
 sha256sum build/debian-candidates/*.deb
 ```
 
+**Target libc caveat:** the public CI cross toolchain is based on Debian
+Bookworm. It can produce correctly formatted mipsel ELF files that
+still require newer GLIBC/GLIBCXX versions than the older Retrode3 rootfs.
+The generated `build-manifest.json` records symbol-version requirements
+and explicitly marks the target sysroot **unverified**. Before any
+`dpkg -i` on real hardware, compare these requirements to the actual
+device libraries and loader, or rebuild using the device's verified
+matching mipsel sysroot. Architecture checks alone are insufficient.
+
 **No automatic `dpkg -i`, `dl-deb`, SSH, upload, activation,
 or SD-card writing occurs.** Set `SOURCE_DATE_EPOCH` to a recorded
 Unix timestamp for a deterministic package build. The build manifest
