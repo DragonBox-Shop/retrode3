@@ -34,6 +34,7 @@ WEB_FILES = (
     ("web/api.php", "var/www/html/api.php", 0o644),
     ("web/auth.php", "var/www/html/auth.php", 0o644),
     ("web/assets/app.js", "var/www/html/assets/app.js", 0o644),
+    ("web/assets/selection-ui.js", "var/www/html/assets/selection-ui.js", 0o644),
     ("web/assets/style.css", "var/www/html/assets/style.css", 0o644),
     ("web/locales/de.json", "var/www/html/locales/de.json", 0o644),
     ("web/locales/en.json", "var/www/html/locales/en.json", 0o644),
