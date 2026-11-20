@@ -42,9 +42,10 @@ Der Backend-Job ergänzt ausschließlich seinen **serverseitig kontrollierten** 
 
 ## Migration / offene Grenzen
 
-- Der alte **NES-v2**-Sonderrenderer und die vorhandenen Backend-Validatoren bleiben vorübergehend als Kompatibilitätsweg für noch nicht auf ABI v3 migrierte NES-Cores. **Neue** Cores verwenden ausschließlich v3; ihre Parameter benötigen keine HTML-/JavaScript-/Python-Sonderfälle.
-- Sobald SNES/MD/NES auf v3 umgestellt und auf Hardware getestet wurden, kann die alte NES-v2-Bedienlogik entfernt werden. Das ist ein separater Cleanup.
+- Die Weboberfläche verwendet für **alle ROM-Leseaufträge ausschließlich ABI v3**. Das NES-v2-Sonderformular sowie die älteren systemspezifischen Mapper-/Größenfelder und ihre Python-Validierung sind entfernt. Das gemeinsame CLI kann seine ABI-v1/v2-Kompatibilität weiterhin für andere Clients behalten.
+- `get_capabilities` muss für den gewählten Reader ein passendes `slot` und ein gültiges `selection_schema` liefern. Ohne dieses Schema bleibt `ROM auslesen` gesperrt, statt stillschweigend einen alten Reader-Pfad zu verwenden.
 - Die CLI muss `get_capabilities.selection_schema` ohne Cartridge-Hardwarezugriff bereitstellen; `probe_result.selection_schema_id` muss zur aktiven Revision passen. Ist sie veraltet, bleibt der Read-Button gesperrt.
+- `identification_status:"unknown"` ist **kein** Lesefehler: Ein MegaDrive-/SNES-Core kann bei unbekanntem Datenbanktitel trotzdem genau ein freigegebenes Layout liefern. Dann darf `auto` lesen, sofern `selection_required:false` gilt. Sind gar keine sicheren Layouts bekannt, bleibt die automatische Lesefunktion gesperrt; ein freigegebener manueller Override ist weiterhin möglich.
 - Web-Fehlerbehandlung verweigert ein fehlerhaftes oder nicht erreichbares CLI-Schema. Ein unbekannter Core wird nicht als freigegebener Leser geraten.
 - Nach dem Wechsel auf v3 den gesamten Weg auf echter Retrode3 testen: Einlegen/Entfernen, mehrere Titel, unterschiedliche Layouts, unbekannter Probe mit Override, unerlaubte Kombination, unveränderte Mapper-/Save-Sperren, parallele Leser, Neustart und Debian-Paket-Upgrade.
 - `packaging/build-debs.py` installiert die zusätzliche Web-JavaScript-Datei `assets/selection-ui.js`. Ein manuelles `retrode3-web-v2-update` kopiert sie über den bestehenden Installer. Ein Git-Pull allein aktualisiert nicht die aktive Weboberfläche.

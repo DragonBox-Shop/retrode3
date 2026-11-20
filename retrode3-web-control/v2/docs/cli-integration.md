@@ -1,35 +1,34 @@
 # Web v2 contract: retrode3-cli is the sole NDJSON publisher
 
-## MMC1 integration into the normal CLI and Web v2 (develop, 2026-11-20)
+## Current Web read interface: generic core ABI v3 (`develop`, 2026-11-20)
 
-The ordinary `retrode3-oscr/develop` `native-nes-module`
-now includes MMC1 PRG-ROM and CHR-ROM bank reads without a special
-laboratory build or runtime opt-in. The central CLI publishes
-`probe_result` with `identification_status`, `candidates`,
-`read_layouts`, `selection_required` and normal ROM metadata.
-The 1024-byte automatic probe remains read-only. Before reading,
-the user may choose `candidate_id` or `layout_id`, or provide
-the full manual `mapper`, `submapper`, `prg_kib`, `chr_kib`,
-`mirroring` and `battery` fields.
+The NES, MegaDrive and SNES adapters in `retrode3-oscr/develop` now
+export the same generic v3 ABI. Web v2 uses a **single, system-independent**
+read path, per [generic v3 Web contract](generic-selection-v3.md).
 
-The Web backend preserves all these fields in its automatic
-slot detection cache and forwards validated selections through the
-same `POST /api/jobs` command to the shared CLI. The browser
-reads actual supported mapper ranges from
-`GET /api/reader-options/nes` (the PHP gateway permits this
-fixed path). Unambiguous layouts work without selection; if
-multiple layouts are possible, the user chooses before reading.
-For unknown ROMs the manual override is available in the normal
-read panel. Cartridge replacement clears the previous selector
-and filename where appropriate. No background MMC1 writes, new
-reader process, separate Web protocol or bypass of the bus lock.
+- `get_capabilities` provides the physical `slot` and versioned
+  `selection_schema` with the parameter fields and allowed modes.
+  Web v2 **requires** this schema for ROM reads; it does not fall back
+  to NES-v2 manual mapper fields or the former SNES/MD `mapping` and
+  `size_bytes` fields.
+- The browser offers `candidate` and `layout` choices from the
+  cached `probe_result`; an explicit **Override** checkbox reveals
+  the core-supplied `parameters`. All reads send exactly one
+  `selection` object with version, mode and schema ID to the
+  common CLI through the backend job manager.
+- `identification_status:unknown` does not itself prohibit reading:
+  header-only SNES and MegaDrive probes can still return a supported
+  `read_layout` usable in `auto` mode. Unknown hardware without
+  a safe layout instead requires a core-approved manual override.
+- Web checks the envelope and schema revision; the dynamic core
+  retains final authority on combinations, mapper writes and safety.
+  The older ABI remains available **inside the common CLI** for other
+  clients but is no longer driven by Web v2.
 
-Standard MMC1 ROM reads currently reject battery-backed
-layouts until the kernel's M2/ROMSEL pulses are verified SRAM-safe.
-Actual physical 32/32-KiB and 128/32-KiB PRG/CHR acceptance
-remains outstanding. `master` and customer Debian releases have
-not been updated.
-
+The CLI/core and Web changes are development source only until real
+Retrode3 v3 smoke tests and package/upgrade acceptance. The ROM probe
+never performs an automatic unsafe bank-write operation on insertion.
+Battery-backed MMC1 and other unapproved mapper writes remain blocked.
 
 Decision: 2026-11-18. The central **retrode3-cli**, not individual
 cartridge-system plugins, will provide the browser-facing NDJSON stream,
@@ -73,9 +72,9 @@ All three report enabled, `ready`, usable and `probe`/`read_rom` through
 starts only `/usr/bin/retrode3-cli --protocol ndjson-v1 --interactive`.
 Every `probe` or `read_rom` request specifies the CLI core ID. The one
 CLI publishes `ready` with `system:"multi"` and correlated NDJSON events.
-No standalone reader, compatibility fallback, copied CLI, or extra
-per-console executable is supported. No mapping or size override is exposed
-unless the central core metadata gains that capability.
+No standalone reader, legacy Web v2 reader fallback, copied CLI, or extra
+per-console executable is supported. Advanced read parameters are available
+only through a valid, core-owned generic v3 `selection_schema`.
 
 Physical read-only ROM CRC references: SNES Terranigma `6FB8A4DF`,
 MegaDrive Snake Rattle n Roll `543BED30`, NES Excitebike `F749E780`.

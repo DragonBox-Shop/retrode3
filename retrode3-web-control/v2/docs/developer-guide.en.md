@@ -1,12 +1,17 @@
 # Retrode3 Web v2: Developer guide
 
-> **Update on `develop` (2026-11-20):** The normal NES
-> `nes.so` now supports MMC1 mapper-1 ROM bank reads and 695
-> pinned Sanni database records. Web v2 exposes its read-only 1 KiB
-> fingerprints, candidate/layout selector, and manual NES overrides
-> through the existing shared CLI. Battery-backed MMC1 layouts remain
-> blocked until kernel PRG-RAM-safe timing is verified. This source
-> change is not yet physically accepted or promoted to `master`.
+
+> **Current `develop` contract:** NES, MegaDrive and SNES now expose
+> generic core ABI v3. Web Control v2 submits **only** the versioned
+> `selection` object (`auto`, `candidate`, `layout`, `override`)
+> for ROM reads. Legacy NES-v2 controls and SNES/MD-specific override
+> fields have been removed from the Web. The CLI supplies each core's
+> physical `slot` and `get_capabilities.selection_schema`; new
+> adapters require no console-specific frontend code.
+> [Generic Web selection contract](generic-selection-v3.md).
+> The shared CLI may still implement ABI v1/v2 for other clients.
+> The v3 Web changes and Debian customer image remain subject to
+> physical acceptance.
 
 **November 2026.** This is the technical reference for the **shared Retrode3 CLI** and its Web v2 integration. For browser usage, see the [user guide](user-guide.en.md). Treat the installed CLI's `--list-cores` result as authoritative for available operations.
 

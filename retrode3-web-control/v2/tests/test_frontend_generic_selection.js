@@ -86,6 +86,18 @@ parts.choice.value = "layout:x";
 assert.strictEqual(widget.allowed(), true);
 assert.strictEqual(widget.selection().mode, "layout");
 
+// The SNES/MD v3 probes may have no catalog identity but still provide a
+// complete, safely readable layout. This MUST NOT force a manual override.
+const unknownWithSafeLayout = {
+  identification_status: "unknown", selection_schema_id: "future-adapter-v1",
+  selection_required: false, ambiguity: "none", candidates: [],
+  read_layouts: [{id: "safe-header-layout", read_supported: true}]
+};
+widget.update("future-adapter", schema, unknownWithSafeLayout);
+parts.choice.value = "";
+assert.strictEqual(widget.selection().mode, "auto");
+assert.strictEqual(widget.allowed(), true, "Safe layout permits auto-read despite unknown title");
+
 const unknown = {
   identification_status: "unknown", selection_schema_id: "future-adapter-v1",
   candidates: [], read_layouts: [], selection_required: false

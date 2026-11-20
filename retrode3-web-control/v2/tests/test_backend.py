@@ -118,11 +118,24 @@ class BackendTests(unittest.TestCase):
             MODULE.JobManager().submit({"system": "dangerous-helper", "command": "probe"})
         self.assertEqual(err.exception.status, 400)
 
-    def test_size_validation(self):
+    def test_legacy_read_fields_and_missing_v3_selection_are_rejected(self):
         manager = MODULE.JobManager()
-        for size in (True, 0, 131071, 4194305, 131073):
-            with self.assertRaises(MODULE.ApiError):
-                manager.submit({"system": "snes", "command": "read_rom", "size_bytes": size})
+        base = {"system": "snes", "command": "read_rom",
+                "filename": "test"}
+        variants = [
+            dict(base), dict(base, mapping="hi"),
+            dict(base, size_bytes=131072),
+            dict(base, candidate_id="old-nes-candidate"),
+            dict(base, layout_id="old-layout"),
+            dict(base, mapper=0, prg_kib=32),
+            dict(base, selection={"version": 1, "mode": "auto",
+                                  "schema_id": "snes-standard-v1"},
+                 mapping="hi"),
+        ]
+        for payload in variants:
+            with self.assertRaises(MODULE.ApiError) as error:
+                manager.submit(payload)
+            self.assertEqual(error.exception.status, 400)
 
     def test_generic_v3_selection_structure_and_no_mixed_fields(self):
         good = {"version": 1, "mode": "override",
@@ -276,136 +289,120 @@ class BackendTests(unittest.TestCase):
              MODULE.CORECTL_SUDO, MODULE.CORE_CONTROL_ENABLED) = old
 
 
-    def test_ready_shared_cli_is_exposed_and_serves_probe_and_read(self):
-        """Mock the central CLI transport, not the cartridge bus."""
+    def test_shared_cli_v3_probe_and_read_all_original_cores(self):
+        """Real Python job transport against a harmless CLI v3 mock."""
         import time
         old_cli = MODULE.CLI_BIN
-        cli = os.path.join(self.temp, "shared-cli-mock")
+        cli = os.path.join(self.temp, "shared-cli-v3-mock")
+        script = """#!/usr/bin/env python3
+from __future__ import print_function
+import json, sys
+cores = [('snes','Super Nintendo'),('md','Mega Drive'),('nes','Nintendo')]
+if '--list-cores' in sys.argv:
+    print(json.dumps({'protocol':'retrode3-ndjson','version':1,
+      'event':'cores','discovery_abi':1,
+      'cores':[{'id':id,'name':name,'version':'3.0','slot':id,
+        'installed':True,'enabled':True,'status':'ready','usable':True,
+        'actions':['probe','read_rom']} for id,name in cores]}))
+    sys.exit(0)
+assert sys.argv[1:] == ['--protocol', 'ndjson-v1', '--interactive']
+print(json.dumps({'protocol':'retrode3-ndjson','version':1,
+    'event':'ready','system':'multi'}),flush=True)
+for line in sys.stdin:
+    cmd = json.loads(line)
+    assert cmd['core'] in ('snes','md','nes')
+    rid = cmd['request_id']
+    event = {'protocol':'retrode3-ndjson','version':1,
+             'request_id':rid,'system':cmd['core'],'slot':cmd['core']}
+    schema = {'schema_version':1,'schema_id':cmd['core']+'-v3-test',
+              'selection_modes':['auto','candidate','layout','override'],
+              'fields':[{'id':'banks','type':'integer','required':True,
+                         'minimum':1,'maximum':8}]}
+    if cmd['command'] == 'get_capabilities':
+        event.update({'event':'capabilities','selection_schema':schema})
+        print(json.dumps(event),flush=True)
+    elif cmd['command'] == 'probe':
+        assert set(cmd) == set(['command','core','request_id'])
+        event.update({'event':'probe_result','title':'TEST CART',
+                      'identification_status':'unknown','ambiguity':'none',
+                      'selection_schema_id':schema['schema_id'],
+                      'selection_required':False,'candidates':[],
+                      'read_layouts':[{'id':'safe','read_supported':True}]})
+        print(json.dumps(event),flush=True)
+    elif cmd['command'] == 'read_rom':
+        assert set(cmd) == set(['command','core','request_id','output','selection'])
+        assert cmd['selection'] == {'version':1,'mode':'auto',
+                                    'schema_id':schema['schema_id']}
+        with open(cmd['output'],'wb') as output:
+            output.write(b'rom data')
+        event.update({'event':'progress','percent':100,
+                      'bytes_done':8,'bytes_total':8})
+        print(json.dumps(event),flush=True)
+        event.update({'event':'result','ok':True,'output':cmd['output'],
+                      'bytes_written':8,'verification':{
+                        'status':'not_found','verified':False}})
+        print(json.dumps(event),flush=True)
+    else:
+        raise AssertionError('Unexpected CLI command')
+"""
         with open(cli, "w") as stream:
-            stream.write("#!/usr/bin/env python3\n")
-            stream.write("from __future__ import print_function\n")
-            stream.write("import json, sys\n")
-            stream.write("if '--list-cores' in sys.argv:\n")
-            stream.write("  print(json.dumps({'protocol':'retrode3-ndjson','version':1,"
-                         "'event':'cores','discovery_abi':1,'cores':["
-                         "{'id':id,'name':name,'version':'0.1.0-stage1',"
-                         "'slot':id,'installed':True,'enabled':True,"
-                         "'status':'ready','usable':True,"
-                         "'actions':['probe','read_rom']} for id,name in "
-                         "[('snes','Super Nintendo'),('md','Mega Drive'),('nes','Nintendo Entertainment System')]]}))\n")
-            stream.write("  sys.exit(0)\n")
-            stream.write("assert sys.argv[1:] == ['--protocol', 'ndjson-v1', '--interactive']\n")
-            stream.write("print(json.dumps({'protocol':'retrode3-ndjson','version':1,"
-                         "'event':'ready','system':'multi'}),flush=True)\n")
-            stream.write("for line in sys.stdin:\n")
-            stream.write("  cmd=json.loads(line)\n")
-            stream.write("  assert cmd['core'] in ('snes','md','nes')\n")
-            stream.write("  assert cmd['command'] in ('probe','read_rom','get_capabilities')\n")
-            stream.write("  rid=cmd['request_id']\n")
-            stream.write("  event={'protocol':'retrode3-ndjson','version':1,"
-                         "'request_id':rid,'system':cmd['core']}\n")
-            stream.write("  if cmd['command']=='get_capabilities':\n")
-            stream.write("    event.update({'event':'capabilities','database_lookup':True,\n")
-            stream.write("                  'manual_layout':True,'supported_mappers':[\n")
-            stream.write("                    {'mapper':1,'submapper':0,'read_supported':True,\n")
-            stream.write("                     'prg_kib':[32,64,128],'chr_kib':[0,8,32]}]})\n")
-            stream.write("    print(json.dumps(event),flush=True)\n")
-            stream.write("  elif cmd['command']=='probe':\n")
-            stream.write("    event.update({'event':'probe_result','title':'TEST CART',"
-                         "'mapping':'hi','size_bytes':524288})\n")
-            stream.write("    print(json.dumps(event),flush=True)\n")
-            stream.write("  else:\n")
-            stream.write("    assert 'mapping' not in cmd and 'size_bytes' not in cmd\n")
-            stream.write("    with open(cmd['output'],'wb') as fh: fh.write(b'rom data')\n")
-            stream.write("    event.update({'event':'progress','percent':100,"
-                         "'bytes_done':8,'bytes_total':8})\n")
-            stream.write("    print(json.dumps(event),flush=True)\n")
-            stream.write("    event.update({'event':'result','ok':True,"
-                         "'output':cmd['output'],'bytes_written':8})\n")
-            stream.write("    print(json.dumps(event),flush=True)\n")
+            stream.write(script)
         os.chmod(cli, 0o755)
         try:
             MODULE.CLI_BIN = cli
-            result = MODULE.capability_probe()
-            by_id = dict((v["id"], v) for v in result["systems"])
-            self.assertTrue(by_id["md"]["available"])
-            self.assertTrue(by_id["snes"]["available"])
-            self.assertTrue(by_id["nes"]["available"])
-            self.assertEqual(by_id["snes"]["transport"], "cli")
-            self.assertEqual(by_id["md"]["transport"], "cli")
-            self.assertFalse(by_id["md"]["capabilities"]["size_override"])
-            self.assertEqual(by_id["md"]["capabilities"]["mappings"], [])
-            native = MODULE.native_reader_options("nes")
-            self.assertTrue(native["manual_layout"])
-            self.assertEqual(native["supported_mappers"][0]["mapper"], 1)
-            manager = MODULE.JobManager()
-            for system in ("snes", "nes"):
-                job_info = manager.submit({"system":system,"command":"probe"})
-                job = manager.get(job_info["id"])
-                deadline = time.time() + 5
-                while job.snapshot()["status"] not in ("done","failed","cancelled") and time.time() < deadline:
-                    time.sleep(.02)
-                self.assertEqual(job.snapshot()["status"], "done", job.snapshot())
-                self.assertEqual(job.snapshot()["result"]["title"], "TEST CART")
-                deadline = time.time() + 5
-                while manager.active is not None and time.time() < deadline:
-                    time.sleep(.02)
-            info = manager.submit({"system":"md","command":"read_rom","filename":"mock"})
-            job = manager.get(info["id"])
-            deadline = time.time() + 5
-            while job.snapshot()["status"] not in ("done","failed","cancelled") and time.time() < deadline:
-                time.sleep(.02)
-            snap = job.snapshot()
-            self.assertEqual(snap["status"], "done", snap)
-            self.assertEqual(snap["progress"]["percent"], 100)
-            self.assertTrue(os.path.isfile(snap["output"]))
-            with open(snap["output"], "rb") as fh:
-                self.assertEqual(fh.read(), b"rom data")
-            deadline = time.time() + 5
-            while manager.active is not None and time.time() < deadline:
-                time.sleep(.02)
-            for suffix, options in (
-                    ("selected", {"candidate_id": "mmc1-0007"}),
-                    ("manual", {"mapper": 1, "submapper": 0, "prg_kib": 128,
-                                "chr_kib": 32, "mirroring": "horizontal",
-                                "battery": 0})):
-                command = {"system": "nes", "command": "read_rom",
-                           "filename": "nes-" + suffix}
-                command.update(options)
-                self.assertEqual(MODULE.validate_nes_options(
-                    command, "nes", "read_rom"), options)
-                info = manager.submit(command)
-                job = manager.get(info["id"])
-                deadline = time.time() + 5
-                while job.snapshot()["status"] not in ("done", "failed", "cancelled") and time.time() < deadline:
-                    time.sleep(.02)
-                self.assertEqual(job.snapshot()["status"], "done", job.snapshot())
-                deadline = time.time() + 5
-                while manager.active is not None and time.time() < deadline:
-                    time.sleep(.02)
-            with self.assertRaises(MODULE.ApiError):
-                manager.submit({"system":"md","command":"read_rom","size_bytes":131072})
+            registry = MODULE.capability_probe()
+            by_id = dict((v["id"], v) for v in registry["systems"])
+            self.assertEqual(sorted(by_id), ["md", "nes", "snes"])
+            for system in ("snes", "md", "nes"):
+                self.assertTrue(by_id[system]["available"])
+                self.assertEqual(by_id[system]["slot"], system)
+                options = MODULE.native_reader_options(system)
+                self.assertEqual(options["selection_schema"]["schema_id"],
+                                 system + "-v3-test")
+                manager = MODULE.JobManager()
+                for command in ("probe", "read_rom"):
+                    payload = {"system": system, "command": command}
+                    if command == "read_rom":
+                        payload.update({"filename": "test-" + system,
+                            "selection": {"version": 1, "mode": "auto",
+                                          "schema_id": system + "-v3-test"}})
+                    info = manager.submit(payload)
+                    job = manager.get(info["id"])
+                    deadline = time.time() + 5
+                    while (job.snapshot()["status"] not in
+                           ("done", "failed", "cancelled") and
+                           time.time() < deadline):
+                        time.sleep(.02)
+                    self.assertEqual(job.snapshot()["status"], "done", job.snapshot())
+                    if command == "read_rom":
+                        with open(job.snapshot()["output"], "rb") as output:
+                            self.assertEqual(output.read(), b"rom data")
+                    while manager.active is not None and time.time() < deadline:
+                        time.sleep(.02)
+                    self.assertIsNone(manager.active)
         finally:
             MODULE.CLI_BIN = old_cli
 
-
-    def test_nes_v2_layout_options_are_rejected_on_wrong_core_or_probe(self):
-        valid = {"candidate_id": "mmc1-0007"}
-        invalid = (
-            (valid, "snes", "read_rom"),
-            (valid, "nes", "probe"),
-            ({"candidate_id": "../evil"}, "nes", "read_rom"),
-            ({"mapper": 1, "prg_kib": 128}, "nes", "read_rom"),
-            ({"mapper": 1, "submapper": 0, "prg_kib": 128,
-              "chr_kib": 32, "mirroring": "horizontal", "battery": True},
-             "nes", "read_rom"),
-            ({"mapper": 100, "submapper": 0, "prg_kib": 128,
-              "chr_kib": 32, "mirroring": "horizontal", "battery": 0},
-             "nes", "read_rom"),
-        )
-        for options, system, action in invalid:
-            with self.assertRaises(MODULE.ApiError):
-                MODULE.validate_nes_options(options, system, action)
+    def test_non_v3_capability_result_is_rejected(self):
+        old_reader = MODULE.reader_capability
+        old_popen = MODULE.subprocess.Popen
+        class FakeProcess(object):
+            returncode = 0
+            def communicate(self, data, timeout=None):
+                return (('{"protocol":"retrode3-ndjson","version":1,'
+                         '"event":"capabilities","request_id":"web-options",'
+                         '"system":"future-adapter","slot":"snes",'
+                         '"manual_layout":true,"supported_mappers":[]}').encode("utf-8"), b"")
+        try:
+            MODULE.reader_capability = lambda core_id: {
+                "id": core_id, "slot": "snes", "available": True}
+            MODULE.subprocess.Popen = lambda *args, **kwargs: FakeProcess()
+            with self.assertRaises(MODULE.ApiError) as error:
+                MODULE.native_reader_options("future-adapter")
+            self.assertEqual(error.exception.code, "selection_schema_unavailable")
+        finally:
+            MODULE.reader_capability = old_reader
+            MODULE.subprocess.Popen = old_popen
 
     def test_dynamic_cli_reader_is_not_limited_to_known_console_ids(self):
         custom = {"id": "supergb-adapter", "name": "Super Game Boy",
