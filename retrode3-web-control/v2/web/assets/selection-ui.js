@@ -208,9 +208,12 @@
       }
       choiceBox.hidden = !(candidates.length > 1 || layouts.length > 1 ||
         (probe && probe.selection_required === true));
+      var hasSafeLayout = layouts.some(function (item) {
+        return item.read_supported !== false;
+      });
       hint.textContent = probe && probe.selection_required === true ?
         tr("generic_choice_required", "Select an available game or layout before reading.") :
-        probe && probe.identification_status === "unknown" ?
+        probe && probe.identification_status === "unknown" && !hasSafeLayout ?
         tr("generic_unknown", "Unknown cartridge: use a supported manual override.") :
         candidates.length > 1 ?
         tr("generic_optional_title", "Select a title if known, or read automatically when safe.") : "";
@@ -278,9 +281,12 @@
         return layouts.some(function (l) {
           return l.id === selected.layout_id && l.read_supported !== false;
         });
+      // Identification and readability are different: an MD/SNES header
+      // may have no database title but still identify one safe ROM layout.
+      // Unknown NES cartridges with no safe layout still require override.
       return !(probe && (probe.selection_required === true ||
-        probe.identification_status === "unknown" ||
-        (layouts.length && !layouts.some(function (l) { return l.read_supported !== false; }))));
+        (Array.isArray(probe.read_layouts) &&
+         !layouts.some(function (l) { return l.read_supported !== false; }))));
     }
     choice.addEventListener("change", function () {
       if (choice.value.indexOf("candidate:") === 0 && config.onCandidateTitle) {
