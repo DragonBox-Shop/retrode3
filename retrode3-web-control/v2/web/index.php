@@ -46,6 +46,7 @@ header("Content-Security-Policy: default-src 'self'; img-src 'self'; style-src '
 <div id="advanced" hidden>
 <p class="muted small" data-i18n="advanced_note">Only readers with confirmed read operations are selectable. Selecting a system does not detect an adapter or change the voltage.</p>
 <label for="system" data-i18n="system">Reader / system</label><select id="system"><option value="">—</option></select>
+</div>
 <div id="generic-selection" class="generic-selection" hidden>
   <div id="generic-choice-control" hidden>
     <label for="generic-choice" data-i18n="generic_choice">Detected game / reading layout</label>
