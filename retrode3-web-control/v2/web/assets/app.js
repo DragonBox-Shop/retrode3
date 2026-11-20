@@ -562,6 +562,11 @@
     var identity = result && result.identity || {};
     var verification = result && result.verification || {};
     var title = result && (identity.title || result.title) || "";
+    var configuration = result && result.read_configuration;
+    var configurationText = configuration && typeof configuration === "object" &&
+      !Array.isArray(configuration) ? Object.keys(configuration).map(function (id) {
+        return id + ": " + configuration[id];
+      }).join(" · ") : "";
     var verifyText = verification.status ?
       t("verification_" + verification.status) :
       result && typeof result.verified === "boolean" ?
@@ -569,8 +574,11 @@
     text($("job-result-details"), result ?
       (title ? title + " · " : "") +
       (result.layout_id ? result.layout_id + " · " : "") +
+      (configurationText ? configurationText + " · " : "") +
       (result.crc32 ? "CRC32 " + result.crc32 : "") +
-      (verifyText ? " · " + verifyText : "") : "");
+      (verifyText ? " · " + verifyText : "") +
+      (verification.status === "mismatch" && verification.expected && verification.actual ?
+        " (" + verification.expected + " / " + verification.actual + ")" : "") : "");
     if (job.status === "done") {
       if (job.command === "probe") {
         var target = probeTarget;
