@@ -1,0 +1,67 @@
+#!/bin/sh
+### BEGIN INIT INFO
+# Provides:          retrode3-web-v2
+# Required-Start:    $local_fs $network retrode3-core-runtime
+# Required-Stop:     $local_fs $network
+# Default-Start:     2 3 4 5
+# Default-Stop:      0 1 6
+# Short-Description: Retrode3 v2 local web backend
+### END INIT INFO
+
+set -e
+NAME=retrode3-web-v2
+PIDFILE=/var/run/retrode3-web-v2.pid
+DAEMON=/opt/retrode3-web-v2/start.sh
+case "$1" in
+    start)
+        if ! /etc/init.d/retrode3-core-runtime status >/dev/null 2>&1; then
+            echo "OS cartridge bus lock not prepared" >&2
+            exit 1
+        fi
+        # Temporary SysV-device setup until the OS udev package owns these
+        # permissions permanently. Device nodes are recreated at boot.
+        getent group retrode3-reader >/dev/null 2>&1 || {
+            echo "Reader device group is missing" >&2
+            exit 1
+        }
+        for DEVICE in /dev/slot-*; do
+            [ -c "$DEVICE" ] || continue
+            [ ! -L "$DEVICE" ] || {
+                echo "Unsafe cartridge device symlink: $DEVICE" >&2
+                exit 1
+            }
+            chgrp retrode3-reader "$DEVICE"
+            chmod 0660 "$DEVICE"
+        done
+        if start-stop-daemon --status --pidfile "$PIDFILE" >/dev/null 2>&1; then
+            echo "$NAME already running"
+            exit 0
+        fi
+        rm -f "$PIDFILE"
+        start-stop-daemon --start --quiet --background --make-pidfile \
+            --pidfile "$PIDFILE" --chuid www-data --startas "$DAEMON"
+        echo "$NAME started"
+        ;;
+    stop)
+        start-stop-daemon --stop --quiet --oknodo --retry TERM/5/KILL/2 \
+            --pidfile "$PIDFILE" || true
+        rm -f "$PIDFILE"
+        echo "$NAME stopped"
+        ;;
+    restart|force-reload)
+        "$0" stop
+        "$0" start
+        ;;
+    status)
+        if start-stop-daemon --status --pidfile "$PIDFILE" >/dev/null 2>&1; then
+            echo "$NAME running"
+        else
+            echo "$NAME stopped"
+            exit 3
+        fi
+        ;;
+    *)
+        echo "Usage: $0 start|stop|restart|status" >&2
+        exit 2
+        ;;
+esac

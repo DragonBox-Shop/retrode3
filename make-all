@@ -5,7 +5,7 @@
 # this requires a Retrode3 connected and running RNDIS
 # also needs to have gcc / g++ installed (apt-get install g++) there
 
-[ "$DEV" ] || DEV=root@192.168.0.202	# for ssh and rsync
+[ "$DEV" ] || DEV=root@172.31.255.1	# for ssh and rsync
 
 set -e
 
@@ -67,8 +67,8 @@ END
 	)
 fi
 
-echo "Check retrode3-web-control"
-for i in retrode3-web-control/var/www/html/*.php;
+echo "Check Retrode3 Web v2 PHP sources (legacy UI is retired)"
+for i in retrode3-web-control/v2/web/*.php;
 do
 	php -l $i || exit 1
 done
@@ -97,7 +97,6 @@ PACKAGES+=" retrode3-controller-gadget"
 PACKAGES+=" retrode3-storage-gadget"
 PACKAGES+=" retrode3-smb"
 PACKAGES+=" retrode3-udev-rules"
-PACKAGES+=" retrode3-web-control"
 PACKAGES+=" oscr"
 PACKAGES+=" ucon64"
 PACKAGES+=" retrode3-tools"
@@ -107,6 +106,8 @@ echo installing Debian Packages: $PACKAGES
 
 dl-deb $DEV $PACKAGES
 
-open http://192.168.0.202
+echo "Web v1 is retired and no longer installed by make-all."
+echo "Web v2 must be installed from a tested OS release/package or its maintained installer."
+open http://172.31.255.1
 
 fi
