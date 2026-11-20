@@ -13,6 +13,7 @@ header("Content-Security-Policy: default-src 'self'; img-src 'self'; style-src '
 <meta name="csrf-token" content="<?php echo htmlspecialchars($csrf, ENT_QUOTES, 'UTF-8'); ?>">
 <title>Retrode3 Control</title>
 <link rel="stylesheet" href="assets/style.css">
+<script src="assets/selection-ui.js" defer></script>
 <script src="assets/app.js" defer></script>
 </head>
 <body>
@@ -48,6 +49,21 @@ header("Content-Security-Policy: default-src 'self'; img-src 'self'; style-src '
 <div id="mapping-control"><label for="mapping" data-i18n="mapping">Mapping</label><select id="mapping"><option value="" data-i18n="auto">Automatic</option></select></div>
 <div id="size-control"><label for="rom-size" data-i18n="rom_size">ROM size override</label><select id="rom-size"><option value="" data-i18n="auto">Automatic</option></select></div>
 <p class="muted small" data-i18n="overrides_note">Overrides are optional. Use detected settings unless you know the cartridge's layout.</p>
+</div>
+<div id="generic-selection" class="generic-selection" hidden>
+  <div id="generic-choice-control" hidden>
+    <label for="generic-choice" data-i18n="generic_choice">Detected game / reading layout</label>
+    <select id="generic-choice"><option value="" data-i18n="auto">Automatic</option></select>
+  </div>
+  <p id="generic-selection-hint" class="muted small" role="status"></p>
+  <div id="generic-override-box">
+    <label for="generic-override" class="generic-override-label">
+      <input type="checkbox" id="generic-override">
+      <span data-i18n="generic_override">Override (advanced)</span>
+    </label>
+    <div id="generic-override-fields" hidden></div>
+    <p id="generic-override-hint" class="muted small" role="status"></p>
+  </div>
 </div>
 <div id="nes-options" hidden>
   <div id="nes-choice-control" hidden>
