@@ -426,49 +426,8 @@ def reader_capability(core_id, registry=None):
     result.update({"available": True,
                    "capabilities": {"system": core["id"], "core": core["id"],
                                     "slot": core["slot"], "commands": commands,
-                                    "mappings": [], "size_override": False,
-                                    "database_lookup": False,
                                     "write_operations": False}})
     return result
-
-
-NES_OPTION_KEYS = ("candidate_id", "layout_id", "mapper", "submapper",
-                   "prg_kib", "chr_kib", "mirroring", "battery")
-NES_ID = re.compile(r"^[a-zA-Z0-9_-]{1,31}$")
-NES_SIZES_PRG = (16, 32, 64, 128, 256, 512)
-NES_SIZES_CHR = (0, 8, 16, 32, 64, 128, 256)
-
-
-def validate_nes_options(data, reader_id, action):
-    """Keep native NES-v2 selection structured, never reinterpret as v1 mapping.
-
-    The shared CLI/core is the final authority on selected cartridge layout.
-    """
-    options = dict((k, data[k]) for k in NES_OPTION_KEYS if k in data)
-    if not options:
-        return {}
-    if reader_id != "nes" or action != "read_rom":
-        raise ApiError(400, "invalid_nes_options",
-                       "NES layout selection is only valid for NES ROM reads")
-    manual_keys = ("mapper", "submapper", "prg_kib", "chr_kib",
-                   "mirroring", "battery")
-    manual = any(k in options for k in manual_keys)
-    if manual:
-        if (set(options) != set(manual_keys) or
-                options["mirroring"] not in ("horizontal", "vertical", "four_screen") or
-                type(options["battery"]) is not int or options["battery"] not in (0, 1) or
-                any(type(options[k]) is not int for k in manual_keys[:4]) or
-                options["mapper"] not in (0, 1, 2, 3, 4, 7) or
-                options["submapper"] not in (0, 5) or
-                options["prg_kib"] not in NES_SIZES_PRG or
-                options["chr_kib"] not in NES_SIZES_CHR):
-            raise ApiError(400, "invalid_nes_options", "Incomplete or invalid manual NES layout")
-    else:
-        if not all(isinstance(v, str) and NES_ID.match(v)
-                   for v in options.values()):
-            raise ApiError(400, "invalid_nes_options", "Invalid NES candidate/layout ID")
-    return options
-
 
 
 SELECTION_ID = re.compile(r"^[A-Za-z0-9_-]{1,63}$")
@@ -556,28 +515,25 @@ def native_reader_options(core_id):
                     event.get("protocol") == PROTOCOL and
                     event.get("version") == 1):
                 reported_slot = event.get("slot")
-                if reported_slot is not None and reported_slot != cap["slot"]:
+                if reported_slot != cap["slot"]:
                     raise ApiError(502, "native_protocol_unavailable",
                                    "CLI capability slot differs from registry")
                 schema = event.get("selection_schema")
-                if schema is not None:
-                    if (not isinstance(schema, dict) or
-                            type(schema.get("schema_version")) is not int or
-                            schema["schema_version"] != 1 or
-                            not isinstance(schema.get("schema_id"), str) or
-                            not SELECTION_ID.match(schema["schema_id"]) or
-                            not isinstance(schema.get("fields"), list) or
-                            len(schema["fields"]) > 32 or
-                            not isinstance(schema.get("selection_modes"), list) or
-                            any(mode not in SELECTION_MODES for mode in
-                                schema["selection_modes"])):
-                        raise ApiError(502, "native_protocol_unavailable",
-                                       "Invalid CLI selection schema")
+                if (not isinstance(schema, dict) or
+                        type(schema.get("schema_version")) is not int or
+                        schema["schema_version"] != 1 or
+                        not isinstance(schema.get("schema_id"), str) or
+                        not SELECTION_ID.match(schema["schema_id"]) or
+                        not isinstance(schema.get("fields"), list) or
+                        len(schema["fields"]) > 32 or
+                        not isinstance(schema.get("selection_modes"), list) or
+                        not schema["selection_modes"] or
+                        any(mode not in SELECTION_MODES for mode in
+                            schema["selection_modes"])):
+                    raise ApiError(409, "selection_schema_unavailable",
+                                   "Core must implement generic v3 selection")
                 return {"system": core_id, "slot": cap["slot"],
-                        "selection_schema": schema,
-                        "database_lookup": event.get("database_lookup") is True,
-                        "manual_layout": event.get("manual_layout") is True,
-                        "supported_mappers": event.get("supported_mappers", [])}
+                        "selection_schema": schema}
     except (OSError, ValueError, UnicodeError) as error:
         raise ApiError(502, "native_protocol_unavailable", str(error))
     raise ApiError(502, "native_protocol_unavailable",
@@ -595,18 +551,15 @@ def capability_probe():
 
 
 class Job(object):
-    def __init__(self, manager, reader_id, action, mapping, size, label,
-                 reader, automatic=False, nes_options=None, selection=None):
+    def __init__(self, manager, reader_id, action, label,
+                 reader, automatic=False, selection=None):
         self.manager = manager
         self.reader_id = reader_id
         self.reader = reader
-        self.nes_options = dict(nes_options or {})
         self.selection = selection
         self.automatic = automatic
         self.id = uuid.uuid4().hex
         self.action = action
-        self.mapping = mapping
-        self.size = size
         self.label = label
         self.output = None
         self.status = "queued"
@@ -691,13 +644,7 @@ class Job(object):
                             command["core"] = self.reader_id
                             if self.action == "read_rom":
                                 command["output"] = self.output
-                                if self.mapping:
-                                    command["mapping"] = self.mapping
-                                if self.size:
-                                    command["size_bytes"] = self.size
-                                command.update(self.nes_options)
-                                if self.selection is not None:
-                                    command["selection"] = self.selection
+                                command["selection"] = self.selection
                             self._send(command)
                             sent = True
                         continue
@@ -770,35 +717,18 @@ class JobManager(object):
         if (not isinstance(reader_id, str) or not CORE_ID.match(reader_id) or
                 data.get("command") not in ("probe", "read_rom")):
             raise ApiError(400, "unsupported", "Unknown reader or unsupported command")
-        mapping = data.get("mapping")
-        size = data.get("size_bytes")
-        selection = None
-        if "selection" in data:
-            selection = validate_generic_selection(data["selection"], data["command"])
-            # v3 cannot mix with any of the old SNES/MD or NES v2 fields.
-            if any(key in data for key in
-                   ("mapping", "size_bytes") + NES_OPTION_KEYS):
-                raise ApiError(400, "invalid_selection",
-                               "Generic selection cannot mix legacy read fields")
+        # The web API is v3-only: do not infer layout or silently forward
+        # legacy NES-v2/SNES/MD parameters to an older installed reader.
+        action = data["command"]
+        if action == "read_rom":
             if set(data) != {"system", "command", "filename", "selection"}:
-                raise ApiError(400, "invalid_selection", "Unexpected job fields")
-        nes_options = {} if selection is not None else validate_nes_options(
-            data, reader_id, data["command"])
-        # Validate input before invoking any process or touching hardware.
-        if mapping is not None and (not isinstance(mapping, str) or len(mapping) > 32):
-            raise ApiError(400, "invalid_mapping", "Invalid mapping")
-        if size is not None:
-            if type(size) is not int or size < 131072 or size > 4194304:
-                raise ApiError(400, "invalid_size", "Invalid ROM size")
-            if reader_id == "snes" and size % (65536 if mapping == "hi" else 32768):
-                raise ApiError(400, "invalid_size", "SNES ROM size incompatible with mapping")
-            if reader_id == "md" and size % 2:
-                raise ApiError(400, "invalid_size", "MegaDrive ROM size must be even")
-        if nes_options and (mapping is not None or size is not None):
-            raise ApiError(400, "invalid_nes_options",
-                           "Legacy mapping/size and NES-v2 layouts cannot be combined")
-        if data["command"] == "probe" and (mapping is not None or size is not None):
-            raise ApiError(400, "invalid_command", "Probe does not accept overrides")
+                raise ApiError(400, "invalid_selection",
+                               "ROM reads require the generic v3 selection envelope")
+            selection = validate_generic_selection(data["selection"], action)
+        else:
+            if set(data) != {"system", "command"}:
+                raise ApiError(400, "invalid_command", "Probe takes no read options")
+            selection = None
         cap = reader_capability(reader_id)
         if cap is None:
             raise ApiError(400, "unsupported", "Core not registered by CLI")
@@ -808,12 +738,6 @@ class JobManager(object):
         features = cap["capabilities"]
         if data["command"] not in features["commands"]:
             raise ApiError(400, "unsupported", "Command unavailable for this reader")
-        if mapping is not None and mapping not in features.get("mappings", []):
-            raise ApiError(400, "invalid_mapping", "Mapping not offered by this reader")
-        if size is not None and not features.get("size_override", False):
-            raise ApiError(400, "invalid_size", "ROM size override unavailable")
-        if size is not None and size > features.get("max_rom_bytes", 4194304):
-            raise ApiError(400, "invalid_size", "ROM size exceeds reader capabilities")
         if selection is not None:
             # Metadata query is cartridge-I/O free. The native v3 core
             # remains the final authority for schema, parameters and safety.
@@ -823,10 +747,9 @@ class JobManager(object):
                     selection["mode"] not in schema["selection_modes"]):
                 raise ApiError(409, "selection_schema_mismatch",
                                "Reader selection capabilities changed; reload options")
-        job = Job(self, reader_id, data["command"], mapping, size,
+        job = Job(self, reader_id, action,
                   sanitized_filename(data.get("filename")),
-                  cap, automatic=automatic, nes_options=nes_options,
-                  selection=selection)
+                  cap, automatic=automatic, selection=selection)
         with self.lock:
             if self.active is not None:
                 raise ApiError(409, "busy", "Cartridge reader already busy")
