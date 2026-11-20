@@ -1,11 +1,11 @@
-# Web v2 contract: retrode3-cli is the sole future NDJSON publisher
+# Web v2 contract: retrode3-cli is the sole NDJSON publisher
 
 Decision: 2026-11-18. The central **retrode3-cli**, not individual
 cartridge-system plugins, will provide the browser-facing NDJSON stream,
 progress events and job control. The Web UI must not impose a requirement
 that each SNES/MD/NES/adapter core implement the same streaming protocol.
 
-## Target architecture
+## Current architecture
 
 Browser (Read tab) <-> web HTTP gateway / job manager
 <-> **retrode3-cli** (one versioned command/event protocol)
@@ -14,7 +14,8 @@ Browser (Read tab) <-> web HTTP gateway / job manager
 
 The CLI is the single owner of:
 - capability discovery / registry of installed, supported readers;
-- safe slot and adapter probing and selection, where physically supported;
+- executing reviewed core-specific cartridge probes; the Web backend owns
+  kernel-event handling, passive slot state and automatic probe scheduling;
 - read job life cycle, progress accounting, cancellation and error codes;
 - NDJSON schemas / event correlation / source of truth for command validation;
 - identifying allowed advanced options per core, not enumerated by the UI;
@@ -29,7 +30,7 @@ The browser consumes capabilities and status without knowing plugin internals.
 
 ## Installed shared CLI contract (2026-11-19)
 
-Read repository `AGENTS.md` and `docs/WEB-V2-HANDOFF.md` first. The development
+Read `AGENTS.md` and the current [developer guide](developer-guide.en.md) first. The development
 Retrode3 2.9.5 has one OS-installed runtime, **`/usr/bin/retrode3-cli`**,
 and the restricted administrative toggle at **`/usr/sbin/retrode3-corectl`**.
 SNES, MegaDrive and NES cores are installed at
@@ -47,8 +48,10 @@ unless the central core metadata gains that capability.
 
 Physical read-only ROM CRC references: SNES Terranigma `6FB8A4DF`,
 MegaDrive Snake Rattle n Roll `543BED30`, NES Excitebike `F749E780`.
-These stage-1 cores do not imply special-chip, NES mapper, SRAM, flash,
-or write support. End-to-end Web testing is still pending.
+These stage-1 cores do not imply special-chip, additional NES mapper,
+SRAM, flash, or write support. Web v2 MegaDrive/NES workflows were tested
+on real hardware; complete package/reboot and all-core Web acceptance
+remain separate release gates.
 
 The device uses **SysV init**, not systemd. The tested OS-owned
 `/etc/init.d/retrode3-core-runtime` prepares
@@ -71,7 +74,7 @@ signature.
 This document supersedes previous instructions in this branch that asked
 each system's binary to implement its own NDJSON progress interface.
 
-## Core registry UI, staged implementation
+## Core registry UI
 
 The Plugins tab requests `GET /api/cores`. The backend runs the fixed
 `retrode3-cli --list-cores --protocol ndjson-v1` executable and validates
@@ -120,8 +123,9 @@ extension would remove even that small presentation mapping.
 
 The kernel's existing `KOBJ_CHANGE` event provides `SLOT=slot-...`
 and `SENSE=active|empty`. A single background thread in the loopback
-backend listens for these events via Linux netlink group 1. On each
-event it invalidates cached identity, then **re-checks kernel sysfs**;
+backend listens for these events via Linux netlink group 1. It rechecks
+the sysfs sense and invalidates identity only for a **confirmed transition**;
+repeated same-state or stale events do not trigger a fresh full ROM probe;
 loss of netlink permission/events is handled by a 300ms passive sense
 reconciliation loop. An occupied slot is debounced for 350ms and
 submitted as a read-only `probe` via the **same shared JobManager**
@@ -135,6 +139,10 @@ probe metadata; it polls the lightweight endpoint every 1.5s. There is
 no competing browser-side hardware probe and no long-lived PHP push
 connection. Server-Sent Events could be added later if response latency
 requires it, without changing the kernel or CLI contract.
+
+Pending auto-probes wait passively while a manual hardware job is active,
+without repeatedly launching CLI registry processes. A browser refresh
+never triggers cartridge reads.
 
 There is no standalone reader compatibility fallback. Missing or invalid
 central CLI metadata makes a core unavailable. Automatic probing remains

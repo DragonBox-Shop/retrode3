@@ -151,5 +151,6 @@
   "core_cli_error": "CLI discovery failed. Check the backend log and CLI protocol.",
   "detecting_automatically": "Detecting cartridge…",
   "core_status_ready": "Ready",
-  "core_status_choose_reader": "Choose reader"
+  "core_status_choose_reader": "Choose reader",
+  "help_open_developer": "Developer guide (CLI)"
 }

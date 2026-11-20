@@ -1,7 +1,8 @@
 # Retrode3 Web v2: physical slots versus CLI core discovery
 
-Status: feature branch `feature/web-control-v2`, awaiting end-to-end tests.
-See `AGENTS.md` and `docs/WEB-V2-HANDOFF.md` for final installed paths.
+Status: Web v2 source released on `master` after device tests for MD/NES
+flows; full Debian package and customer-image acceptance remain separate.
+See [developer-guide.en.md](developer-guide.en.md) for installed CLI paths.
 
 ## Independent states
 
@@ -19,7 +20,9 @@ See `AGENTS.md` and `docs/WEB-V2-HANDOFF.md` for final installed paths.
 ## Auto detection
 
 A backend worker watches kernel KOBJ_CHANGE events and reconciles slot
-sense periodically. After an insertion settles, it submits a probe using the
+sense periodically. Repeated unchanged events do not invalidate a completed
+probe. While another reader job occupies the bus, pending automatic probes
+wait without repeatedly querying the CLI core registry. After an insertion settles, it submits a probe using the
 same single-job manager only if exactly one enabled, usable reader is mapped
 to that physical slot. Multiple candidates require user selection. Inserting
 a module cannot authorize unsupported mapper, save or flash operations.

@@ -151,5 +151,6 @@
   "core_cli_error": "CLI-Abfrage fehlgeschlagen. Backend-Log und CLI-Protokoll prüfen.",
   "detecting_automatically": "Modul wird erkannt…",
   "core_status_ready": "Bereit",
-  "core_status_choose_reader": "Ausleser auswählen"
+  "core_status_choose_reader": "Ausleser auswählen",
+  "help_open_developer": "Entwickleranleitung (CLI)"
 }
