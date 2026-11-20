@@ -1,0 +1,46 @@
+#!/bin/sh
+set -e
+case "${1:-}" in
+    configure)
+        id www-data >/dev/null 2>&1
+        getent group retrode3-reader >/dev/null 2>&1
+        [ -x /usr/bin/retrode3-cli ] && [ -x /usr/sbin/retrode3-corectl ]
+        install -d -o root -g root -m 0755 /opt/retrode3-web-v2 /opt/retrode3-web-v2/backend
+        install -d -o root -g root -m 0755 /var/www/html
+        install -d -o root -g root -m 0755 /usr/local/games
+        if [ ! -e /usr/local/games/ROMs ]; then
+            install -d -o www-data -g www-data -m 0755 /usr/local/games/ROMs
+        fi
+        if [ -L /usr/local/games/ROMs ] || [ ! -d /usr/local/games/ROMs ]; then
+            echo "Refusing invalid ROM storage /usr/local/games/ROMs" >&2
+            exit 1
+        fi
+        # Do not take ownership of existing user ROMs or their files.
+        install -d -o root -g root -m 0755 /var/log
+        if [ ! -e /var/log/retrode3-web-v2.log ]; then
+            install -o www-data -g www-data -m 0640 /dev/null /var/log/retrode3-web-v2.log
+        fi
+        if [ -L /var/log/retrode3-web-v2.log ]; then
+            echo "Refusing symlink Web log" >&2
+            exit 1
+        fi
+        chown www-data:www-data /var/log/retrode3-web-v2.log
+        chmod 0640 /var/log/retrode3-web-v2.log
+        if [ ! -f /etc/retrode3-web-control.auth ]; then
+            :
+        else
+            chown root:www-data /etc/retrode3-web-control.auth
+            chmod 0640 /etc/retrode3-web-control.auth
+        fi
+        update-rc.d retrode3-web-v2 defaults
+        /etc/init.d/retrode3-core-runtime start
+        if /etc/init.d/retrode3-web-v2 status >/dev/null 2>&1; then
+            /etc/init.d/retrode3-web-v2 restart
+        else
+            /etc/init.d/retrode3-web-v2 start
+        fi
+        ;;
+    abort-upgrade|abort-remove|abort-deconfigure)
+        ;;
+esac
+exit 0

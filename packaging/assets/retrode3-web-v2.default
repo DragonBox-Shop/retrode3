@@ -1,0 +1,4 @@
+# Web core toggling requires both authorization and the exact sudoers policy.
+# Leave disabled by default until access to the Web UI is secured.
+RETRODE3_CORE_CONTROL_ENABLED=0
+RETRODE3_CORECTL_SUDO=1

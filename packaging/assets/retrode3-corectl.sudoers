@@ -1,0 +1,3 @@
+# Only explicitly known core IDs, no wildcards and no arbitrary CLI arguments.
+# The web backend must still authenticate/authorize the user.
+www-data ALL=(root) NOPASSWD: /usr/sbin/retrode3-corectl enable snes, /usr/sbin/retrode3-corectl disable snes, /usr/sbin/retrode3-corectl enable md, /usr/sbin/retrode3-corectl disable md, /usr/sbin/retrode3-corectl enable nes, /usr/sbin/retrode3-corectl disable nes
