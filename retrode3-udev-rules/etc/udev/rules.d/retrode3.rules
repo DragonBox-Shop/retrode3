@@ -17,3 +17,8 @@ KERNEL=="sd[a-z][0-9]",			   ACTION=="remove", RUN+="/etc/udev/rules.d/gadget.sh
 # detect cart slot change (incl. game controllers)
 
 ACTION=="change", SUBSYSTEMS=="retrode3", RUN+="/etc/udev/rules.d/retrode3.sh"
+
+# Permanent read-only cartridge device access for the unprivileged Web CLI.
+# Group is created by retrode3-core-runtime; boot SysV service is fallback.
+KERNEL=="slot-*", SUBSYSTEMS=="retrode3", ACTION=="add", GROUP="retrode3-reader", MODE="0660"
+KERNEL=="slot-*", SUBSYSTEMS=="retrode3", ACTION=="change", GROUP="retrode3-reader", MODE="0660"

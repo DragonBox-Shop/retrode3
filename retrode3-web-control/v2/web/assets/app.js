@@ -6,6 +6,8 @@
   var selectedReader = "";
   var detectedBySlot = {}, probeTarget = null, autoNames = {};
   var coreState = null, corePending = false;
+  var readerOptions = null, readerOptionsLoading = false, readerOptionsRequest = 0;
+  var genericWidget = null;
   var csrf = document.querySelector('meta[name="csrf-token"]').content;
   var $ = function (id) { return document.getElementById(id); };
   function t(key) { return messages[key] || key; }
@@ -83,42 +85,58 @@
   function readerById(id) {
     return readers().filter(function (entry) { return entry.id === id; })[0] || null;
   }
+  function selectedProbeData() {
+    var slot = selectedSlotId(), detected = slot && autoDetection(slot);
+    if (detected && detected.state === "detected" &&
+        detected.core_id === selectedReader && detected.result)
+      return detected.result;
+    var cached = slot && detectedBySlot[slot];
+    return cached && cached.reader === selectedReader ? cached.data : null;
+  }
+  function genericSchema() {
+    return readerOptions && readerOptions.system === selectedReader &&
+      readerOptions.selection_schema || null;
+  }
+  function loadReaderOptions() {
+    var id = selectedReader, reader = readerById(id);
+    if (!reader || readerOptionsLoading ||
+        (readerOptions && readerOptions.system === id)) return;
+    var serial = ++readerOptionsRequest;
+    readerOptionsLoading = true;
+    renderReaderState();
+    api("/api/reader-options/" + encodeURIComponent(id)).then(function (data) {
+      if (serial !== readerOptionsRequest || selectedReader !== id) return;
+      if (!data || data.system !== id || data.slot !== reader.slot ||
+          !data.selection_schema)
+        throw new Error(t("generic_schema_error"));
+      readerOptions = data;
+      readerOptionsLoading = false;
+      renderSelectedProbe();
+    }).catch(function (err) {
+      if (serial !== readerOptionsRequest || selectedReader !== id) return;
+      readerOptionsLoading = false;
+      readerOptions = null;
+      renderReaderState();
+      fail(err);
+    });
+  }
+  function renderGenericOptions() {
+    if (!genericWidget) return;
+    var schema = genericSchema();
+    if (schema) genericWidget.update(selectedReader, schema, selectedProbeData());
+    else if (genericWidget.active()) genericWidget.reset();
+    renderReaderState();
+  }
   function renderReaderState() {
     var reader = readerById(selectedReader);
     text($("selected-reader"), reader ? reader.name : t("choose_reader"));
     text($("reader-support"), reader ? reader.name : t("reader_unavailable"));
     var commands = reader && reader.capabilities && reader.capabilities.commands || [];
     $("probe").disabled = !reader || commands.indexOf("probe") === -1 || Boolean(activeJob);
-    $("read").disabled = !reader || commands.indexOf("read_rom") === -1 || Boolean(activeJob);
+    $("read").disabled = !reader || commands.indexOf("read_rom") === -1 ||
+      Boolean(activeJob) || readerOptionsLoading || !genericSchema() ||
+      !genericWidget || !genericWidget.allowed();
 
-  }
-  function configureReaderOptions() {
-    var reader = readerById(selectedReader), caps = reader && reader.capabilities || {};
-    var mapping = $("mapping"), size = $("rom-size");
-    mapping.innerHTML = ""; size.innerHTML = "";
-    var a = document.createElement("option"); a.value = ""; text(a, t("auto")); mapping.appendChild(a);
-    var b = document.createElement("option"); b.value = ""; text(b, t("auto")); size.appendChild(b);
-    (caps.mappings || []).forEach(function (mappingId) {
-      if (typeof mappingId !== "string" || mappingId.length > 32) return;
-      var opt = document.createElement("option");
-      opt.value = mappingId;
-      text(opt, mappingId === "lo" ? "LoROM" : mappingId === "hi" ? "HiROM" : mappingId);
-      mapping.appendChild(opt);
-    });
-    $("mapping-control").hidden = !(caps.mappings && caps.mappings.length);
-    $("size-control").hidden = !caps.size_override;
-    if (caps.size_override) {
-      var choices = Array.isArray(caps.size_choices_bytes) ? caps.size_choices_bytes.slice() : [];
-      if (!choices.length) {
-        for (var n = 131072; n <= Math.min(caps.max_rom_bytes || 4194304, 4194304); n *= 2)
-          choices.push(n);
-      }
-      choices.forEach(function (bytes) {
-        if (typeof bytes !== "number" || bytes < 131072 || bytes > 4194304) return;
-        var opt = document.createElement("option");
-        opt.value = String(bytes); text(opt, humanSize(bytes)); size.appendChild(opt);
-      });
-    }
   }
   function selectReader(id) {
     var previous = selectedReader;
@@ -128,14 +146,18 @@
     // A filename belongs to a reader/cartridge, not to the global dialog.
     // Preserve manual edits only when the same reader stays selected.
     if (selectedReader !== previous) {
+      readerOptionsRequest += 1;
+      readerOptions = null;
+      readerOptionsLoading = false;
+      if (genericWidget) genericWidget.reset();
       $("filename").value = reader ? suggestedFilename(reader) : "";
     } else if (reader && !$("filename").value) {
       $("filename").value = suggestedFilename(reader);
     }
-    configureReaderOptions();
     renderReaderState();
     if (slotData) renderSlots();
     renderSelectedProbe();
+    if (reader) loadReaderOptions();
   }
   function selectedSlotId() {
     var reader = readerById(selectedReader);
@@ -175,6 +197,7 @@
         t("detecting_automatically") : t("not_detected"));
       box.appendChild(empty);
     }
+    renderGenericOptions();
   }
   function renderSlots() {
     if (!slotData) return;
@@ -232,6 +255,9 @@
         var previous = previousSlots.filter(function (entry) { return entry.id === slot.id; })[0];
         if (!previous || previous.status !== slot.status || slot.status !== "occupied") {
           delete detectedBySlot[slot.id];
+          if (slot.id === selectedSlotId()) {
+            if (genericWidget) genericWidget.reset();
+          }
           if (slot.status !== "occupied" && selectedSlotId() === slot.id &&
               autoNames[slot.id] && $("filename").value === autoNames[slot.id]) {
             $("filename").value = selectedReader.toUpperCase() + "-Dump";
@@ -306,9 +332,8 @@
       row.className = "keyval"; text(left, t(pair[0])); text(right, pair[1]);
       row.appendChild(left); row.appendChild(right); box.appendChild(row);
     });
-    var info = document.createElement("p"); info.className = "muted small";
-    text(info, t("not_integrated")); box.appendChild(info);
     if (updateFilename !== false && data.title) $("filename").value = data.title;
+    renderGenericOptions();
   }
   function startJob(command) {
     var reader = readerById(selectedReader);
@@ -317,8 +342,9 @@
     var payload = {system: selectedReader, command: command};
     if (command === "read_rom") {
       payload.filename = $("filename").value;
-      if ($("mapping").value) payload.mapping = $("mapping").value;
-      if ($("rom-size").value) payload.size_bytes = Number($("rom-size").value);
+      if (!genericSchema() || !genericWidget || !genericWidget.allowed())
+        return notify(t("generic_invalid"));
+      payload.selection = genericWidget.selection();
     }
     $("read").disabled = $("probe").disabled = true;
     if (command === "probe") {
@@ -351,6 +377,25 @@
     $("job-fill").style.width = percent + "%";
     text($("job-detail"), progress.bytes_total ?
       humanSize(progress.bytes_done) + " / " + humanSize(progress.bytes_total) : "");
+    var result = job.command === "read_rom" && job.status === "done" && job.result || null;
+    var identity = result && result.identity || {};
+    var verification = result && result.verification || {};
+    var title = result && (identity.title || result.title) || "";
+    var configuration = result && result.read_configuration;
+    var configurationText = configuration && typeof configuration === "object" &&
+      !Array.isArray(configuration) ? Object.keys(configuration).map(function (id) {
+        return id + ": " + configuration[id];
+      }).join(" · ") : "";
+    var verifyText = verification.status ?
+      t("verification_" + verification.status) : "";
+    text($("job-result-details"), result ?
+      (title ? title + " · " : "") +
+      (result.layout_id ? result.layout_id + " · " : "") +
+      (configurationText ? configurationText + " · " : "") +
+      (result.crc32 ? "CRC32 " + result.crc32 : "") +
+      (verifyText ? " · " + verifyText : "") +
+      (verification.status === "mismatch" && verification.expected && verification.actual ?
+        " (" + verification.expected + " / " + verification.actual + ")" : "") : "");
     if (job.status === "done") {
       if (job.command === "probe") {
         var target = probeTarget;
@@ -363,7 +408,11 @@
         probeTarget = null;
         notify(t("probe_finished"));
       }
-      else { notify(t("read_finished")); }
+      else {
+        var verify = job.result && job.result.verification;
+        notify(t("read_finished") + (verify && verify.status ?
+          " · " + t("verification_" + verify.status) : ""));
+      }
     } else if (job.status === "failed") {
       if (job.command === "probe") probeTarget = null;
       notify(t("failed") + ": " + (job.error && (job.error.message || job.error.code) || t("unknown")));
@@ -550,6 +599,21 @@
       $("advanced-toggle").setAttribute("aria-expanded", String(expanded));
     });
     $("system").addEventListener("change", function () { selectReader(this.value); });
+    genericWidget = window.RetrodeSelection.create({
+      panel: $("generic-selection"),
+      choiceBox: $("generic-choice-control"), choice: $("generic-choice"),
+      overrideBox: $("generic-override-box"), override: $("generic-override"),
+      fields: $("generic-override-fields"), hint: $("generic-selection-hint"),
+      overrideHint: $("generic-override-hint"), translate: t,
+      onChange: renderReaderState,
+      onCandidateTitle: function (title, probe) {
+        var current = $("filename").value;
+        if (!current || current === probe.title ||
+            /^[a-z0-9_-]+-Dump$/i.test(current) ||
+            current === autoNames[selectedSlotId()])
+          $("filename").value = title;
+      }
+    });
     $("probe").addEventListener("click", function () { startJob("probe"); });
     $("read").addEventListener("click", function () { startJob("read_rom"); });
     $("cancel").addEventListener("click", function () {

@@ -1,0 +1,68 @@
+name: Build actual mipsel Debian test candidates
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [develop]
+    paths:
+      - 'packaging/**'
+      - '.github/workflows/debian-mipsel-candidates.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  cross-build-offline-debs:
+    runs-on: ubuntu-latest
+    container:
+      image: debian:bookworm
+    steps:
+      - name: Install pinned Debian cross-build dependencies
+        run: |
+          apt-get update
+          DEBIAN_FRONTEND=noninteractive apt-get install -y \
+            git ca-certificates make python3 gcc g++ dpkg-dev file binutils \
+            gcc-mipsel-linux-gnu g++-mipsel-linux-gnu binutils-mipsel-linux-gnu
+      - uses: actions/checkout@v4
+      - name: Checkout exact source and Sanni revision
+        run: |
+          set -eu
+          git clone https://github.com/DragonBox-Shop/retrode3-oscr.git "$RUNNER_TEMP/retrode3-oscr"
+          git -C "$RUNNER_TEMP/retrode3-oscr" checkout ed6e6e780a3cc8e0a0077d556651118e8329cd71
+          git -C "$RUNNER_TEMP/retrode3-oscr" submodule update --init third_party/oscr-firmware
+          test "$(git -C "$RUNNER_TEMP/retrode3-oscr" rev-parse HEAD:third_party/oscr-firmware)" = e5a08326dfc8fff67193f7fc5a7bc36b5282b28c
+          test "$(git -C "$RUNNER_TEMP/retrode3-oscr/third_party/oscr-firmware" rev-parse HEAD)" = e5a08326dfc8fff67193f7fc5a7bc36b5282b28c
+      - name: Shared-core native mocks (host only)
+        run: |
+          make -C "$RUNNER_TEMP/retrode3-oscr" -f Makefile.migration test-all-shared-cores
+      - name: Build target mipsel stage (not installed)
+        run: |
+          make -C "$RUNNER_TEMP/retrode3-oscr" -f Makefile.migration clean-migration
+          make -C "$RUNNER_TEMP/retrode3-oscr" -f Makefile.migration \
+            CC=mipsel-linux-gnu-gcc CXX=mipsel-linux-gnu-g++ \
+            AR=mipsel-linux-gnu-ar test-release-stage
+          file "$RUNNER_TEMP/retrode3-oscr/build/migration/stage/usr/bin/retrode3-cli"
+          file "$RUNNER_TEMP/retrode3-oscr/build/migration/stage/usr/lib/retrode3/cores-available/"*.so
+      - name: Build five offline Debian test candidates
+        run: |
+          SOURCE_DATE_EPOCH=1795132800 python3 packaging/build-debs.py \
+            --oscr-source "$RUNNER_TEMP/retrode3-oscr" \
+            --stage "$RUNNER_TEMP/retrode3-oscr/build/migration/stage" \
+            --output build/debian-candidates
+          for deb in build/debian-candidates/*.deb; do
+            dpkg-deb --info "$deb"
+            dpkg-deb --contents "$deb"
+          done
+      - name: Upload test packages only, NOT a signed APT release
+        uses: actions/upload-artifact@v4
+        with:
+          name: retrode3-develop-mipsel-debs-UNTESTED
+          path: |
+            build/debian-candidates/*.deb
+            build/debian-candidates/build-manifest.json
+          if-no-files-found: error
+          retention-days: 14

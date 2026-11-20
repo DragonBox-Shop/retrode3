@@ -1,0 +1,39 @@
+#!/bin/sh
+set -e
+# Never replace the backend while a ROM job is running or uninspectable.
+case "${1:-}" in
+    install|upgrade)
+        if [ -x /etc/init.d/retrode3-web-v2 ] &&
+           /etc/init.d/retrode3-web-v2 status >/dev/null 2>&1; then
+            /usr/bin/python3 - <<'PY'
+import http.client
+import json
+import sys
+try:
+    c = http.client.HTTPConnection("127.0.0.1", 8765, timeout=4)
+    c.request("GET", "/api/jobs/active")
+    response = c.getresponse()
+    if response.status != 200:
+        raise ValueError("unexpected status")
+    status = json.loads(response.read().decode("utf-8")).get("status")
+    c.close()
+    if status not in ("idle", "done", "failed", "cancelled"):
+        raise ValueError("active or unknown job: %s" % status)
+except Exception as exc:
+    sys.stderr.write("Refusing Web upgrade: %s\n" % exc)
+    sys.exit(1)
+PY
+        fi
+        # Save unmanaged previous frontend, preserving users' files elsewhere.
+        if [ -d /var/www/html ]; then
+            mkdir -p /var/backups/retrode3-web-control
+            stamp=$(date -u '+%Y%m%dT%H%M%SZ')
+            destination="/var/backups/retrode3-web-control/pre-dpkg-$stamp-$$"
+            cp -a /var/www/html "$destination"
+            printf '%s\n' "$destination" > /var/backups/retrode3-web-control/latest
+        fi
+        ;;
+    abort-upgrade)
+        ;;
+esac
+exit 0

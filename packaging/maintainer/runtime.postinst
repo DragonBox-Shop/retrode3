@@ -1,0 +1,21 @@
+#!/bin/sh
+set -e
+case "${1:-}" in
+    configure)
+        if ! getent group retrode3-reader >/dev/null 2>&1; then
+            addgroup --system retrode3-reader
+        fi
+        if id www-data >/dev/null 2>&1; then
+            usermod -a -G retrode3-reader www-data
+        fi
+        update-rc.d retrode3-core-runtime defaults
+        /etc/init.d/retrode3-core-runtime start
+        if command -v udevadm >/dev/null 2>&1; then
+            udevadm control --reload-rules || true
+            udevadm trigger --action=change --subsystem-match=retrode3 || true
+        fi
+        ;;
+    abort-upgrade|abort-remove|abort-deconfigure)
+        ;;
+esac
+exit 0

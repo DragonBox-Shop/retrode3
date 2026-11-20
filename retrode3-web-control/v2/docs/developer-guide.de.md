@@ -1,5 +1,19 @@
 # Retrode3 Web v2: Entwickleranleitung
 
+
+> **Aktueller Entwicklerstand auf `develop`:** NES, MegaDrive und
+> SNES implementieren die generische Core-ABI v3. Web Control v2
+> verwendet für alle ROM-Leseaufträge nur noch das versionierte
+> `selection`-Objekt (`auto`, `candidate`, `layout`, `override`).
+> Das alte NES-v2-Auswahlformular und die SNES-/MegaDrive-Sonderparameter
+> sind aus dem Web entfernt. `get_capabilities.selection_schema` und
+> `slot` kommen aus dem CLI. Für neue Plugins sind keine
+> systemspezifischen Web-Anpassungen nötig.
+> [Details zum generischen Web-Vertrag](generic-selection-v3.md).
+> Der gemeinsame CLI kann ABI v1/v2 weiterhin für andere Clients
+> unterstützen. Web v3-Integration und Debian-Pakete sind noch nicht
+> als neue Kunden-Images hardwareabgenommen.
+
 **Stand: November 2026.** Dies ist die technische Dokumentation des **gemeinsamen CLI-Systems** und seiner Web-v2-Anbindung. Die [Benutzeranleitung](user-guide.de.md) beschreibt die Bedienung im Browser. Maßgeblich sind die tatsächlich installierten CLI-Versionen und die `--list-cores`-Ausgabe; Funktionen, die eine Core-Version nicht meldet, dürfen nicht vorausgesetzt werden.
 
 ## 1. Architektur und Zuständigkeiten

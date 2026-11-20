@@ -1,0 +1,13 @@
+#!/bin/sh
+set -e
+case "${1:-}" in
+    remove|purge)
+        # The active lock inode must never be unlinked on package removal.
+        if [ "$1" = purge ]; then
+            update-rc.d -f retrode3-core-runtime remove
+        fi
+        ;;
+    upgrade|failed-upgrade|abort-install|abort-upgrade|disappear)
+        ;;
+esac
+exit 0

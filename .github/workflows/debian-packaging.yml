@@ -1,0 +1,60 @@
+name: Retrode3 Debian packaging (offline mocks)
+
+on:
+  push:
+    branches: [develop]
+    paths:
+      - 'packaging/**'
+      - 'retrode3.qcodeproj'
+      - 'retrode3-tools/retrode3-tools.qcodeproj'
+      - 'retrode3-tools/etc/sudoers.d/retrode3'
+      - 'retrode3-web-control/v2/service/retrode3-web-v2.init'
+      - 'retrode3-udev-rules/etc/udev/rules.d/retrode3.rules'
+      - 'make-all'
+      - 'tools/preflight-ci.sh'
+      - '.github/workflows/debian-packaging.yml'
+  pull_request:
+    paths:
+      - 'packaging/**'
+      - 'retrode3.qcodeproj'
+      - 'retrode3-tools/**'
+      - 'retrode3-web-control/v2/**'
+      - 'retrode3-udev-rules/**'
+      - 'make-all'
+      - 'tools/preflight-ci.sh'
+      - '.github/workflows/debian-packaging.yml'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  mock-package-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate local pre-push gate script
+        run: sh -n tools/preflight-ci.sh
+      - name: POSIX shell and metadata checks
+        run: |
+          set -eu
+          for p in packaging/maintainer/* packaging/assets/*.start; do sh -n "$p"; done
+          sh -n retrode3-web-control/v2/service/retrode3-web-v2.init
+          sh -n retrode3-core-runtime/etc/init.d/retrode3-core-runtime
+          bash -n make-all retrode3.qcodeproj retrode3-tools/retrode3-tools.qcodeproj
+          visudo -cf packaging/assets/retrode3-corectl.sudoers
+          visudo -cf retrode3-tools/etc/sudoers.d/retrode3
+          ! grep -Fq 'DEBIAN_RECOMMENDS="oscr"' retrode3.qcodeproj
+          ! grep -Fq 'PACKAGES+=" oscr"' make-all
+          ! grep -Fq 'SOURCES="oscr.qcodeproj"' retrode3-tools/retrode3-tools.qcodeproj
+      - name: Offline mock MIPS package smoke test
+        run: python3 -m unittest discover -s packaging/tests -p 'test_*.py' -v
+      - name: Check version and source lock syntax
+        run: |
+          python3 -m json.tool packaging/native-source-lock.json >/dev/null
+          python3 -m json.tool packaging/retrode3-core-layout.json >/dev/null
+          python3 -m py_compile packaging/build-debs.py
+      - name: Explain test limitation
+        run: |
+          echo "Mock ELF test files are NOT runnable mipsel binaries."
+          echo "Native OSCR source staging and physical Retrode3 tests remain separate release gates."

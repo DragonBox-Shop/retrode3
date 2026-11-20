@@ -1,5 +1,15 @@
 # Retrode3 Web Control v2: shared CLI integration
 
+> **Development integration (2026-11-20):** `develop`
+> now uses the regular NES `nes.so` with MMC1 mapper-1 ROM
+> support and a database-driven candidate/layout selector in Web v2.
+> The 1024-byte auto-detect remains read-only; ROM banking starts
+> only when a user clicks Read ROM. Unknown layouts can be set
+> manually, while battery-backed MMC1 boards remain disabled until
+> the kernel can switch MMC1 without threatening save RAM.
+> These changes have not been shipped to `master` or deployed
+> onto the real Retrode3 yet.
+
 **Release source:** merged via `develop` to `master` after manual Web v2 MegaDrive/NES reader tests and passing mocked CI. Full production image / Debian runtime packaging remains a separate release gate.
 The current developer commands and runtime contract are documented in
 [Deutsch](docs/developer-guide.de.md) and
@@ -28,6 +38,29 @@ The current developer commands and runtime contract are documented in
   were manually exercised on the development device. Unsupported
   mappers, special chips, SRAM/flash writes and unknown adapters remain blocked.
 
+## Generic core selection / override (develop only)
+
+Web v2 can now render a **versioned generic v3 selection schema** from
+`get_capabilities.selection_schema` for any registered core. A physical slot
+comes exclusively from CLI core registry metadata, not the system name.
+Candidate and layout choices come from `probe_result` and are displayed
+without console-specific mapping logic. Different layouts require an explicit
+supported choice; title-only ambiguity permits automatic safe reading.
+
+A per-cartridge **Override** checkbox reveals generic enum, integer,
+boolean and string fields with declarative constraints and dependency rules.
+The frontend sends one `selection` object to the Python job manager, which
+validates its version/schema/mode before forwarding it to the shared CLI.
+The actual dynamic core still authorizes the read; browser options cannot
+override blocked mapper or save/flash operations.
+
+All Web ROM reads now use this **single v3 selection path** for NES,
+MegaDrive, SNES and future systems. The old NES-v2 UI and legacy mapping/size
+read fields have been removed from Web v2; the native CLI's own additive ABI
+compatibility is unchanged. The full v3 Web contract and test matrix are in
+[docs/generic-selection-v3.md](docs/generic-selection-v3.md).
+This code is on `develop`, not a hardware-accepted `master` release.
+
 ## Storage and limitations
 
 ROM files are managed beneath `/usr/local/games/ROMs/` and exposed by the
@@ -51,6 +84,14 @@ First checkout:
     git clone --depth 1 --single-branch --branch master \
       https://github.com/DragonBox-Shop/retrode3.git /root/retrode3-web-src
     sh /root/retrode3-web-src/retrode3-web-control/v2/install-on-retrode.sh
+
+On a Debian-8/Apache 2.4 development device, the installer also
+enables the low-memory `retrode3-prefork` configuration from
+`packaging/assets/retrode3-prefork.conf` (maximum four prefork workers).
+It does not replace the Debian-owned `mpm_prefork.conf` and preserves
+an existing manually edited override file. Apache is syntax-checked
+and reloaded when possible. These limits are also packaged into the
+new Web Debian development candidate.
 
 The installer preflights Python 3.4+, PHP, Python/PHP syntax and the webroot.
 It configures a no-login-by-default development UI, a localhost

@@ -1,0 +1,22 @@
+#!/bin/sh
+set -e
+case "${1:-}" in
+    remove|deconfigure)
+        if [ -x /etc/init.d/retrode3-web-v2 ]; then
+            /etc/init.d/retrode3-web-v2 stop
+        fi
+        # Avoid a dangling conf-enabled link after dpkg removes its conffile.
+        if command -v a2disconf >/dev/null 2>&1 &&
+           [ -L /etc/apache2/conf-enabled/retrode3-prefork.conf ]; then
+            a2disconf retrode3-prefork
+            if [ -x /etc/init.d/apache2 ] &&
+               /etc/init.d/apache2 status >/dev/null 2>&1; then
+                invoke-rc.d apache2 reload || true
+            fi
+        fi
+        ;;
+    upgrade|failed-upgrade)
+        # Do not stop a running job as part of unpacking an upgrade.
+        ;;
+esac
+exit 0

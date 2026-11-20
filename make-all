@@ -1,9 +1,8 @@
 #!/bin/bash
 # make all packages for Retrode3
 #
-# if we rebuild the binaries (option -b),
-# this requires a Retrode3 connected and running RNDIS
-# also needs to have gcc / g++ installed (apt-get install g++) there
+# Native CLI and cores are built from the pinned OSCR checkout separately.
+# The retired -b reader rebuild is intentionally rejected.
 
 [ "$DEV" ] || DEV=root@172.31.255.1	# for ssh and rsync
 
@@ -11,60 +10,27 @@ set -e
 
 BUILD_PACKAGES=true
 BUILD_TOOL=false
-INSTALL_PACKAGES=true
+INSTALL_PACKAGES=false
 
-# default is not to build tools from source but pack current version (incl. other files) and install
+# Default is offline metadata/package build only: never auto-deploy to a device.
 
 while [ "$1" ]
 do
 	case "$1" in
 		-b ) BUILD_TOOL=true;;
 		-np ) BUILD_PACKAGES=false; INSTALL_PACKAGES=false;;	# no pack
-		-ni ) INSTALL_PACKAGES=false;;	# no install
+		-ni ) INSTALL_PACKAGES=false;;
+		--install ) INSTALL_PACKAGES=true;;
 		-* ) echo unknown option "$1"; exit 1;;
 		* ) break;
 	esac
 	shift
 done
 
-if $BUILD_TOOL
-then
-	echo build retrode tools and packages
-	export DEPLOY=false # do not auto-install by .qcodeproj	# DEPLOY will damage the permissions of / or /etc/sudoers.d
-	CARTREADER=$(cd ../Retrode3-OSCR; pwd)
-	BINDIR=/usr/local/bin/
-	ROOTDIR=/usr/local/games/oscr/
-
-	echo build oscr command line tool &&
-	(
-		cd retrode3-tools
-		mkdir -p ./$BINDIR/ ./$ROOTDIR/ ./$BINDIR/../include ./$BINDIR/../lib ./$BINDIR/../man/man1 ./$BINDIR/../man/man3
-		( cd $CARTREADER && make clean all && make clean all ARCH=mipsel )	# makes local version with HOSTCC to find bugs early and then remote
-		echo fetch oscr binary
-		cp $CARTREADER/oscr ./$BINDIR/oscr
-		cp $CARTREADER/oscr.groff ./$BINDIR/../man/man1/oscr.groff	# man page
-		cp $CARTREADER/retrode3-lib.h ./$BINDIR/../include/retrode3-lib.h
-		cp $CARTREADER/retrode3-lib.o ./$BINDIR/../lib/retrode3-lib.o
-		cp $CARTREADER/retrode3-lib.groff ./$BINDIR/../man/man3/retrode3-lib.groff	# man page
-		cp -R $CARTREADER/sd/* ./$ROOTDIR
-	)
-
-	false &&	# no longer needed since we can cross-compile ucon64 now
-	echo remote build ucon64 &&
-	(
-		cd retrode3-tools
-		SRCDIR=/usr/local/src/ucon64
-		rsync -rltDvzh "./ucon64-2.2.2-src/" "$DEV:$SRCDIR"
-		cat <<END | ssh $DEV
-cd
-cd $SRCDIR/src
-./configure --disable-parallel
-make
-./install.sh
-END
-		echo fetch ucon binary
-		scp $DEV:$BINDIR/ucon64 ./$BINDIR/ucon64
-	)
+if $BUILD_TOOL; then
+    echo "Legacy OSCR reader rebuild is retired. Build the pinned shared runtime in retrode3-oscr instead." >&2
+    echo "See packaging/README.md for the offline MIPS stage and .deb workflow." >&2
+    exit 2
 fi
 
 echo "Check Retrode3 Web v2 PHP sources (legacy UI is retired)"
@@ -85,6 +51,7 @@ done
 if $BUILD_PACKAGES
 then
 
+export DEPLOY=false # Prevent QuantumSTEP side-effect deployments.
 echo "Build retrode3.deb (and subpackages)"
 RECURSIVE=true ./retrode3.qcodeproj	# could make others recursively but then we have no clear list
 fi
@@ -97,12 +64,11 @@ PACKAGES+=" retrode3-controller-gadget"
 PACKAGES+=" retrode3-storage-gadget"
 PACKAGES+=" retrode3-smb"
 PACKAGES+=" retrode3-udev-rules"
-PACKAGES+=" oscr"
 PACKAGES+=" ucon64"
 PACKAGES+=" retrode3-tools"
 PACKAGES+=" retrode3"
 
-echo installing Debian Packages: $PACKAGES
+echo "Explicit legacy QuantumSTEP package install requested (new native/Web .debs are separate)."\necho installing Debian Packages: $PACKAGES
 
 dl-deb $DEV $PACKAGES
 
