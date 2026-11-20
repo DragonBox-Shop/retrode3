@@ -392,7 +392,7 @@ for line in sys.stdin:
                 return (('{"protocol":"retrode3-ndjson","version":1,'
                          '"event":"capabilities","request_id":"web-options",'
                          '"system":"future-adapter","slot":"snes",'
-                         '"manual_layout":true,"supported_mappers":[]}\\n').encode("utf-8"), b"")
+                         '"manual_layout":true,"supported_mappers":[]}').encode("utf-8"), b"")
         try:
             MODULE.reader_capability = lambda core_id: {
                 "id": core_id, "slot": "snes", "available": True}
