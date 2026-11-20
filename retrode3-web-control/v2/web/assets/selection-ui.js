@@ -32,6 +32,10 @@
       hint = config.hint, overrideHint = config.overrideHint;
     var reader = "", schema = null, probe = null, probeKey = "", fields = {};
     var schemaKey = "";
+    function tr(key, fallback) {
+      var translated = config.translate && config.translate(key);
+      return translated && translated !== key ? translated : fallback;
+    }
 
     function notify() {
       if (config.onChange) config.onChange();
@@ -79,7 +83,7 @@
         if (!conditionMatches(rule.when, params)) return;
         if (rule.read_supported === false) {
           supported = false;
-          errors.push(rule.reason || "Selected configuration is unavailable");
+          errors.push(rule.reason || tr("generic_unavailable", "Selected configuration is unavailable"));
         }
         if (rule.allow && typeof rule.allow === "object") {
           Object.keys(rule.allow).forEach(function (id) {
@@ -147,7 +151,7 @@
         var el = document.createElement(field.type === "enum" ? "select" : "input");
         el.id = "generic-" + field.id;
         if (field.type === "enum") {
-          addOption(el, "", "Choose...", false);
+          addOption(el, "", tr("generic_choose_value", "Choose..."), false);
           valuesOf(field).forEach(function (item) {
             addOption(el, JSON.stringify(item.value), String(item.label === undefined ?
               item.value : item.label), item.read_supported === false);
@@ -185,7 +189,7 @@
       if (key !== probeKey) {
         probeKey = key;
         choice.innerHTML = "";
-        addOption(choice, "", "Automatic", false);
+        addOption(choice, "", tr("auto", "Automatic"), false);
         var modes = schema.selection_modes || [];
         if (modes.indexOf("candidate") !== -1) candidates.forEach(function (item) {
           if (!item || typeof item.id !== "string") return;
@@ -202,10 +206,11 @@
       choiceBox.hidden = !(candidates.length > 1 || layouts.length > 1 ||
         (probe && probe.selection_required === true));
       hint.textContent = probe && probe.selection_required === true ?
-        "Select an available game or layout before reading." :
+        tr("generic_choice_required", "Select an available game or layout before reading.") :
         probe && probe.identification_status === "unknown" ?
-        "Unknown cartridge: use a supported manual override." :
-        candidates.length > 1 ? "Select a game title if known, or use automatic reading when safe." : "";
+        tr("generic_unknown", "Unknown cartridge: use a supported manual override.") :
+        candidates.length > 1 ?
+        tr("generic_optional_title", "Select a title if known, or read automatically when safe.") : "";
     }
     function update(core, nextSchema, nextProbe) {
       if (!core || !nextSchema || nextSchema.schema_version !== 1 ||
