@@ -18,7 +18,10 @@ function fakeSelect() {
     set() { el.children.length = 0; el.value = ""; }
   });
   Object.defineProperty(el, "options", {get() { return this.children; }});
-  el.appendChild = function (item) { this.children.push(item); };
+  el.appendChild = function (item) {
+    this.children.push(item);
+    if (this.children.length === 1) this.value = item.value;
+  };
   return el;
 }
 const names = ["nes-options", "nes-choice", "nes-choice-control",
