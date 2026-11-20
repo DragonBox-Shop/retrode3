@@ -1,69 +1,96 @@
-# Retrode3: User guide
+# Retrode3: User guide (Web Control v2)
 
-*New web UI development snapshot (November 2026). This document is intended as a starting point for the future public Retrode3 wiki.*
+This guide describes the Web v2 interface from the Retrode3 OS `master` branch (November 2026). See the [developer guide](developer-guide.en.md) for the actual `retrode3-cli` commands and interfaces.
 
 ## 1. Connecting
 
-Connect Retrode3 to your computer via USB. On the current development unit, the configured USB network makes the web page available at `http://172.31.255.1/`. This address may change in future releases.
+Connect Retrode3 to your computer over USB and open `http://172.31.255.1/`. This is the address of the current USB network setup, not a guarantee for every future image.
 
-The web interface requires **no password by default**. Owners may optionally enable a password from the device's command line. Do not expose the development interface directly to the public Internet.
+The existing development device runs the web UI without a password by default. Owners can enable optional authentication using `retrode3-web-v2-auth enable`. Do not expose the UI to the public internet. Basic Auth over unencrypted HTTP does not protect credentials against eavesdropping.
 
-## 2. Reading a cartridge
+## 2. Automatic detection and ROM reading
 
-1. Insert a game cartridge into its matching slot or a compatible adapter.
-2. Open **Read Cartridge**. Slot cards show the kernel's physical presence indication.
-3. If exactly one supported reader matches the occupied slot, it is suggested. **A populated slot does not identify the console or adapter.**
-4. Select **Detect cartridge** and review the detected details.
-5. Click **Read ROM** and follow the byte-accurate progress indicator.
-6. When the job finishes, open **File Manager**.
+1. Insert a supported cartridge into its matching physical slot.
+2. The Web v2 backend watches kernel slot events and starts a **read-only automatic probe** if exactly one installed, usable core matches the occupied slot. You normally do not need to click **Detect cartridge**.
+3. Select the occupied slot and review the detected title, mapping and ROM size. The suggested file name follows the selected slot and can be edited.
+4. Click **Read ROM** and monitor byte-based progress.
+5. Open the **File Manager** to find or download the finished file.
 
-Do not remove cartridges during a read. Do not blindly try unrelated mappers or voltage settings when detection fails.
+If multiple readers share a physical slot, automatic probing is intentionally suppressed. Select the reader associated with your actual adapter. A kernel `occupied` indication identifies **neither the system nor adapter nor its safe voltage**.
 
-## 3. Advanced settings
+Removing a cartridge clears its identity from the UI and cancels an active read for that slot. Reloading the browser does **not** initiate new hardware probing: the UI merely asks the backend for its cached state. All real cartridge jobs are serialized through the single shared CLI.
 
-If the game is not recognized, expand **Advanced settings**. Only installed and supported readers and options are available here. Manually choosing a reader does not identify an adapter or make unsupported electrical modes safe.
+Do not remove cartridges during reads or force unsupported mappers or voltages.
 
-The long-term command and progress interface is the centralized `retrode3-cli`, which coordinates the individual OSCR cores and adapters. Availability will change during development.
+## 3. Currently supported systems
 
-## 4. File manager and storage
+These **stage-1 cores** were physically tested with the shared CLI on a development Retrode3:
 
-Use **File Manager** to browse, download, rename, move or delete dumped ROMs. The new web-managed storage resides under `/usr/local/games/ROMs/`, with subdirectories such as `ROMs/SNES/`.
+| Console | Core ID | Supported scope |
+| --- | --- | --- |
+| Super Nintendo | `snes` | Ordinary LoROM/HiROM; no special chips or SRAM operations |
+| Mega Drive / Genesis | `md` | Standard linear ROMs; no specialty mappers or save writes |
+| NES / Famicom | `nes` | NROM, mapper 0 only; no other mappers or save writes |
 
-The existing Samba share named **retrode** exposes `/usr/local/games`. **Important:** The legacy USB mass-storage image is still independent. Web/Samba files do not automatically appear on the USB mass-storage disk. Never mount the same backing filesystem for simultaneous read/write use by the device and host.
+Actual availability depends on the installed, enabled and `ready` modules. A software core does not establish electrical compatibility with a physical adapter.
 
-## 5. Wi-Fi settings
+**Write Cartridge** is a placeholder; SRAM restoration, flash operations and other cartridge writes are not available. The NES output includes the catalog-derived 16-byte iNES header.
 
-Open **General Settings** to view Wi-Fi status, wireless interface name, IP address, available networks and connection controls.
+## 4. Advanced settings and software cores
 
-- **Scan networks:** Requests a scan using the installed wireless helper.
-- **Connect:** Enter/select an SSID and, if required, a Wi-Fi password.
-- **Disconnect:** Ends the current wireless connection. The browser may lose network access.
+**Advanced settings** lets you select installed compatible readers manually. Mapping and ROM-size overrides are shown only when explicitly advertised by the core; current stage-1 cores do not accept arbitrary overrides.
 
-If the page reports **No Wi-Fi adapter**, use `iw dev` and `ls /sys/class/net` on the device. The original helper uses an old `iwconfig`-based discovery method and can miss an existing device. The new web status checks both the Linux wireless interfaces and `iw dev`. If a device appears but connecting fails, check the helper and backend logs.
+**Plugins** shows the installed cores, enablement and ABI compatibility plus supported operations. Core enable/disable controls are disabled by default and need a separately secured administrative privilege configuration.
 
-SSH diagnostics:
+## 5. Files and networking
+
+Completed dumps are under `/usr/local/games/ROMs/`, for example `ROMs/MD/`, `ROMs/SNES/` and `ROMs/NES/`. The web file manager can download, rename, move and delete them. The Samba share `retrode` exports `/usr/local/games`.
+
+**Important:** USB mass storage currently uses a separate backing image. Web/Samba files are not automatically copied there. Never mount the same filesystem writable on both host and device at the same time.
+
+**General Settings** includes Wi-Fi status, scanning and connection controls where a supported device and the installed `retrode3-wlan` helper are available.
+
+## 6. Troubleshooting
+
+Run these commands on Retrode3 (SSH or USB serial console):
 
 ```sh
-iw dev
-ls /sys/class/net
-/usr/local/bin/retrode3-wlan status
+service retrode3-core-runtime status
 service retrode3-web-v2 status
+/usr/bin/retrode3-cli --list-cores --protocol ndjson-v1
+wget -qO- http://127.0.0.1:8765/api/slots
 tail -n 50 /var/log/retrode3-web-v2.log
+iw dev
 ```
 
-## 6. Supported and planned features
+A reported `occupied` slot does not guarantee successful game identification. An unavailable core is not silently replaced by a previous-generation standalone cartridge reader.
 
-- **SNES:** Standard LoROM/HiROM; the web prototype has successfully read a cartridge on real hardware with progress feedback.
-- **MegaDrive:** A native standard linear ROM reader has passed separate hardware tests; the shared `retrode3-cli` interface and web integration are still being developed.
-- **NES and adapters:** Availability depends on ongoing core and hardware work.
-- **Writing:** The write tab is a placeholder. Cartridge, SRAM and flash writing are not available in this web prototype.
-- **Detection:** Not every cartridge can be identified automatically; a ROM header is not proof of a database match.
+## 7. For developers: the common CLI
 
-## 7. Source code and further information
+All cartridge operations use **`/usr/bin/retrode3-cli`** and enabled dynamic cores. For a supported cartridge with the shared hardware bus free:
 
-- [Retrode3 OS and web interface](https://github.com/DragonBox-Shop/retrode3)
-- [OSCR core integration](https://github.com/DragonBox-Shop/retrode3-oscr)
-- [Kernel driver](https://github.com/DragonBox-Shop/retrode3-kernel)
+```sh
+# Discover cores and their actual actions
+/usr/bin/retrode3-cli --list-cores --protocol ndjson-v1
+
+# Read-only Mega Drive probe
+/usr/bin/retrode3-cli --protocol ndjson-v1 --core md --action probe
+
+# Read the complete ROM to a NEW destination file
+/usr/bin/retrode3-cli --protocol ndjson-v1 --core md \
+  --action read-rom --output /tmp/retrode3-test.md
+```
+
+Do not run these commands concurrently with a web-triggered read. The CLI uses `/run/lock/retrode3/bus.lock`. Output paths must be absolute and may not overwrite an existing file; direct CLI callers are responsible for choosing a safe output directory.
+
+The [full developer guide](developer-guide.en.md) documents the interactive NDJSON v1 protocol (`ready`, `probe_result`, `progress`, `result`, `error`), core registry, `retrode3-corectl`, SysV init, Web API and adding cores. There are **no separate SNES, Mega Drive or NES reader executables in the supported runtime architecture**.
+
+## 8. Source and documentation
+
+- [Retrode3 OS, Web v2 and Debian packaging](https://github.com/DragonBox-Shop/retrode3)
+- [Shared CLI and OSCR cores](https://github.com/DragonBox-Shop/retrode3-oscr)
+- [Kernel and slot drivers](https://github.com/DragonBox-Shop/retrode3-kernel)
 - [Hardware and adapters](https://github.com/DragonBox-Shop/retrode3-hardware)
+- [Web v2 / CLI integration contract](cli-integration.md)
 
-The online guide will eventually live in the Retrode3 wiki. Until then, the Help tab links to this Markdown document.
+Web v2 source has been promoted to `master`. Debian package candidates are tested separately on `develop`; source promotion does not imply a fully verified customer SD image.
