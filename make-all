@@ -1,9 +1,8 @@
 #!/bin/bash
 # make all packages for Retrode3
 #
-# if we rebuild the binaries (option -b),
-# this requires a Retrode3 connected and running RNDIS
-# also needs to have gcc / g++ installed (apt-get install g++) there
+# Native CLI and cores are built from the pinned OSCR checkout separately.
+# The retired -b reader rebuild is intentionally rejected.
 
 [ "$DEV" ] || DEV=root@172.31.255.1	# for ssh and rsync
 
@@ -21,7 +20,7 @@ do
 		-b ) BUILD_TOOL=true;;
 		-np ) BUILD_PACKAGES=false; INSTALL_PACKAGES=false;;	# no pack
 		-ni ) INSTALL_PACKAGES=false;;
-        --install ) INSTALL_PACKAGES=true;;	# no install
+		--install ) INSTALL_PACKAGES=true;;
 		-* ) echo unknown option "$1"; exit 1;;
 		* ) break;
 	esac
