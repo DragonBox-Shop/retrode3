@@ -4,7 +4,7 @@
 
 ## 1. Connecting
 
-Connect Retrode3 to your computer via USB. On the current development unit, the configured USB network makes the web page available at `http://192.168.0.202/`. This address may change in future releases.
+Connect Retrode3 to your computer via USB. On the current development unit, the configured USB network makes the web page available at `http://172.31.255.1/`. This address may change in future releases.
 
 The web interface requires **no password by default**. Owners may optionally enable a password from the device's command line. Do not expose the development interface directly to the public Internet.
 
