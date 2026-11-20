@@ -5,17 +5,25 @@ on:
     branches: [develop, feature/web-control-v2]
     paths:
       - 'retrode3-web-control/v2/**'
+      - 'tools/preflight-ci.sh'
       - '.github/workflows/web-v2-checks.yml'
   pull_request:
     paths:
       - 'retrode3-web-control/v2/**'
+      - 'tools/preflight-ci.sh'
       - '.github/workflows/web-v2-checks.yml'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 jobs:
   lint-and-mocks:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Validate local pre-push gate script
+        run: sh -n tools/preflight-ci.sh
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'

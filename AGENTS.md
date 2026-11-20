@@ -12,6 +12,21 @@ from Web v1 and the feature branch. Do not treat its former TODOs,
 feature-branch references or obsolete reader paths as active instructions.
 Always inspect the current branch and installed CLI before changing code.
 
+## Verbindliche Vorabpruefung vor GitHub-Pushes
+
+Vor einem Push, der Web v2, Debian-Paketierung, Init-Dienste oder Build-
+Metadaten aendert, im vollstaendigen lokalen Checkout zuerst
+`./tools/preflight-ci.sh` ausfuehren. Das Skript reproduziert die
+hardwarefreien Python-/JavaScript-/PHP-/Shell-/Paket-Mock-Pruefungen
+aus den beiden CI-Workflows. Bei Fehlern nicht pushen, sondern lokal
+reparieren und erneut testen. MIPS-Crossbuild und echte Hardwaretests
+sind zusaetzliche, separate Freigabeschritte.
+
+Ungetestete Zwischenstaende nicht direkt auf `develop` pushen. Werden
+nur GitHub-Connector-Aktionen ohne lokalen Checkout angeboten, fuer
+riskante Aenderungen einen kurzlebigen PR-Branch gegen `develop` nutzen
+und erst nach gruener CI squash-mergen. Fehlerhafte CI-Checks niemals
+mit `continue-on-error` oder abgeschalteten Tests kaschieren.
 ## Repository responsibilities (preserve Nikolaus' original structure)
 
 - `DragonBox-Shop/retrode3-oscr` owns native cartridge-reader **source**:

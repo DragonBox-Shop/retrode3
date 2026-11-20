@@ -11,6 +11,7 @@ on:
       - 'retrode3-web-control/v2/service/retrode3-web-v2.init'
       - 'retrode3-udev-rules/etc/udev/rules.d/retrode3.rules'
       - 'make-all'
+      - 'tools/preflight-ci.sh'
       - '.github/workflows/debian-packaging.yml'
   pull_request:
     paths:
@@ -20,13 +21,20 @@ on:
       - 'retrode3-web-control/v2/**'
       - 'retrode3-udev-rules/**'
       - 'make-all'
+      - 'tools/preflight-ci.sh'
       - '.github/workflows/debian-packaging.yml'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 jobs:
   mock-package-smoke:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Validate local pre-push gate script
+        run: sh -n tools/preflight-ci.sh
       - name: POSIX shell and metadata checks
         run: |
           set -eu
