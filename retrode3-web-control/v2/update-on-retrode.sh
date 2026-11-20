@@ -11,9 +11,11 @@ command -v git >/dev/null 2>&1 || fail "Git is not installed."
 SOURCE=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)
 [ -d "$SOURCE/.git" ] || fail "No Git checkout at $SOURCE."
 BRANCH=$(git -C "$SOURCE" symbolic-ref --quiet --short HEAD) ||
-    fail "Detached Git HEAD. Check out feature/web-control-v2 first."
-[ "$BRANCH" = "feature/web-control-v2" ] ||
-    fail "Unexpected branch $BRANCH. Refusing to deploy another branch."
+    fail "Detached Git HEAD. Check out master (release) or develop first."
+case "$BRANCH" in
+    master|develop|feature/web-control-v2) ;;
+    *) fail "Unexpected branch $BRANCH. Refusing to deploy another branch." ;;
+esac
 [ -z "$(git -C "$SOURCE" status --porcelain --untracked-files=no)" ] ||
     fail "Local tracked changes exist. Commit or revert them before updating."
 
@@ -44,8 +46,8 @@ sys.exit(0 if state in ("idle", "done", "failed", "cancelled") else 2)
     fi
 fi
 
-echo "==> Pulling feature/web-control-v2 from GitHub"
-git -C "$SOURCE" pull --ff-only origin feature/web-control-v2
+echo "==> Pulling $BRANCH from GitHub"
+git -C "$SOURCE" pull --ff-only origin "$BRANCH"
 
 SCRIPT="$SOURCE/retrode3-web-control/v2/install-on-retrode.sh"
 [ -f "$SCRIPT" ] || fail "Installer missing after Git pull."
