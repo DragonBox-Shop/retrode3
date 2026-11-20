@@ -2,7 +2,7 @@ name: Retrode3 Web Control v2 checks
 
 on:
   push:
-    branches: [feature/web-control-v2]
+    branches: [develop, feature/web-control-v2]
     paths:
       - 'retrode3-web-control/v2/**'
       - '.github/workflows/web-v2-checks.yml'
