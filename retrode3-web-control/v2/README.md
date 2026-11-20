@@ -54,9 +54,10 @@ validates its version/schema/mode before forwarding it to the shared CLI.
 The actual dynamic core still authorizes the read; browser options cannot
 override blocked mapper or save/flash operations.
 
-The older NES-v2 UI remains a **temporary compatibility path** for cores
-not yet migrated. No new system should use it. The full v3 Web contract,
-test matrix and migration boundary are in
+All Web ROM reads now use this **single v3 selection path** for NES,
+MegaDrive, SNES and future systems. The old NES-v2 UI and legacy mapping/size
+read fields have been removed from Web v2; the native CLI's own additive ABI
+compatibility is unchanged. The full v3 Web contract and test matrix are in
 [docs/generic-selection-v3.md](docs/generic-selection-v3.md).
 This code is on `develop`, not a hardware-accepted `master` release.
 
