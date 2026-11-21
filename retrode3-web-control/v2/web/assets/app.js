@@ -186,7 +186,8 @@
     if (detected && detected.state === "detected" &&
         detected.core_id === selectedReader && detected.result) {
       renderProbe(detected.result, false);
-    } else if (!detected && cached && cached.reader === selectedReader) {
+    } else if (cached && cached.reader === selectedReader) {
+      // Manual probes remain visible even if auto-detection was inconclusive.
       renderProbe(cached.data, false);
     } else {
       var box = $("game-info");
@@ -199,6 +200,27 @@
     }
     renderGenericOptions();
   }
+  function slotIdentification(slot) {
+    if (!slot || slot.status !== "occupied") return null;
+    var matching = readers().filter(function (reader) { return reader.slot === slot.id; });
+    var cached = detectedBySlot[slot.id];
+    if (cached && cached.data) {
+      var manualReader = matching.filter(function (reader) { return reader.id === cached.reader; })[0];
+      // In a shared slot, only an explicit positive signature identifies an adapter.
+      // A legacy one-reader manual probe may have no system_detected flag.
+      var positive = cached.data.system_detected === true ||
+        (matching.length === 1 && cached.data.system_detected !== false &&
+         cached.data.title && cached.data.system === cached.reader);
+      if (manualReader && positive) return {reader: manualReader, result: cached.data};
+    }
+    var automatic = slot.detection || {};
+    if (automatic.state === "detected" && automatic.result &&
+        automatic.result.system_detected !== false) {
+      var autoReader = matching.filter(function (reader) { return reader.id === automatic.core_id; })[0];
+      if (autoReader) return {reader: autoReader, result: automatic.result};
+    }
+    return null;
+  }
   function renderSlots() {
     if (!slotData) return;
     var list = $("slot-list"); list.innerHTML = "";
@@ -206,6 +228,7 @@
     text($("slots-summary"), occupied.length ? occupied.length + " " + t("slots_occupied") : t("no_occupied_slots"));
     slotData.slots.forEach(function (slot) {
       var matching = readers().filter(function (reader) { return reader.slot === slot.id; });
+      var identified = slotIdentification(slot);
       var isSelected = matching.some(function (reader) { return reader.id === selectedReader; });
       var card = document.createElement("button");
       card.type = "button";
@@ -220,7 +243,8 @@
         slot.status === "unavailable" ? t("slot_unavailable") : t("slot_unknown"));
       card.appendChild(state);
       var hint = document.createElement("small");
-      var systemName = matching.length ? matching.map(function (r) { return r.name; }).join(", ") :
+      var systemName = identified ? identified.reader.name :
+        matching.length ? matching.map(function (r) { return r.name; }).join(", ") :
         (slot.status === "occupied" ? t("slot_no_reader") : "");
       text(hint, systemName);
       card.appendChild(hint);
@@ -228,21 +252,21 @@
         var game = document.createElement("span");
         game.className = "slot-game";
         var automatic = slot.detection || {};
-        var isKnown = automatic.state === "detected" && automatic.result &&
-          matching.some(function (r) { return r.id === automatic.core_id; });
-        var title = isKnown && automatic.result.title;
-        text(game, title || (automatic.state === "detecting" ||
-          automatic.state === "pending" ? t("detecting_automatically") :
-          automatic.state === "choose_reader" ? t("choose_reader") : t("unknown")));
+        var title = identified && identified.result.title;
+        text(game, identified ? (title || identified.reader.name) :
+          (automatic.state === "detecting" || automatic.state === "pending" ?
+            t("detecting_automatically") :
+            automatic.state === "choose_reader" ? t("choose_reader") : t("unknown")));
         card.appendChild(game);
-        if (isKnown && automatic.result.voltage_status === "manual_required") {
+        if (identified && identified.result.voltage_status === "manual_required") {
           var voltageNotice = document.createElement("small");
           text(voltageNotice, t("voltage_manual_required"));
           card.appendChild(voltageNotice);
         }
       }
       card.addEventListener("click", function () {
-        if (matching.length === 1) selectReader(matching[0].id);
+        if (identified) selectReader(identified.reader.id);
+        else if (matching.length === 1) selectReader(matching[0].id);
         else {
           $("advanced").hidden = false;
           $("advanced-toggle").setAttribute("aria-expanded", "true");
