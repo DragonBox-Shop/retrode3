@@ -184,4 +184,30 @@ node = card();
 assert(!allText(node).includes("SNAKE RATTLE N ROLL"));
 assert(!node.children.some(function (part) { return part.className === "slot-manual"; }));
 assert(node.children[0].disabled, "empty slots must not select a reader");
-console.log("confirmed slot card identity and inline picker tests passed");
+
+// With exactly one usable reader, keep a directly selectable card and
+// manual Detect action even when automatic probing failed. No needless picker.
+slot.id = "snes";
+slot.name = "Super Nintendo";
+slot.status = "occupied";
+slot.detection = {state: "failed", core_id: "snes", result: null,
+  error: "probe_failed"};
+readers.length = 0;
+readers.push({id: "snes", name: "Super Nintendo", slot: "snes"});
+ctx.selectedReader = "snes";
+node = card();
+assert(!node.children.some(function (part) { return part.className === "slot-manual"; }),
+  "single-core slot must not require manual dropdown");
+assert(allText(node).includes("Super Nintendo"));
+assert(allText(node).includes("unknown"));
+assert(node.className.includes("selected"));
+node.children[0].handlers.click();
+assert.strictEqual(chosen, "snes", "single available core remains selectable");
+// A valid legacy single-core probe has no system_detected flag.
+slot.detection = {state: "detected", core_id: "snes",
+  result: {system: "snes", slot: "snes", title: "TERRANIGMA D",
+           mapping: "hi", size_bytes: 4194304}};
+node = card();
+assert(allText(node).includes("TERRANIGMA D"));
+assert(!node.children.some(function (part) { return part.className === "slot-manual"; }));
+console.log("confirmed slot card identity, single-core and inline picker tests passed");
