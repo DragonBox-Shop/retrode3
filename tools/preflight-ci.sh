@@ -38,6 +38,7 @@ node retrode3-web-control/v2/tests/test_frontend_generic_selection.js
 node retrode3-web-control/v2/tests/test_frontend_v3_job.js
 node retrode3-web-control/v2/tests/test_frontend_filename.js
 node retrode3-web-control/v2/tests/test_frontend_slot_card.js
+node retrode3-web-control/v2/tests/test_frontend_slot_poll.js
 node retrode3-web-control/v2/tests/test_documentation_links.js
 
 ! grep -Eq 'nes-choice|nes-manual-toggle|mapping-control|size-control' retrode3-web-control/v2/web/index.php
