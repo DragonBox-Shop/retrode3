@@ -5,6 +5,14 @@
 .slot-card.occupied span:not(.slot-game){color:var(--accent)}
 .slot-card.selected{border:2px solid var(--accent);padding:15px;box-shadow:0 0 0 1px #e5a34d44}
 .slot-card:hover{background:#2d3d50}
+.slot-card-main{display:flex;flex-direction:column;align-items:flex-start;text-align:left;gap:7px;width:100%;min-width:0;padding:0;background:none;border:0;color:inherit;cursor:pointer}
+.slot-card-main:hover{color:var(--text)}
+.slot-card-main:disabled{cursor:default;opacity:1}
+.slot-manual{width:100%;border-top:1px solid var(--line);padding-top:10px}
+.slot-manual label{margin:0 0 7px}
+.slot-manual select{width:100%;font-size:14px}
+.slot-manual small{display:block;margin-top:8px}
+
 #advanced{margin-top:16px;padding:16px;border:1px solid var(--line);border-radius:10px;background:#131d29}
 #advanced-toggle{margin-top:16px}
 @media(max-width:650px){.slot-grid{grid-template-columns:1fr}}
