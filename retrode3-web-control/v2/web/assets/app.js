@@ -202,8 +202,8 @@
   }
   function voltageLabel(millivolts) {
     if (typeof millivolts !== "number" || !isFinite(millivolts) ||
-        millivolts < 0 || millivolts > 10000) return "";
-    var amount = (millivolts / 1000).toFixed(1).replace(/\\.0$/, "");
+        (millivolts !== 3300 && millivolts !== 5000)) return "";
+    var amount = (millivolts / 1000).toFixed(1).replace(/\.0$/, "");
     return (locale === "de" ? amount.replace(".", ",") : amount) + " V";
   }
   function manualVoltageNotice(slot, identified) {
