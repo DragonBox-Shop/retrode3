@@ -281,7 +281,18 @@ def slot_snapshot():
                     state = "empty"
             except (IOError, OSError):
                 state = "unknown"
+        # Passive read-back only. Unknown/unsupported values must not be
+        # guessed, and reading /api/slots must never change hardware voltage.
+        voltage_mv = None
+        try:
+            with open(os.path.join(SENSE_ROOT, "slot-" + slot_id, "vcc"), "r") as handle:
+                voltage = handle.read(40).strip()
+            if voltage in ("3300mV", "5000mV"):
+                voltage_mv = int(voltage[:-2])
+        except (IOError, OSError):
+            pass
         slots.append({"id": slot_id, "name": name, "status": state,
+                      "voltage_mv": voltage_mv,
                       "detected_system": None, "adapter_id": None,
                       "detection": "kernel_sense_only"})
     return {"slots": slots}
@@ -975,6 +986,11 @@ class AutomaticDetection(object):
                                                              "candidate_lookup", "candidates", "read_layouts")
                                                             if key in probe)
                                     record["result"]["voltage_status"] = result.get("voltage_status")
+                                    # Read voltage is supplied by the selected core's
+                                    # capability schema, through the common CLI.
+                                    if type(probe.get("read_voltage_mv")) is int and \
+                                            probe["read_voltage_mv"] in (3300, 5000):
+                                        record["result"]["read_voltage_mv"] = probe["read_voltage_mv"]
                                     record["state"] = "detected"
                                     record["error"] = None
                             elif result.get("detection") == "empty":
