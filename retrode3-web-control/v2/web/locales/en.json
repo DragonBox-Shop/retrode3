@@ -161,5 +161,8 @@
   "verification_not_found": "ROM read, but no unique database match",
   "verification_ambiguous": "ROM read, but identification remains ambiguous",
   "verification_not_checked": "ROM read; database verification was not performed",
-  "voltage_manual_required": "Voltage must be checked/set manually before reading."
+  "voltage_manual_required": "Voltage must be checked/set manually before reading.",
+  "voltage_manual_detail": "Voltage: currently {current}; {required} required for reading. Please verify manually.",
+  "voltage_manual_required_voltage": "{required} required for reading. Please verify voltage manually.",
+  "voltage_manual_current_voltage": "Voltage: currently {current}. Please verify manually before reading."
 }
