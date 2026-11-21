@@ -254,10 +254,14 @@
       var identified = slotIdentification(slot);
       var automatic = slot.detection || {};
       var waiting = automatic.state === "pending" || automatic.state === "detecting";
-      var manualChoice = !identified && slot.status === "occupied" && !waiting && matching.length > 0;
+      // One compatible reader needs no manual system dropdown, even if the
+      // header probe fails. The user must still be able to run Detect manually.
+      var manualChoice = !identified && slot.status === "occupied" && !waiting && matching.length > 1;
       var chosenManually = manualReaderBySlot[slot.id] || "";
       var isSelected = identified ? identified.reader.id === selectedReader :
-        Boolean(chosenManually && chosenManually === selectedReader);
+        manualChoice ? Boolean(chosenManually && chosenManually === selectedReader) :
+        slot.status === "occupied" && matching.length === 1 &&
+          matching[0].id === selectedReader;
       // A select may not be nested in a button. The card is a plain container
       // with a separate focusable card button and manual reader selector.
       var card = document.createElement("div");
@@ -278,7 +282,8 @@
       var hint = document.createElement("small");
       var systemName = identified ? identified.reader.name :
         slot.status === "occupied" && matching.length ? (
-          waiting ? t("detecting_automatically") : t("slot_system_unrecognized")) :
+          waiting ? t("detecting_automatically") :
+            matching.length === 1 ? matching[0].name : t("slot_system_unrecognized")) :
         (slot.status === "occupied" ? t("slot_no_reader") :
           matching.map(function (r) { return r.name; }).join(", "));
       text(hint, systemName);
@@ -395,9 +400,12 @@
         var chosen = occupied.map(function (slot) {
           var identified = slotIdentification(slot);
           if (identified) return identified.reader.id;
+          var available = readers().filter(function (reader) {
+            return reader.slot === slot.id;
+          });
+          if (available.length === 1) return available[0].id;
           var manual = manualReaderBySlot[slot.id];
-          return readers().some(function (r) { return r.id === manual && r.slot === slot.id; }) ?
-            manual : "";
+          return available.some(function (r) { return r.id === manual; }) ? manual : "";
         }).filter(function (id) { return Boolean(id); });
         selectReader(chosen.indexOf(selectedReader) !== -1 ?
           selectedReader : (chosen[0] || ""));

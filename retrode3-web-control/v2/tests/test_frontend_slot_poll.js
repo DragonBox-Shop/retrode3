@@ -38,7 +38,12 @@ const ctx = {
     return Promise.resolve(incoming);
   },
   readers: function () { return readers; },
-  selectedSlotId: function () { return ctx.selectedReader ? "md" : ""; },
+  selectedSlotId: function () {
+    const entry = readers.filter(function (reader) {
+      return reader.id === ctx.selectedReader;
+    })[0];
+    return entry ? entry.slot : "";
+  },
   autoDetection: function (id) {
     const entry = ctx.slotData.slots.filter(function (s) { return s.id === id; })[0];
     return entry && entry.detection;
@@ -94,7 +99,23 @@ async function run() {
   await ctx.refreshSlots();
   assert.strictEqual(ctx.selectedReader, "");
   assert.strictEqual(ctx.manualReaderBySlot.md, undefined);
-  console.log("slot polling and manual selector persistence tests passed");
+
+  // SNES has exactly one available core. A failed/inconclusive automatic
+  // probe must not leave the whole UI without any reader to probe manually.
+  readers.push({id: "snes", slot: "snes"});
+  incoming = {slots: [{id: "snes", name: "Super Nintendo", status: "occupied",
+    detection: {state: "failed", core_id: "snes", result: null,
+      error: "probe_failed"}}]};
+  ctx.document.activeElement = null;
+  await ctx.refreshSlots();
+  assert.strictEqual(ctx.selectedReader, "snes");
+
+  // Legacy-style positive header responses omit system_detected.
+  incoming.slots[0].detection = {state: "detected", core_id: "snes",
+    result: {title: "TERRANIGMA D", mapping: "hi", size_bytes: 4194304}};
+  await ctx.refreshSlots();
+  assert.strictEqual(ctx.selectedReader, "snes");
+  console.log("slot polling, single-core and manual selector persistence tests passed");
 }
 run().catch(function (error) {
   console.error(error);
