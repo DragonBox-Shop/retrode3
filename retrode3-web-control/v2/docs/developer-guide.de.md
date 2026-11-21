@@ -141,7 +141,7 @@ Das Python-Backend ist auf `127.0.0.1:8765` gebunden. Der Browser verwendet den 
 | POST | `/api/jobs/<job-id>/cancel` | Abbruch anfordern |
 | POST | `/api/cores/toggle` | Nur mit freigegebener Admin-Rechtebrücke |
 
-Die automatische Erkennung wartet kurz auf einen stabilen Sense-Zustand, behandelt wiederholte identische Events ohne erneuten Probe und führt mehrere notwendige Probes **nacheinander** durch. Ein laufender manueller ROM-Dump hat Vorrang; das Backend startet dann keine zusätzlichen CLI-Inventarisierungen für einen wartenden automatischen Probe. Die Browser-Abfrage des Slots ist **kein** Auslöser eines Hardwarejobs.
+Die automatische Erkennung wartet kurz auf einen stabilen Sense-Zustand, behandelt wiederholte identische Events ohne erneuten Probe und führt mehrere notwendige Probes **nacheinander** durch. Ein laufender manueller ROM-Dump hat Vorrang; das Backend startet dann keine zusätzlichen CLI-Inventarisierungen für einen wartenden automatischen Probe. Die Browser-Abfrage des Slots ist **kein** Auslöser eines Hardwarejobs. Wenn die Erkennung unklar bleibt, zeigt die Slot-Kachel einen Core-Selektor aus den registrierten aktivierten Lesern dieses Slots. Eine manuelle Auswahl ist keine positive Hardwareerkennung und darf keine Spannung verändern. Ein offenes natives Dropdown darf nicht bei jedem Status-Poll neu aufgebaut werden; bei Entfernung oder neuer eindeutiger Erkennung wird es dagegen aktualisiert.
 
 Die lokale Python-HTTP-API nicht ungeschützt ins Netz binden. Browser-Anfragen müssen über den vorgesehenen PHP-Gateway laufen.
 

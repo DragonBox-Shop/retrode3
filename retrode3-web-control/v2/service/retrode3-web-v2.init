@@ -38,6 +38,21 @@ case "$1" in
             chgrp retrode3-reader "$DEVICE"
             chmod 0660 "$DEVICE"
         done
+        # The trusted shared CLI applies its v3 plugin's short-lived
+        # hardware profile. Grant ONLY these root-owned, kernel-validated
+        # control attributes to the same cartridge reader group as /dev.
+        # The browser never receives raw paths or write operations.
+        for CONTROL in /sys/module/retrode3/parameters/legacy_bridge_hiz_test \
+                       /sys/module/retrode3/parameters/sms_mapper_write_test \
+                       /sys/class/retrode3/slot-*/vcc; do
+            [ -e "$CONTROL" ] || continue
+            [ ! -L "$CONTROL" ] || {
+                echo "Unsafe kernel control symlink: $CONTROL" >&2
+                exit 1
+            }
+            chgrp retrode3-reader "$CONTROL"
+            chmod 0660 "$CONTROL"
+        done
         if start-stop-daemon --status --pidfile "$PIDFILE" >/dev/null 2>&1; then
             echo "$NAME already running"
             exit 0

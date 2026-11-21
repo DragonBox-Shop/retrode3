@@ -24,7 +24,7 @@ The existing development device runs the web UI without a password by default. O
 4. Click **Read ROM** and monitor byte-based progress.
 5. Open the **File Manager** to find or download the finished file.
 
-If multiple readers share a physical slot, automatic probing is intentionally suppressed. Select the reader associated with your actual adapter. A kernel `occupied` indication identifies **neither the system nor adapter nor its safe voltage**.
+If the automatic slot probe cannot identify the system unambiguously, a **Select system manually** dropdown appears directly inside the occupied slot card. It offers only active, available readers for that physical slot. This chooses a reader, but does not verify an adapter or change voltage. A kernel `occupied` indication identifies **neither the system nor adapter nor its safe voltage**.
 
 Removing a cartridge clears its identity from the UI and cancels an active read for that slot. Reloading the browser does **not** initiate new hardware probing: the UI merely asks the backend for its cached state. All real cartridge jobs are serialized through the single shared CLI.
 

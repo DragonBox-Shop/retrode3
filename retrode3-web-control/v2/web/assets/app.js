@@ -5,6 +5,7 @@
   var fileFolder = "", jobTimer = null, slotData = null, slotFingerprint = null;
   var selectedReader = "";
   var detectedBySlot = {}, probeTarget = null, autoNames = {};
+  var manualReaderBySlot = {};
   var coreState = null, corePending = false;
   var readerOptions = null, readerOptionsLoading = false, readerOptionsRequest = 0;
   var genericWidget = null;
@@ -88,7 +89,8 @@
   function selectedProbeData() {
     var slot = selectedSlotId(), detected = slot && autoDetection(slot);
     if (detected && detected.state === "detected" &&
-        detected.core_id === selectedReader && detected.result)
+        detected.core_id === selectedReader && detected.result &&
+        detected.result.system_detected !== false)
       return detected.result;
     var cached = slot && detectedBySlot[slot];
     return cached && cached.reader === selectedReader ? cached.data : null;
@@ -172,7 +174,8 @@
   function suggestedFilename(reader) {
     var detected = autoDetection(reader.slot);
     if (detected && detected.state === "detected" &&
-        detected.core_id === reader.id && detected.result && detected.result.title)
+        detected.core_id === reader.id && detected.result &&
+        detected.result.system_detected !== false && detected.result.title)
       return detected.result.title;
     var cached = detectedBySlot[reader.slot];
     if (cached && cached.reader === reader.id && cached.data && cached.data.title)
@@ -184,9 +187,11 @@
     var detected = slot && autoDetection(slot);
     var cached = slot && detectedBySlot[slot];
     if (detected && detected.state === "detected" &&
-        detected.core_id === selectedReader && detected.result) {
+        detected.core_id === selectedReader && detected.result &&
+        detected.result.system_detected !== false) {
       renderProbe(detected.result, false);
-    } else if (!detected && cached && cached.reader === selectedReader) {
+    } else if (cached && cached.reader === selectedReader) {
+      // Manual probes remain visible even if auto-detection was inconclusive.
       renderProbe(cached.data, false);
     } else {
       var box = $("game-info");
@@ -199,6 +204,46 @@
     }
     renderGenericOptions();
   }
+  function voltageLabel(millivolts) {
+    if (typeof millivolts !== "number" || !isFinite(millivolts) ||
+        (millivolts !== 3300 && millivolts !== 5000)) return "";
+    var amount = (millivolts / 1000).toFixed(1).replace(/\.0$/, "");
+    return (locale === "de" ? amount.replace(".", ",") : amount) + " V";
+  }
+  function manualVoltageNotice(slot, identified) {
+    if (!identified || identified.result.voltage_status !== "manual_required")
+      return "";
+    var current = voltageLabel(slot.voltage_mv);
+    var required = voltageLabel(identified.result.read_voltage_mv);
+    if (current && required)
+      return t("voltage_manual_detail").replace("{current}", current).replace("{required}", required);
+    if (required)
+      return t("voltage_manual_required_voltage").replace("{required}", required);
+    if (current)
+      return t("voltage_manual_current_voltage").replace("{current}", current);
+    return t("voltage_manual_required");
+  }
+  function slotIdentification(slot) {
+    if (!slot || slot.status !== "occupied") return null;
+    var matching = readers().filter(function (reader) { return reader.slot === slot.id; });
+    var cached = detectedBySlot[slot.id];
+    if (cached && cached.data) {
+      var manualReader = matching.filter(function (reader) { return reader.id === cached.reader; })[0];
+      // In a shared slot, only an explicit positive signature identifies an adapter.
+      // A legacy one-reader manual probe may have no system_detected flag.
+      var positive = cached.data.system_detected === true ||
+        (matching.length === 1 && cached.data.system_detected !== false &&
+         cached.data.title && cached.data.system === cached.reader);
+      if (manualReader && positive) return {reader: manualReader, result: cached.data};
+    }
+    var automatic = slot.detection || {};
+    if (automatic.state === "detected" && automatic.result &&
+        automatic.result.system_detected !== false) {
+      var autoReader = matching.filter(function (reader) { return reader.id === automatic.core_id; })[0];
+      if (autoReader) return {reader: autoReader, result: automatic.result};
+    }
+    return null;
+  }
   function renderSlots() {
     if (!slotData) return;
     var list = $("slot-list"); list.innerHTML = "";
@@ -206,43 +251,120 @@
     text($("slots-summary"), occupied.length ? occupied.length + " " + t("slots_occupied") : t("no_occupied_slots"));
     slotData.slots.forEach(function (slot) {
       var matching = readers().filter(function (reader) { return reader.slot === slot.id; });
-      var isSelected = matching.some(function (reader) { return reader.id === selectedReader; });
-      var card = document.createElement("button");
-      card.type = "button";
+      var identified = slotIdentification(slot);
+      var automatic = slot.detection || {};
+      var waiting = automatic.state === "pending" || automatic.state === "detecting";
+      // One compatible reader needs no manual system dropdown, even if the
+      // header probe fails. The user must still be able to run Detect manually.
+      var manualChoice = !identified && slot.status === "occupied" && !waiting && matching.length > 1;
+      var chosenManually = manualReaderBySlot[slot.id] || "";
+      var isSelected = identified ? identified.reader.id === selectedReader :
+        manualChoice ? Boolean(chosenManually && chosenManually === selectedReader) :
+        slot.status === "occupied" && matching.length === 1 &&
+          matching[0].id === selectedReader;
+      // A select may not be nested in a button. The card is a plain container
+      // with a separate focusable card button and manual reader selector.
+      var card = document.createElement("div");
       card.className = "slot-card" + (slot.status === "occupied" ? " occupied" : "") +
         (isSelected ? " selected" : "");
-      card.setAttribute("aria-pressed", isSelected ? "true" : "false");
+      var main = document.createElement("button");
+      main.type = "button";
+      main.className = "slot-card-main";
+      main.setAttribute("aria-pressed", isSelected ? "true" : "false");
+      main.disabled = slot.status !== "occupied";
       var title = document.createElement("strong");
-      text(title, slot.name); card.appendChild(title);
+      text(title, slot.name); main.appendChild(title);
       var state = document.createElement("span");
       text(state, slot.status === "occupied" ? t("slot_occupied") :
         slot.status === "empty" ? t("slot_empty") :
         slot.status === "unavailable" ? t("slot_unavailable") : t("slot_unknown"));
-      card.appendChild(state);
+      main.appendChild(state);
       var hint = document.createElement("small");
-      var systemName = matching.length ? matching.map(function (r) { return r.name; }).join(", ") :
-        (slot.status === "occupied" ? t("slot_no_reader") : "");
+      var systemName = identified ? identified.reader.name :
+        slot.status === "occupied" && matching.length ? (
+          waiting ? t("detecting_automatically") :
+            matching.length === 1 ? matching[0].name : t("slot_system_unrecognized")) :
+        (slot.status === "occupied" ? t("slot_no_reader") :
+          matching.map(function (r) { return r.name; }).join(", "));
       text(hint, systemName);
-      card.appendChild(hint);
+      main.appendChild(hint);
       if (slot.status === "occupied" && matching.length) {
         var game = document.createElement("span");
         game.className = "slot-game";
-        var automatic = slot.detection || {};
-        var isKnown = automatic.state === "detected" && automatic.result &&
-          matching.some(function (r) { return r.id === automatic.core_id; });
-        var title = isKnown && automatic.result.title;
-        text(game, title || (automatic.state === "detecting" ||
-          automatic.state === "pending" ? t("detecting_automatically") :
-          automatic.state === "choose_reader" ? t("choose_reader") : t("unknown")));
-        card.appendChild(game);
-      }
-      card.addEventListener("click", function () {
-        if (matching.length === 1) selectReader(matching[0].id);
-        else {
-          $("advanced").hidden = false;
-          $("advanced-toggle").setAttribute("aria-expanded", "true");
-          notify(t("manual_reader_hint"));
+        var gameTitle = identified && identified.result.title;
+        text(game, identified ? (gameTitle || identified.reader.name) :
+          (waiting ? t("detecting_automatically") : t("unknown")));
+        main.appendChild(game);
+        var voltageText = manualVoltageNotice(slot, identified);
+        if (voltageText) {
+          var voltageNotice = document.createElement("small");
+          text(voltageNotice, voltageText);
+          main.appendChild(voltageNotice);
         }
+      }
+      card.appendChild(main);
+      var picker = null;
+      if (manualChoice) {
+        var manual = document.createElement("div");
+        manual.className = "slot-manual";
+        var manualLabel = document.createElement("label");
+        var pickerId = "slot-reader-" + slot.id;
+        manualLabel.setAttribute("for", pickerId);
+        text(manualLabel, t("slot_manual_label"));
+        manual.appendChild(manualLabel);
+        picker = document.createElement("select");
+        picker.id = pickerId;
+        picker.className = "slot-manual-select";
+        picker.setAttribute("data-slot", slot.id);
+        picker.disabled = Boolean(activeJob);
+        var placeholder = document.createElement("option");
+        placeholder.value = "";
+        text(placeholder, t("slot_manual_placeholder"));
+        picker.appendChild(placeholder);
+        matching.forEach(function (reader) {
+          var option = document.createElement("option");
+          option.value = reader.id;
+          text(option, reader.name);
+          picker.appendChild(option);
+        });
+        picker.value = matching.some(function (reader) {
+          return reader.id === chosenManually;
+        }) ? chosenManually : "";
+        picker.addEventListener("change", function () {
+          var current = slotData && slotData.slots.filter(function (item) {
+            return item.id === slot.id;
+          })[0];
+          if (activeJob || !current || current.status !== "occupied" ||
+              slotIdentification(current)) {
+            renderSlots();
+            return;
+          }
+          var choice = matching.filter(function (reader) {
+            return reader.id === picker.value;
+          })[0];
+          if (choice) {
+            manualReaderBySlot[slot.id] = choice.id;
+            // Choosing a core is not proof of adapter identity. Never
+            // fabricate a probe result or change voltage from the browser.
+            selectReader(choice.id);
+          } else {
+            delete manualReaderBySlot[slot.id];
+            if (selectedSlotId() === slot.id) selectReader("");
+            else renderSlots();
+          }
+        });
+        manual.appendChild(picker);
+        var disclaimer = document.createElement("small");
+        text(disclaimer, t("slot_manual_note"));
+        manual.appendChild(disclaimer);
+        card.appendChild(manual);
+      }
+      main.addEventListener("click", function () {
+        if (identified) selectReader(identified.reader.id);
+        else if (picker) picker.focus();
+        else if (waiting) notify(t("detecting_automatically"));
+        else if (matching.length === 1) selectReader(matching[0].id);
+        else notify(t("slot_no_reader"));
       });
       list.appendChild(card);
     });
@@ -255,6 +377,7 @@
         var previous = previousSlots.filter(function (entry) { return entry.id === slot.id; })[0];
         if (!previous || previous.status !== slot.status || slot.status !== "occupied") {
           delete detectedBySlot[slot.id];
+          delete manualReaderBySlot[slot.id];
           if (slot.id === selectedSlotId()) {
             if (genericWidget) genericWidget.reset();
           }
@@ -273,19 +396,60 @@
       if (fingerprint !== slotFingerprint && !activeJob) {
         slotFingerprint = fingerprint;
         var occupied = data.slots.filter(function (slot) { return slot.status === "occupied"; });
-        var matches = readers().filter(function (reader) {
-          return occupied.some(function (slot) { return slot.id === reader.slot; });
-        });
-        if (matches.some(function (reader) { return reader.id === selectedReader; }))
-          selectReader(selectedReader);
-        else selectReader(matches.length ? matches[0].id : "");
+        // Never implicitly select the first adapter for an unrecognized slot.
+        var chosen = occupied.map(function (slot) {
+          var identified = slotIdentification(slot);
+          if (identified) return identified.reader.id;
+          var available = readers().filter(function (reader) {
+            return reader.slot === slot.id;
+          });
+          if (available.length === 1) return available[0].id;
+          var manual = manualReaderBySlot[slot.id];
+          return available.some(function (r) { return r.id === manual; }) ? manual : "";
+        }).filter(function (id) { return Boolean(id); });
+        selectReader(chosen.indexOf(selectedReader) !== -1 ?
+          selectedReader : (chosen[0] || ""));
       }
-      renderSlots();
+      // Follow a new positive slot identification once. Do not repeatedly
+      // override a user's explicit manual reader choice on later refreshes.
+      data.slots.forEach(function (slot) {
+        var current = slot.detection || {};
+        var previous = previousSlots.filter(function (entry) { return entry.id === slot.id; })[0];
+        var prior = previous && previous.detection || {};
+        if (!activeJob && slot.status === "occupied" &&
+            current.state === "detected" && current.core_id && current.result &&
+            current.result.system_detected !== false &&
+            (prior.state !== "detected" || prior.core_id !== current.core_id ||
+             !prior.result || prior.result.system_detected === false) &&
+            readers().some(function (reader) {
+              return reader.id === current.core_id && reader.slot === slot.id;
+            })) {
+          selectReader(current.core_id);
+        }
+      });
+      // /api/slots is polled every 1.5 seconds. Rebuilding an open native
+      // select on each poll would close the OS dropdown mid-choice.
+      var focused = document.activeElement;
+      var preservePicker = focused && focused.classList &&
+        focused.classList.contains("slot-manual-select") &&
+        previousSlots.length === data.slots.length &&
+        data.slots.every(function (slot) {
+          return previousSlots.some(function (prior) {
+            return prior.id === slot.id && prior.status === slot.status;
+          });
+        }) && data.slots.some(function (slot) {
+          return slot.id === focused.getAttribute("data-slot") &&
+            slot.status === "occupied" && !slotIdentification(slot) &&
+            (slot.detection || {}).state !== "detecting" &&
+            (slot.detection || {}).state !== "pending";
+        });
+      if (!preservePicker) renderSlots();
       var chosen = selectedSlotId();
       if (chosen) {
         var detected = autoDetection(chosen);
         var name = detected && detected.state === "detected" &&
-          detected.core_id === selectedReader && detected.result && detected.result.title;
+          detected.core_id === selectedReader && detected.result &&
+          detected.result.system_detected !== false && detected.result.title;
         if (name && autoNames[chosen] !== name) {
           if (!$("filename").value || /^[a-z0-9_-]+-Dump$/i.test($("filename").value) ||
               $("filename").value === autoNames[chosen]) $("filename").value = name;

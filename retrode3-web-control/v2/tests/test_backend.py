@@ -98,8 +98,16 @@ class BackendTests(unittest.TestCase):
                 os.makedirs(directory)
                 with open(os.path.join(directory, "sense"), "w") as handle:
                     handle.write(sense + "\n")
+            for slot, voltage in (("snes", "3300mV"), ("md", "5000mV"),
+                                  ("nes", "bogus")):
+                with open(os.path.join(MODULE.SENSE_ROOT, "slot-" + slot, "vcc"),
+                          "w") as handle:
+                    handle.write(voltage + "\n")
             result = MODULE.slot_snapshot()
             by_id = dict((slot["id"], slot) for slot in result["slots"])
+            self.assertEqual(by_id["snes"]["voltage_mv"], 3300)
+            self.assertEqual(by_id["md"]["voltage_mv"], 5000)
+            self.assertIsNone(by_id["nes"]["voltage_mv"])
             self.assertEqual(by_id["snes"]["status"], "occupied")
             self.assertEqual(by_id["md"]["status"], "empty")
             self.assertEqual(by_id["nes"]["status"], "unknown")
@@ -564,15 +572,32 @@ for line in sys.stdin:
             MODULE.slot_snapshot = old_snapshot
             MODULE.capability_probe = old_capabilities
 
-    def test_ambiguous_slot_does_not_probe_random_adapter(self):
+    def test_multi_core_slot_uses_cli_slot_probe_and_resolves_core(self):
         old_snapshot, old_capabilities = MODULE.slot_snapshot, MODULE.capability_probe
+        class FakeJob(object):
+            def snapshot(self):
+                return {"status": "done", "result": {
+                    "event": "slot_probe_result", "slot": "snes",
+                    "detection": "detected", "core": "sfc-adapter",
+                    "voltage_status": "manual_required",
+                    "probe_result": {"event": "probe_result", "slot": "snes",
+                                     "system": "sfc-adapter", "title": "TEST CART",
+                                     "read_voltage_mv": 5000}}}
         class FakeManager(object):
             def __init__(self):
                 self.lock = MODULE.threading.RLock()
                 self.active = None
+                self.calls = []
             def submit(self, *args, **kwargs):
-                raise AssertionError("Ambiguous slot must not be probed")
-        watcher = MODULE.AutomaticDetection(FakeManager())
+                raise AssertionError("Multiple cores must use probe_slot")
+            def submit_slot_probe(self, slot_id):
+                self.calls.append(slot_id)
+                return {"id": "slot-job"}
+            def get(self, job_id):
+                self.calls.append(job_id)
+                return FakeJob()
+        manager = FakeManager()
+        watcher = MODULE.AutomaticDetection(manager)
         try:
             MODULE.slot_snapshot = lambda: {"slots": [{
                 "id": "snes", "name": "Super Nintendo", "status": "occupied"}]}
@@ -582,6 +607,48 @@ for line in sys.stdin:
                 for x in ("snes", "sfc-adapter")]}
             watcher.tick(now=5.0)
             watcher.tick(now=5.4)
+            self.assertEqual(watcher.snapshot()["slots"][0]["detection"]["state"],
+                             "detecting")
+            self.assertEqual(manager.calls, ["snes"])
+            watcher.tick(now=5.5)
+            result = watcher.snapshot()["slots"][0]["detection"]
+            self.assertEqual(result["state"], "detected")
+            self.assertEqual(result["core_id"], "sfc-adapter")
+            self.assertEqual(result["result"]["title"], "TEST CART")
+            self.assertEqual(result["result"]["voltage_status"], "manual_required")
+            self.assertEqual(result["result"]["read_voltage_mv"], 5000)
+        finally:
+            MODULE.slot_snapshot = old_snapshot
+            MODULE.capability_probe = old_capabilities
+
+    def test_multi_core_no_match_shows_manual_choice(self):
+        old_snapshot, old_capabilities = MODULE.slot_snapshot, MODULE.capability_probe
+        class FakeJob(object):
+            def snapshot(self):
+                return {"status": "done", "result": {
+                    "event": "slot_probe_result", "slot": "md",
+                    "detection": "manual_required", "core": None,
+                    "attempts": [{"core": "md", "outcome": "no_match"},
+                                 {"core": "sms-md", "outcome": "no_match"}]}}
+        class FakeManager(object):
+            def __init__(self):
+                self.lock = MODULE.threading.RLock()
+                self.active = None
+            def submit_slot_probe(self, slot_id):
+                return {"id": "job"}
+            def get(self, job_id):
+                return FakeJob()
+        watcher = MODULE.AutomaticDetection(FakeManager())
+        try:
+            MODULE.slot_snapshot = lambda: {"slots": [{
+                "id": "md", "name": "Mega Drive", "status": "occupied"}]}
+            MODULE.capability_probe = lambda: {"systems": [
+                {"id": x, "slot": "md", "available": True,
+                 "capabilities": {"commands": ["probe"]}}
+                for x in ("md", "sms-md")]}
+            watcher.tick(now=5.0)
+            watcher.tick(now=5.4)
+            watcher.tick(now=5.5)
             self.assertEqual(watcher.snapshot()["slots"][0]["detection"]["state"],
                              "choose_reader")
         finally:

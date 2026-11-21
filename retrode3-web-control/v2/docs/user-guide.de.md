@@ -26,7 +26,7 @@ Die Weboberfläche ist auf dem bisherigen Entwicklungsgerät standardmäßig ohn
 4. Klicke auf **ROM auslesen**. Die Fortschrittsanzeige zeigt tatsächlich verarbeitete Bytes.
 5. Öffne nach Abschluss den **Dateimanager** und lade die Datei bei Bedarf herunter.
 
-Falls mehrere Reader für denselben physischen Slot möglich sind, wählt das Backend aus Sicherheitsgründen nicht willkürlich einen aus. Der Reader muss dann passend zum angeschlossenen Adapter manuell gewählt werden. Ein bloßer `occupied`-Zustand bestimmt **weder Konsolentyp noch Adapter oder sichere Spannung**.
+Wenn der automatische Slot-Probe kein System eindeutig identifizieren kann, erscheint **direkt in der belegten Slot-Kachel** das Dropdown „System manuell auswählen“. Es enthält nur die aktivierten, für diesen physischen Slot verfügbaren Reader. Die Auswahl legt lediglich den zu verwendenden Core fest: Sie bestätigt keine Adapteridentität und schaltet keine Spannung um. Ein bloßer `occupied`-Zustand bestimmt **weder Konsolentyp noch Adapter oder sichere Spannung**.
 
 Beim Entfernen eines Moduls verschwindet dessen Erkennung aus der Oberfläche. Ein laufender Lesevorgang auf diesem Slot wird abgebrochen. Ein Browser-Refresh startet **keine** erneute Hardware-Erkennung: Der Browser fragt lediglich den im Backend gespeicherten Zustand ab. Aufwendige ROM-Probes werden zentral über die gemeinsame CLI serialisiert.
 

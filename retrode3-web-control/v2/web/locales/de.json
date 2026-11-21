@@ -13,7 +13,7 @@
   "cartridge": "Spielmodul",
   "checking": "Prüfe…",
   "system": "System",
-  "systems_note": "Belegte Schächte werden automatisch angezeigt. Für unbekannte Module die erweiterten Einstellungen benutzen.",
+  "systems_note": "Erkannte Spielmodule erscheinen automatisch. Bei unbekanntem System den Ausleser direkt im betroffenen Schacht auswählen.",
   "detect": "Spielmodul erkennen",
   "not_detected": "Noch kein Modul geprüft.",
   "read_options": "Ausleseoptionen",
@@ -160,5 +160,13 @@
   "verification_mismatch": "ROM-Daten weichen vom gewählten Datenbankeintrag ab",
   "verification_not_found": "ROM gelesen, aber kein eindeutiger Datenbanktreffer",
   "verification_ambiguous": "ROM gelesen, aber weiterhin mehrdeutig",
-  "verification_not_checked": "ROM gelesen; Datenbankprüfung nicht durchgeführt"
+  "verification_not_checked": "ROM gelesen; Datenbankprüfung nicht durchgeführt",
+  "voltage_manual_required": "Spannung muss vor dem Auslesen manuell geprüft/eingestellt werden.",
+  "voltage_manual_detail": "Spannung: aktuell {current}; zum Lesen {required} erforderlich. Bitte manuell prüfen.",
+  "voltage_manual_required_voltage": "Zum Lesen {required} erforderlich. Spannung bitte manuell prüfen.",
+  "voltage_manual_current_voltage": "Spannung: aktuell {current}. Vor dem Lesen bitte manuell prüfen.",
+  "slot_system_unrecognized": "System nicht erkannt",
+  "slot_manual_label": "System manuell auswählen",
+  "slot_manual_placeholder": "System auswählen…",
+  "slot_manual_note": "Manuelle Auswahl bestätigt keinen Adapter und ändert keine Spannung."
 }

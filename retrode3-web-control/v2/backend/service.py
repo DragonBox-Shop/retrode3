@@ -281,7 +281,18 @@ def slot_snapshot():
                     state = "empty"
             except (IOError, OSError):
                 state = "unknown"
+        # Passive read-back only. Unknown/unsupported values must not be
+        # guessed, and reading /api/slots must never change hardware voltage.
+        voltage_mv = None
+        try:
+            with open(os.path.join(SENSE_ROOT, "slot-" + slot_id, "vcc"), "r") as handle:
+                voltage = handle.read(40).strip()
+            if voltage in ("3300mV", "5000mV"):
+                voltage_mv = int(voltage[:-2])
+        except (IOError, OSError):
+            pass
         slots.append({"id": slot_id, "name": name, "status": state,
+                      "voltage_mv": voltage_mv,
                       "detected_system": None, "adapter_id": None,
                       "detection": "kernel_sense_only"})
     return {"slots": slots}
@@ -641,7 +652,10 @@ class Job(object):
                                 self.status = "cancelled"
                                 return
                             command = {"command": self.action, "request_id": self.id}
-                            command["core"] = self.reader_id
+                            if self.action == "probe_slot":
+                                command["slot"] = self.reader_id
+                            else:
+                                command["core"] = self.reader_id
                             if self.action == "read_rom":
                                 command["output"] = self.output
                                 command["selection"] = self.selection
@@ -650,7 +664,7 @@ class Job(object):
                         continue
                     if not sent:
                         continue
-                    if kind not in ("error", "progress", "probe_result", "result"):
+                    if kind not in ("error", "progress", "probe_result", "slot_probe_result", "result"):
                         continue
                     # Some parser errors have no request_id; do not associate
                     # unrelated valid IDs with our running operation.
@@ -662,6 +676,11 @@ class Job(object):
                         self.events = self.events[-32:]
                         if kind == "progress":
                             self.progress = event
+                        elif kind == "slot_probe_result" and self.action == "probe_slot":
+                            if event.get("slot") != self.reader_id:
+                                raise ApiError(502, "invalid_result", "Wrong slot probe result")
+                            self.result = event
+                            self.status = "done"
                         elif kind == "probe_result" and self.action == "probe":
                             self.result = event
                             self.status = "done"
@@ -750,6 +769,27 @@ class JobManager(object):
         job = Job(self, reader_id, action,
                   sanitized_filename(data.get("filename")),
                   cap, automatic=automatic, selection=selection)
+        with self.lock:
+            if self.active is not None:
+                raise ApiError(409, "busy", "Cartridge reader already busy")
+            if len(self.jobs) >= 50:
+                old = sorted((j for j in self.jobs.values() if j is not self.active),
+                             key=lambda j: j.created)
+                if old:
+                    del self.jobs[old[0].id]
+            self.jobs[job.id] = job
+            self.active = job
+        thread = threading.Thread(target=job.run)
+        thread.daemon = True
+        thread.start()
+        return job.snapshot()
+
+    def submit_slot_probe(self, slot_id):
+        """Internal-only, serialized slot identification. Never exposed by POST /api/jobs."""
+        if not isinstance(slot_id, str) or not CORE_ID.match(slot_id):
+            raise ApiError(400, "invalid_slot", "Invalid physical slot")
+        job = Job(self, slot_id, "probe_slot", "", {"slot": slot_id},
+                  automatic=True)
         with self.lock:
             if self.active is not None:
                 raise ApiError(409, "busy", "Cartridge reader already busy")
@@ -918,6 +958,7 @@ class AutomaticDetection(object):
                         "ready_at": now + 0.35,
                         "job_id": None,
                         "core_id": None,
+                        "slot_probe": False,
                         "result": None,
                         "error": None}
                     continue
@@ -927,10 +968,39 @@ class AutomaticDetection(object):
                     job = self.manager.get(record["job_id"]).snapshot()
                     if job["status"] == "done":
                         result = job.get("result") or {}
-                        if (result.get("event") == "probe_result" and
-                                result.get("system") == record["core_id"]):
-                            # Preserve the CLI's v2 mapper/layout choices for
-                            # the browser. Never scan the full ROM on insert.
+                        if record.get("slot_probe"):
+                            if result.get("event") != "slot_probe_result" or result.get("slot") != slot_id:
+                                record["state"] = "failed"
+                                record["error"] = "invalid_slot_probe_result"
+                            elif result.get("detection") == "detected" and result.get("core"):
+                                probe = result.get("probe_result") or {}
+                                if probe.get("system") != result["core"] or probe.get("slot") != slot_id:
+                                    record["state"] = "failed"
+                                    record["error"] = "invalid_slot_probe_result"
+                                else:
+                                    record["core_id"] = result["core"]
+                                    record["result"] = dict((key, probe.get(key)) for key in
+                                                            ("title", "mapping", "size_bytes", "checksum",
+                                                             "slot", "selection_schema_id", "ambiguity",
+                                                             "identification_status", "selection_required",
+                                                             "candidate_lookup", "candidates", "read_layouts")
+                                                            if key in probe)
+                                    record["result"]["voltage_status"] = result.get("voltage_status")
+                                    # Read voltage is supplied by the selected core's
+                                    # capability schema, through the common CLI.
+                                    if type(probe.get("read_voltage_mv")) is int and \
+                                            probe["read_voltage_mv"] in (3300, 5000):
+                                        record["result"]["read_voltage_mv"] = probe["read_voltage_mv"]
+                                    record["state"] = "detected"
+                                    record["error"] = None
+                            elif result.get("detection") == "empty":
+                                record["state"] = "pending"
+                                record["ready_at"] = now + 0.35
+                            else:
+                                record["state"] = "choose_reader"
+                                record["error"] = result.get("reason")
+                        elif (result.get("event") == "probe_result" and
+                              result.get("system") == record["core_id"]):
                             record["result"] = dict((key, result.get(key)) for key in
                                                     ("title", "mapping", "size_bytes", "checksum",
                                                      "slot", "selection_schema_id", "ambiguity",
@@ -965,10 +1035,17 @@ class AutomaticDetection(object):
                         record["error"] = "no_available_core"
                         continue
                     if len(matches) > 1:
-                        # GPIO sense does not identify an adapter. Do not
-                        # guess which electrical protocol is present.
-                        record["state"] = "choose_reader"
-                        record["error"] = None
+                        try:
+                            job = self.manager.submit_slot_probe(slot_id)
+                        except ApiError as error:
+                            if error.status == 409:
+                                continue
+                            record["state"] = "failed"
+                            record["error"] = error.code
+                        else:
+                            record["job_id"] = job["id"]
+                            record["slot_probe"] = True
+                            record["state"] = "detecting"
                         continue
                     core_id = matches[0]["id"]
                     try:
