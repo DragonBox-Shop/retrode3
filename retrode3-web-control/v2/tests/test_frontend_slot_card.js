@@ -101,6 +101,7 @@ node.handlers.click();
 assert.strictEqual(chosen, "md");
 
 // Unknown current voltage must not be invented.
+delete ctx.detectedBySlot.md;
 slot.detection = {state: "detected", core_id: "md",
   result: {title: "SNAKE RATTLE N ROLL", read_voltage_mv: 5000,
            voltage_status: "manual_required"}};
@@ -111,6 +112,7 @@ assert(!allText(node).includes("aktuell 3,3 V"));
 slot.voltage_mv = 3300;
 
 // A negative SMS signature is not evidence that an SMS adapter is present.
+slot.detection = {state: "choose_reader", core_id: null, result: null};
 ctx.detectedBySlot.md = {reader: "sms-md", data: {
   event: "probe_result", system: "sms-md", system_detected: false,
   title: "Unknown cartridge"}};
