@@ -13,7 +13,7 @@
   "cartridge": "Cartridge",
   "checking": "Checking…",
   "system": "System",
-  "systems_note": "Occupied slots appear automatically. Use Advanced settings for unrecognized cartridges.",
+  "systems_note": "Detected cartridges appear automatically. If the system is unknown, select a reader directly in its slot.",
   "detect": "Detect cartridge",
   "not_detected": "No cartridge examined yet.",
   "read_options": "Read options",
@@ -164,5 +164,9 @@
   "voltage_manual_required": "Voltage must be checked/set manually before reading.",
   "voltage_manual_detail": "Voltage: currently {current}; {required} required for reading. Please verify manually.",
   "voltage_manual_required_voltage": "{required} required for reading. Please verify voltage manually.",
-  "voltage_manual_current_voltage": "Voltage: currently {current}. Please verify manually before reading."
+  "voltage_manual_current_voltage": "Voltage: currently {current}. Please verify manually before reading.",
+  "slot_system_unrecognized": "System not identified",
+  "slot_manual_label": "Select system manually",
+  "slot_manual_placeholder": "Choose system…",
+  "slot_manual_note": "Manual selection does not verify an adapter or change voltage."
 }
