@@ -13,6 +13,7 @@ function element(tag) {
   return {
     tag: tag, children: [], attrs: {}, handlers: {}, textContent: "", innerHTML: "",
     appendChild: function (node) { this.children.push(node); },
+    focus: function () { focused = this; },
     setAttribute: function (key, value) { this.attrs[key] = value; },
     addEventListener: function (event, handler) { this.handlers[event] = handler; }
   };
@@ -31,7 +32,7 @@ const readers = [
 const slot = {
   id: "md", name: "Mega Drive", status: "occupied", voltage_mv: 3300, detection: {}
 };
-let chosen = null, notices = [];
+let chosen = null, notices = [], focused = null;
 const ctx = {
   document: {createElement: element},
   $: function (id) { return elements[id]; },
@@ -50,8 +51,9 @@ const ctx = {
   readers: function () { return readers; },
   slotData: {slots: [slot]},
   detectedBySlot: {},
-  selectedReader: "md",
-  selectReader: function (id) { chosen = id; },
+  selectedReader: "md", activeJob: null,
+  manualReaderBySlot: {},
+  selectReader: function (id) { chosen = id; ctx.selectedReader = id; },
   notify: function (message) { notices.push(message); }
 };
 vm.createContext(ctx);
@@ -74,7 +76,7 @@ assert(!allText(node).includes("SMS-0007"));
 assert(!allText(node).includes("unknown"));
 assert(allText(node).includes("aktuell 3,3 V"));
 assert(allText(node).includes("zum Lesen 5 V"));
-node.handlers.click();
+node.children[0].handlers.click();
 assert.strictEqual(chosen, "md");
 
 // When already at 5 V, display the actual read-back instead of the 3.3 V
@@ -97,7 +99,7 @@ node = card();
 assert(allText(node).includes("SNAKE RATTLE N ROLL"));
 assert(!allText(node).includes("SMS-0007"));
 assert(!allText(node).includes("choose_reader"));
-node.handlers.click();
+node.children[0].handlers.click();
 assert.strictEqual(chosen, "md");
 
 // Unknown current voltage must not be invented.
@@ -111,6 +113,58 @@ assert(allText(node).includes("Zum Lesen 5 V"));
 assert(!allText(node).includes("aktuell 3,3 V"));
 slot.voltage_mv = 3300;
 
+// An inconclusive result has a usable native select in the physical slot,
+// not a disabled card or a hidden Advanced-settings-only reader picker.
+delete ctx.detectedBySlot.md;
+slot.detection = {state: "choose_reader", core_id: null, result: null};
+chosen = null;
+node = card();
+assert.strictEqual(node.tag, "div", "slot card is not an interactive wrapper");
+assert(!node.children[0].disabled, "occupied unknown slot must remain clickable");
+const manual = node.children.filter(function (part) {
+  return part.className === "slot-manual";
+})[0];
+assert(manual, "unrecognized cartridge must offer an inline picker");
+const picker = manual.children.filter(function (part) { return part.tag === "select"; })[0];
+assert(picker, "native dropdown missing");
+assert.strictEqual(picker.value, "", "no core must be guessed");
+assert.strictEqual(picker.children.length, 3, "placeholder + both enabled slot cores");
+assert.strictEqual(picker.children[1].value, "md");
+assert.strictEqual(picker.children[2].value, "sms-md");
+assert.strictEqual(chosen, null);
+node.children[0].handlers.click();
+assert.strictEqual(focused, picker, "clicking an unknown slot focuses the inline picker");
+picker.value = "sms-md";
+picker.handlers.change();
+assert.strictEqual(chosen, "sms-md", "manual selection updates reader");
+assert.strictEqual(ctx.manualReaderBySlot.md, "sms-md");
+assert(!ctx.detectedBySlot.md, "manual selection must not invent an identity");
+assert(!allText(card()).includes("SNAKE RATTLE N ROLL"));
+
+// Keep the manual choice after passive re-render; never turn it into
+// a positive detected-system result without a successful core probe.
+node = card();
+const chosenPicker = node.children.filter(function (part) {
+  return part.className === "slot-manual";
+})[0].children.filter(function (part) { return part.tag === "select"; })[0];
+assert.strictEqual(chosenPicker.value, "sms-md");
+assert(allText(node).includes("slot_system_unrecognized"));
+
+// While automatic identification is still running, do not present a manual
+// dropdown that would race its result or an active ROM read job.
+slot.detection = {state: "detecting", core_id: null, result: null};
+node = card();
+assert(!node.children.some(function (part) { return part.className === "slot-manual"; }));
+slot.detection = {state: "failed", core_id: null, result: null};
+ctx.activeJob = "active-reader-job";
+node = card();
+const busySelect = node.children.filter(function (part) {
+  return part.className === "slot-manual";
+})[0].children.filter(function (part) { return part.tag === "select"; })[0];
+assert(busySelect.disabled, "cannot switch reader while a job is active");
+ctx.activeJob = null;
+delete ctx.manualReaderBySlot.md;
+
 // A negative SMS signature is not evidence that an SMS adapter is present.
 slot.detection = {state: "choose_reader", core_id: null, result: null};
 ctx.detectedBySlot.md = {reader: "sms-md", data: {
@@ -118,7 +172,7 @@ ctx.detectedBySlot.md = {reader: "sms-md", data: {
   title: "Unknown cartridge"}};
 node = card();
 assert(allText(node).includes("SMS-0007"));
-assert(allText(node).includes("choose_reader"));
+assert(allText(node).includes("slot_system_unrecognized"));
 assert(!allText(node).includes("Unknown cartridge"));
 
 // Removal invalidates card identity even if the browser has cached a manual probe.
@@ -128,4 +182,6 @@ ctx.detectedBySlot.md = {reader: "md", data: {
   title: "SNAKE RATTLE N ROLL"}};
 node = card();
 assert(!allText(node).includes("SNAKE RATTLE N ROLL"));
-console.log("confirmed slot card identity tests passed");
+assert(!node.children.some(function (part) { return part.className === "slot-manual"; }));
+assert(node.children[0].disabled, "empty slots must not select a reader");
+console.log("confirmed slot card identity and inline picker tests passed");
