@@ -36,7 +36,7 @@ header("Content-Security-Policy: default-src 'self'; img-src 'self'; style-src '
 <div class="two-col">
 <div class="panel"><div class="panel-head"><h2 data-i18n="cartridge">Cartridge</h2><span class="tag" id="reader-support" data-i18n="checking">Checking…</span></div>
 <div class="keyval"><span data-i18n="selected_reader">Selected reader</span><strong id="selected-reader" data-i18n="choose_reader">No supported reader selected</strong></div>
-<p class="muted small" data-i18n="systems_note">Select a detected slot, or use Advanced Settings for an unrecognized cartridge.</p>
+<p class="muted small" data-i18n="systems_note">Select an automatically identified cartridge, or choose its system directly in the occupied slot.</p>
 <button id="probe" class="btn secondary" data-i18n="detect">Detect cartridge</button>
 <div id="game-info" class="game-info"><p class="muted" data-i18n="not_detected">No cartridge examined yet.</p></div>
 </div>
