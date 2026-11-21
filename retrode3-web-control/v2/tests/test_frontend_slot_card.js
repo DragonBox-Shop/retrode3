@@ -5,7 +5,7 @@ const fs = require("fs");
 const path = require("path");
 const vm = require("vm");
 const source = fs.readFileSync(path.join(__dirname, "..", "web", "assets", "app.js"), "utf8");
-const start = source.indexOf("  function slotIdentification(slot) {");
+const start = source.indexOf("  function voltageLabel(millivolts) {");
 const end = source.indexOf("  function refreshSlots() {", start);
 assert(start !== -1 && end > start, "slot identification/card functions missing");
 
