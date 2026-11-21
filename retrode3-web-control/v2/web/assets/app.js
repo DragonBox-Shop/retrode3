@@ -411,7 +411,8 @@
         if (!activeJob && slot.status === "occupied" &&
             current.state === "detected" && current.core_id && current.result &&
             current.result.system_detected !== false &&
-            (prior.state !== "detected" || prior.core_id !== current.core_id) &&
+            (prior.state !== "detected" || prior.core_id !== current.core_id ||
+             !prior.result || prior.result.system_detected === false) &&
             readers().some(function (reader) {
               return reader.id === current.core_id && reader.slot === slot.id;
             })) {
