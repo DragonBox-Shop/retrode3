@@ -161,5 +161,8 @@
   "verification_not_found": "ROM gelesen, aber kein eindeutiger Datenbanktreffer",
   "verification_ambiguous": "ROM gelesen, aber weiterhin mehrdeutig",
   "verification_not_checked": "ROM gelesen; Datenbankprüfung nicht durchgeführt",
-  "voltage_manual_required": "Spannung muss vor dem Auslesen manuell geprüft/eingestellt werden."
+  "voltage_manual_required": "Spannung muss vor dem Auslesen manuell geprüft/eingestellt werden.",
+  "voltage_manual_detail": "Spannung: aktuell {current}; zum Lesen {required} erforderlich. Bitte manuell prüfen.",
+  "voltage_manual_required_voltage": "Zum Lesen {required} erforderlich. Spannung bitte manuell prüfen.",
+  "voltage_manual_current_voltage": "Spannung: aktuell {current}. Vor dem Lesen bitte manuell prüfen."
 }

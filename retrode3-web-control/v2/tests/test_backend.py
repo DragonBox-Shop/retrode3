@@ -98,8 +98,16 @@ class BackendTests(unittest.TestCase):
                 os.makedirs(directory)
                 with open(os.path.join(directory, "sense"), "w") as handle:
                     handle.write(sense + "\n")
+            for slot, voltage in (("snes", "3300mV"), ("md", "5000mV"),
+                                  ("nes", "bogus")):
+                with open(os.path.join(MODULE.SENSE_ROOT, "slot-" + slot, "vcc"),
+                          "w") as handle:
+                    handle.write(voltage + "\n")
             result = MODULE.slot_snapshot()
             by_id = dict((slot["id"], slot) for slot in result["slots"])
+            self.assertEqual(by_id["snes"]["voltage_mv"], 3300)
+            self.assertEqual(by_id["md"]["voltage_mv"], 5000)
+            self.assertIsNone(by_id["nes"]["voltage_mv"])
             self.assertEqual(by_id["snes"]["status"], "occupied")
             self.assertEqual(by_id["md"]["status"], "empty")
             self.assertEqual(by_id["nes"]["status"], "unknown")
@@ -573,7 +581,8 @@ for line in sys.stdin:
                     "detection": "detected", "core": "sfc-adapter",
                     "voltage_status": "manual_required",
                     "probe_result": {"event": "probe_result", "slot": "snes",
-                                     "system": "sfc-adapter", "title": "TEST CART"}}}
+                                     "system": "sfc-adapter", "title": "TEST CART",
+                                     "read_voltage_mv": 5000}}}
         class FakeManager(object):
             def __init__(self):
                 self.lock = MODULE.threading.RLock()
@@ -607,6 +616,7 @@ for line in sys.stdin:
             self.assertEqual(result["core_id"], "sfc-adapter")
             self.assertEqual(result["result"]["title"], "TEST CART")
             self.assertEqual(result["result"]["voltage_status"], "manual_required")
+            self.assertEqual(result["result"]["read_voltage_mv"], 5000)
         finally:
             MODULE.slot_snapshot = old_snapshot
             MODULE.capability_probe = old_capabilities

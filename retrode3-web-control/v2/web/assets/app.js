@@ -200,6 +200,25 @@
     }
     renderGenericOptions();
   }
+  function voltageLabel(millivolts) {
+    if (typeof millivolts !== "number" || !isFinite(millivolts) ||
+        (millivolts !== 3300 && millivolts !== 5000)) return "";
+    var amount = (millivolts / 1000).toFixed(1).replace(/\.0$/, "");
+    return (locale === "de" ? amount.replace(".", ",") : amount) + " V";
+  }
+  function manualVoltageNotice(slot, identified) {
+    if (!identified || identified.result.voltage_status !== "manual_required")
+      return "";
+    var current = voltageLabel(slot.voltage_mv);
+    var required = voltageLabel(identified.result.read_voltage_mv);
+    if (current && required)
+      return t("voltage_manual_detail").replace("{current}", current).replace("{required}", required);
+    if (required)
+      return t("voltage_manual_required_voltage").replace("{required}", required);
+    if (current)
+      return t("voltage_manual_current_voltage").replace("{current}", current);
+    return t("voltage_manual_required");
+  }
   function slotIdentification(slot) {
     if (!slot || slot.status !== "occupied") return null;
     var matching = readers().filter(function (reader) { return reader.slot === slot.id; });
@@ -258,9 +277,10 @@
             t("detecting_automatically") :
             automatic.state === "choose_reader" ? t("choose_reader") : t("unknown")));
         card.appendChild(game);
-        if (identified && identified.result.voltage_status === "manual_required") {
+        var voltageText = manualVoltageNotice(slot, identified);
+        if (voltageText) {
           var voltageNotice = document.createElement("small");
-          text(voltageNotice, t("voltage_manual_required"));
+          text(voltageNotice, voltageText);
           card.appendChild(voltageNotice);
         }
       }
