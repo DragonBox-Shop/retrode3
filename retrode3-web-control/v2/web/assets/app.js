@@ -9,6 +9,7 @@
   var coreState = null, corePending = false;
   var readerOptions = null, readerOptionsLoading = false, readerOptionsRequest = 0;
   var genericWidget = null;
+  var flashRequest = 0, flashJob = null;
   var csrf = document.querySelector('meta[name="csrf-token"]').content;
   var $ = function (id) { return document.getElementById(id); };
   function t(key) { return messages[key] || key; }
@@ -78,6 +79,7 @@
     if (id === "reader") loadCapabilities();
     if (id === "settings") loadSettings();
     if (id === "plugins") loadCores();
+    if (id === "writer") loadFlashCores();
   }
   function readers() {
     return capabilities && capabilities.systems ?
@@ -751,9 +753,124 @@
       text($("wifi-diagnostic"), hint);
     }).catch(fail);
   }
+
+  // The writer is intentionally separate from read auto-detection. Opening this
+  // tab queries metadata only; no CFI commands are ever sent automatically.
+  function loadFlashCores() {
+    var sel = $("flash-core"), previous = sel.value;
+    $("flash-probe").disabled = true;
+    $("flash-write").disabled = true;
+    $("flash-rom").disabled = true;
+    $("flash-details").hidden = true;
+    api("/api/cores").then(function (inventory) {
+      var opt = document.createElement("option");
+      sel.innerHTML = "";
+      opt.value = ""; text(opt, t("flash_choose_system")); sel.appendChild(opt);
+      (inventory.cores || []).forEach(function (core) {
+        if (!core.installed || !core.enabled || !core.usable ||
+            core.status !== "ready") return;
+        var option = document.createElement("option");
+        option.value = core.id; text(option, core.name);
+        sel.appendChild(option);
+      });
+      if (Array.prototype.some.call(sel.options, function (item) {
+        return item.value === previous;
+      })) sel.value = previous;
+      refreshFlashCapabilities();
+    }).catch(function (error) {
+      text($("flash-status"), t("flash_unavailable"));
+      fail(error);
+    });
+  }
+  function refreshFlashCapabilities() {
+    var selected = $("flash-core").value, request = ++flashRequest;
+    $("flash-probe").disabled = true;
+    $("flash-write").disabled = true;
+    $("flash-rom").disabled = true;
+    $("flash-details").hidden = true;
+    if (!selected) {
+      text($("flash-status"), t("flash_select_hint"));
+      return;
+    }
+    text($("flash-status"), t("flash_checking"));
+    api("/api/flash-capabilities/" + encodeURIComponent(selected)).then(function (cap) {
+      if (request !== flashRequest || selected !== $("flash-core").value) return;
+      var approved = !!(cap.available && cap.probe_supported);
+      $("flash-probe").disabled = !approved;
+      text($("flash-status"), t(approved ? "flash_probe_ready" : "flash_unavailable"));
+    }).catch(function (error) {
+      if (request !== flashRequest) return;
+      text($("flash-status"), t("flash_unavailable"));
+      fail(error);
+    });
+  }
+  function flashHex(value) {
+    var hex = Number(value || 0).toString(16).toUpperCase();
+    while (hex.length < 4) hex = "0" + hex;
+    return "0x" + hex;
+  }
+  function pollFlashProbe(jobId, coreId) {
+    api("/api/jobs/" + jobId).then(function (job) {
+      if (flashJob !== jobId) return;
+      if (job.status === "done") {
+        flashJob = null;
+        var result = job.result || {};
+        if (result.event !== "flash_probe_result" || result.core !== coreId) {
+          text($("flash-status"), t("flash_invalid_result"));
+          return;
+        }
+        if (!result.identified) {
+          text($("flash-status"), t("flash_unidentified"));
+          return;
+        }
+        text($("flash-capacity"), humanSize(result.capacity_bytes));
+        text($("flash-chip"), flashHex(result.manufacturer_id) + " / " + flashHex(result.device_id));
+        text($("flash-cmdset"), flashHex(result.primary_command_set));
+        text($("flash-regions"), String((result.regions || []).length));
+        text($("flash-profile"), result.adapter_profile || "—");
+        $("flash-details").hidden = false;
+        text($("flash-status"), t(result.write_supported ? "flash_detected_locked" : "flash_detected_readonly"));
+        // No browser-side bypass: source upload, erase and write are NOT
+        // implemented. Keep both input and write button disabled.
+        $("flash-write").disabled = true;
+        $("flash-rom").disabled = true;
+        return;
+      }
+      if (job.status === "failed" || job.status === "cancelled") {
+        flashJob = null;
+        text($("flash-status"), (job.error && job.error.message) || t("flash_probe_failed"));
+        return;
+      }
+      window.setTimeout(function () { pollFlashProbe(jobId, coreId); }, 1000);
+    }).catch(function (err) {
+      if (flashJob !== jobId) return;
+      flashJob = null;
+      text($("flash-status"), t("flash_probe_failed"));
+      fail(err);
+    });
+  }
+  function startFlashProbe() {
+    var selected = $("flash-core").value;
+    if (!selected || $("flash-probe").disabled || flashJob) return;
+    $("flash-probe").disabled = true;
+    $("flash-details").hidden = true;
+    text($("flash-status"), t("flash_probing"));
+    api("/api/jobs", {system: selected, command: "flash_probe"}).then(function (job) {
+      if (!job.id) throw new Error(t("flash_probe_failed"));
+      flashJob = job.id;
+      pollFlashProbe(job.id, selected);
+    }).catch(function (err) {
+      text($("flash-status"), t("flash_probe_failed"));
+      fail(err);
+      refreshFlashCapabilities();
+    });
+  }
+
   function bind() {
     $("locale").addEventListener("change", function () { setLocale(this.value); });
     $("refresh-cores").addEventListener("click", loadCores);
+    $("flash-core").addEventListener("change", refreshFlashCapabilities);
+    $("flash-probe").addEventListener("click", startFlashProbe);
     document.querySelectorAll(".tab").forEach(function (tab) {
       tab.addEventListener("click", function () { showTab(tab.getAttribute("data-tab")); });
     });
