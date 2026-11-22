@@ -1,15 +1,20 @@
 # Offene Aufgabe: neue Debian-Pakete für Retrode3 bauen
 
-**Status: offen, Stand 2026-11-20.** Übergabe an einen eigenen Chat.
-Dies ist eine technische Aufgabenliste, **keine Behauptung**, dass
-die neuen `.deb`-Dateien bereits gebaut oder veröffentlicht sind.
+**Status 2026-11-22:** Paketrezepte vorhanden; Upgrade, Rollback,
+Hardware-Abnahme und APT-Publikation stehen weiterhin aus. Der ältere
+CI-Lauf hat fünf MIPS-Entwicklungspakete gebaut. Die dynamische
+Core-Paketierung mit SMS-MD muss als neuer Sechser-Satz gebaut und
+auf der Retrode3 geprüft werden.
 
 ## Implementierungsstand auf `develop` (2026-11-20)
 
 Die ersten Paketrezepte sind jetzt unter `packaging/` vorhanden:
 `build-debs.py` trennt den gepinnten OSCR-MIPS-Staging-Baum in
-`retrode3-core-runtime`, drei Core-Pakete und
-`retrode3-web-control` (Web v2). Maintainer-Skripte für SysV-Init,
+`retrode3-core-runtime`, automatisch erkannte `.so`/`.core`-Paare
+(derzeit SNES, MD, NES und SMS-MD) und `retrode3-web-control` (Web v2).
+SMS-MD verwendet `slot=md`; es wird im OSCR-Build über
+`stage-sms-md-module` ausdrücklich gestaged, aber nicht automatisch
+auf dem Gerät aktiviert. Maintainer-Skripte für SysV-Init,
 privilegierte Core-Schaltung, ROM-Datenpersistenz und Bootrechte
 sind enthalten. `retrode3.qcodeproj`, `retrode3-tools.qcodeproj`,
 `make-all` und die vorhandenen udev-Regeln wurden migriert.
@@ -23,7 +28,7 @@ veröffentlicht. Der Status eines laufenden oder fehlgeschlagenen
 CI-Builds ist im GitHub Actions-Lauf nachzusehen, nicht aus dem
 Vorhandensein der Workflow-Datei abzuleiten.
 
-**Weiter offen:** tatsächliche MIPS-Build-Abnahme, Paket-Upgrade und
+**Weiter offen:** neuer MIPS-CI-Kandidatenlauf mit SMS, Paket-Upgrade und
 Rollback auf der Retrode3, Laufzeitrechte nach Reboot, Tests aller drei
 bekannten ROMs, signierte Entwicklungs-/Release-APT-Suites und
 spätere SD-Image-Erzeugung. `master` ist unberührt.
@@ -60,6 +65,7 @@ Build-Migration prüfen und wiederverwenden, soweit technisch sinnvoll.
 | `retrode3-core-snes` (mipsel) | `/usr/lib/retrode3/cores-available/snes.so`, `snes.core` |
 | `retrode3-core-md` (mipsel) | `/usr/lib/retrode3/cores-available/md.so`, `md.core` |
 | `retrode3-core-nes` (mipsel) | `/usr/lib/retrode3/cores-available/nes.so`, `nes.core` |
+| `retrode3-core-sms-md` (mipsel) | `/usr/lib/retrode3/cores-available/sms-md.so`, `sms-md.core` mit physischem Slot `md` |
 | Web-v2-Paket (Name noch festzulegen) | geprüfte PHP/JS-Webassets, Python-3.4-Backend, SysV-Dienst und nötige Konfiguration; **keine** native CLI-/Core-Kopie |
 
 Vorhandene Tools `retrode3-admin` und `retrode3-wlan` bleiben
@@ -77,7 +83,7 @@ aber ein echtes Web-v2-Debian-Paket existiert noch nicht.
    `.so` müssen auf dem realen Debian/MIPS-Gerät laufen. Verwende
    `make -f Makefile.migration test-all-shared-cores` und
    `test-release-stage` als Staging-Vertrag.
-2. **Vier native Debian-Pakete:** echte Paketrezepte mit Version,
+2. **Dynamisch erzeugte native Debian-Pakete:** echte Paketrezepte mit Version,
    Architekturen, Dependencies, `preinst/postinst/prerm/postrm`
    soweit erforderlich und prüfbarer `dpkg-deb`-Dateiliste
    implementieren. `.so` und passende `.core`-Metadaten müssen
