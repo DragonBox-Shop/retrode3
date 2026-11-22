@@ -69,7 +69,29 @@ header("Content-Security-Policy: default-src 'self'; img-src 'self'; style-src '
 <section id="files" class="page"><p class="eyebrow" data-i18n="shared_storage">SHARED STORAGE</p><h1 data-i18n="files_title">Your game library</h1><p class="muted" data-i18n="files_desc">Browse, rename, move, download or delete ROM files in shared storage.</p>
 <div class="panel"><div class="file-head"><div id="breadcrumb" class="breadcrumb"></div><div class="actions"><button id="new-folder" class="btn secondary" data-i18n="new_folder">New folder</button><button id="refresh-files" class="btn secondary" data-i18n="refresh">Refresh</button></div></div>
 <div class="file-table-wrap"><table class="file-table"><thead><tr><th data-i18n="name">Name</th><th data-i18n="size">Size</th><th data-i18n="modified">Modified</th><th data-i18n="actions">Actions</th></tr></thead><tbody id="file-rows"></tbody></table></div></div></section>
-<section id="writer" class="page"><p class="eyebrow" data-i18n="future">FUTURE FEATURE</p><h1 data-i18n="writer_title">Write a cartridge</h1><div class="panel empty"><span class="big-icon">↗</span><h2 data-i18n="writer_unavailable">Writing isn't available yet</h2><p class="muted" data-i18n="writer_desc">This area is reserved for future flash and save operations, with explicit safety checks.</p></div></section>
+<section id="writer" class="page">
+<p class="eyebrow" data-i18n="flash_mode">FLASH CARTRIDGE</p>
+<h1 data-i18n="writer_title">Write a cartridge</h1>
+<p class="muted" data-i18n="flash_intro">Select the cartridge system explicitly. Flash recognition must succeed before programming becomes available.</p>
+<div class="panel">
+<label for="flash-core" data-i18n="flash_select_system">Cartridge system</label>
+<select id="flash-core"><option value="" data-i18n="flash_choose_system">Choose system…</option></select>
+<p id="flash-status" class="muted small" role="status" data-i18n="flash_select_hint">Select a system to inspect its flash capabilities.</p>
+<button id="flash-probe" type="button" class="btn secondary" disabled data-i18n="flash_detect">Detect flash chip</button>
+<div id="flash-details" class="game-info" hidden aria-live="polite">
+<div class="keyval"><span data-i18n="flash_chip_size">Flash capacity</span><strong id="flash-capacity"></strong></div>
+<div class="keyval"><span data-i18n="flash_chip_id">Manufacturer / device ID</span><strong id="flash-chip"></strong></div>
+<div class="keyval"><span data-i18n="flash_command_set">Flash command set</span><strong id="flash-cmdset"></strong></div>
+<div class="keyval"><span data-i18n="flash_erase_regions">Erase regions</span><strong id="flash-regions"></strong></div>
+<div class="keyval"><span data-i18n="flash_profile">Adapter profile</span><strong id="flash-profile"></strong></div>
+</div>
+<hr>
+<label for="flash-rom" data-i18n="flash_rom_file">ROM image</label>
+<input id="flash-rom" type="file" accept=".md,.bin,.sfc,.smc,.lnx" disabled>
+<p class="muted small" data-i18n="flash_upload_pending">ROM upload and writing stay locked until the verified flash transport is available.</p>
+<button id="flash-write" type="button" class="btn primary" disabled data-i18n="flash_write">Write and verify</button>
+</div>
+</section>
 <section id="settings" class="page"><p class="eyebrow" data-i18n="device">DEVICE</p><h1 data-i18n="settings_title">General settings</h1><div class="two-col"><div class="panel"><h2 data-i18n="wifi">Wi-Fi connection</h2><div class="keyval"><span data-i18n="wifi_status">Status</span><strong id="wifi-status">…</strong></div><div class="keyval"><span data-i18n="ip_address">IP address</span><strong id="wifi-ip">…</strong></div>
 <div class="keyval"><span data-i18n="wifi_interface">Wireless interface</span><strong id="wifi-interface">…</strong></div><p id="wifi-diagnostic" class="muted small" role="status"></p>
 <div class="actions"><button id="scan-wifi" class="btn secondary" data-i18n="scan">Scan networks</button><button id="disconnect-wifi" class="btn danger" data-i18n="disconnect">Disconnect</button></div><div id="wifi-networks"></div>
