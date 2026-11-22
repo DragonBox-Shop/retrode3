@@ -1,5 +1,5 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "producer_repository": "DragonBox-Shop/retrode3-oscr",
   "producer_make_target": "stage-retrode3-runtime",
   "producer_stage_root": "build/migration/stage",
@@ -8,18 +8,6 @@
     "retrode3-core-runtime": [
       "usr/bin/retrode3-cli",
       "usr/sbin/retrode3-corectl"
-    ],
-    "retrode3-core-snes": [
-      "usr/lib/retrode3/cores-available/snes.so",
-      "usr/lib/retrode3/cores-available/snes.core"
-    ],
-    "retrode3-core-md": [
-      "usr/lib/retrode3/cores-available/md.so",
-      "usr/lib/retrode3/cores-available/md.core"
-    ],
-    "retrode3-core-nes": [
-      "usr/lib/retrode3/cores-available/nes.so",
-      "usr/lib/retrode3/cores-available/nes.core"
     ]
   },
   "runtime_state_not_shipped_in_binaries": [
@@ -38,6 +26,14 @@
   "static_package_assets": {
     "retrode3-core-runtime": [
       "retrode3-core-runtime/etc/init.d/retrode3-core-runtime"
+    ]
+  },
+  "discovered_core_packages": {
+    "staged_directory": "usr/lib/retrode3/cores-available",
+    "package_prefix": "retrode3-core-",
+    "pair_extensions": [
+      ".so",
+      ".core"
     ]
   }
 }
