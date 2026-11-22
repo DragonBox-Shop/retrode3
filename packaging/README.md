@@ -7,22 +7,20 @@ a verified customer image. Work only on OS `develop`, never promote to
 and previously supported automatic device installation.
 
 
-**Mapper-1 source update (2026-11-20):** The pinned
-`retrode3-oscr` commit now contains the normal NES `nes.so`
-with MMC1 ROM read support and Sanni 695-record fingerprint catalog.
-The Web-v2 package from this branch presents the automatic
-candidate/layout selection and optional manual mapper configuration.
-This is a new **development-only** source lock. MIPS cross-build,
-installation, hardware verification and APT distribution remain
-separate gates. Previous package candidates from the older pin
-do **not** contain MMC1 support.
+**Dynamic Core-Packaging (2026-11-22):** The pinned source includes
+SNES, MegaDrive, NES and SMS-MD. A verified staged `.so`/`.core` pair
+automatically becomes a `retrode3-core-<id>` Debian package. IDs identify
+plugins, not physical connectors: `sms-md` correctly declares `slot=md`.
+The producer deliberately stages SMS separately, and **no installed core
+is automatically enabled**. These remain development-only candidates,
+not an accepted package upgrade, APT release or customer SD image.
 
 ## Source pin and reproducible MIPS stage
 
 `native-source-lock.json` fixes:
 
 - OSCR `DragonBox-Shop/retrode3-oscr` commit
-  `ed6e6e780a3cc8e0a0077d556651118e8329cd71`
+  `12a7a580ac423962104e63e3524006fd3a9c857f`
 - Sanni submodule `third_party/oscr-firmware` gitlink
   `e5a08326dfc8fff67193f7fc5a7bc36b5282b28c`
 - Discovery and operation ABI v1, and one development package revision.
@@ -35,13 +33,15 @@ device-compatible artifacts.
 ```sh
 git clone https://github.com/DragonBox-Shop/retrode3-oscr.git
 cd retrode3-oscr
-git checkout ed6e6e780a3cc8e0a0077d556651118e8329cd71
+git checkout 12a7a580ac423962104e63e3524006fd3a9c857f
 git submodule update --init third_party/oscr-firmware
 git rev-parse HEAD:third_party/oscr-firmware
 git -C third_party/oscr-firmware rev-parse HEAD
 
 make -f Makefile.migration test-all-shared-cores
 make -f Makefile.migration test-release-stage
+# Explicit SMS stage after the original three-core release-stage checks:
+make -f Makefile.migration stage-sms-md-module
 ```
 
 The second test builds the release stage at
@@ -50,8 +50,9 @@ host-architecture ELF files. If using cross-compilation, verify the compiler,
 target libc/libstdc++ ABI and sysroot, and run the mock binaries on the
 appropriate target or emulator. A green host test alone is not sufficient.
 The packaging command will reject non-mipsel ELF32 files, unexpected
-paths, mismatched core metadata, missing dynamic ABI symbols and an OSCR
-checkout that differs from the pin.
+paths, incomplete core pairs, invalid physical-slot metadata, missing dynamic
+ABI symbols and an OSCR checkout that differs from the pin. Staged .core
+files must exactly match the manifests from that pinned OSCR checkout.
 
 From the OS repo checkout, on a build host with modern `dpkg-deb`
 and `readelf`:
@@ -92,6 +93,7 @@ records checksums and source pins. It deliberately states
 | retrode3-core-snes | mipsel | `snes.so` + `snes.core` in `/usr/lib/retrode3/cores-available` |
 | retrode3-core-md | mipsel | `md.so` + `md.core` in the same directory |
 | retrode3-core-nes | mipsel | `nes.so` + `nes.core` in the same directory |
+| retrode3-core-sms-md | mipsel | `sms-md.so` + `sms-md.core` in the same directory; physical slot `md` |
 | retrode3-web-control | all | `/opt/retrode3-web-v2/backend`, `/var/www/html`, `/etc/init.d/retrode3-web-v2`, auth helper, default settings and exact-argument sudoers policy |
 
 The Web package deliberately reuses Nikolaus' earlier
@@ -103,7 +105,10 @@ The runtime provides the virtual interface `retrode3-core-abi-1`.
 Each individually upgradable core depends on that ABI and on an
 adequate runtime version. A new core revision may be installed
 without changing the other cores only if its ABI/runtime constraints
-are met. Core enablement in `/etc/retrode3/cores-enabled` is **mutable
+are met. New plugins require only a staged, pinned `.so`/`.core` pair;
+the generic OS packaging builder requires no per-core source edits.
+Invalid or unpaired stage files abort the package build.
+Core enablement in `/etc/retrode3/cores-enabled` is **mutable
 device policy**, not a package-managed link. New packages do not
 create enabled links; existing enabled links are not modified.
 Only `retrode3-corectl` manages links.
@@ -125,7 +130,7 @@ older kernels/udev races. **Do not run the backend as root.**
 
 Web core control is disabled in
 `/etc/default/retrode3-web-v2` by default. The separate sudoers file
-permits exactly the six SNES/MD/NES enable/disable invocations, not
+permits exactly eight reviewed SNES/MD/NES/SMS enable/disable invocations, not
 arbitrary arguments, shell commands or `sudo retrode3-cli`.
 Enable that Web feature **only after securing authentication and
 the trusted device network**; changing the config alone is not
@@ -178,7 +183,7 @@ Keep a console/SSH session open for recovery. Use a private staging
 copy of the webroot and do not wipe unknown files.
 
 **Installation:** only on a maintenance window with no running reader,
-install runtime then the three core packages, then Web. Confirm
+install runtime then the four core packages, then Web. Confirm
 `dpkg -S` file ownership, `dpkg-deb --contents`, `dpkg --audit`,
 `service retrode3-core-runtime status`,
 `service retrode3-web-v2 status`, and
@@ -195,6 +200,9 @@ Check that cancelled/active jobs are handled safely.
 **Read-only hardware tests:** use known-safe SNES Terranigma
 (6FB8A4DF), MegaDrive Snake Rattle n Roll (543BED30),
 and NES Excitebike Europe including iNES header (F749E780).
+Also repeat the previously verified read-only SMS-0007 test with and
+without an additional SNES cartridge; passing earlier raw-module
+reads is not package acceptance.
 Verify auto insert/remove, probe, filename selection, read-only dumps,
 CRC32, cancellation and UI file management. Do not test unsupported
 mappers, SRAM, flash or writes as a package smoke test.
