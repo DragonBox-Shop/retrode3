@@ -88,7 +88,7 @@ class TestPackaging(unittest.TestCase):
                     self.assertIn("Architecture: mipsel", info)
                 else:
                     self.assertIn("retrode3-core-abi-1", info)
-                    core = name.rsplit("-", 1)[1]
+                    core = name[len(pkg.CORE_PREFIX):]
                     self.assertIn("./usr/lib/retrode3/cores-available/" +
                                   core + ".so", contents)
                     self.assertIn("./usr/lib/retrode3/cores-available/" +
