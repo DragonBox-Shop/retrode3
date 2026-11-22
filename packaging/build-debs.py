@@ -110,7 +110,8 @@ def verify_oscr(oscr, lock):
 
 
 def elf_mipsel(path):
-    data = path.open("rb").read(20)
+    with path.open("rb") as elf:
+        data = elf.read(20)
     if (len(data) < 20 or data[:4] != b"\x7fELF" or
             data[4] != 1 or data[5] != 1 or
             int.from_bytes(data[16:18], "little") not in (2, 3) or
