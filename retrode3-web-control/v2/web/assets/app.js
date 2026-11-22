@@ -812,6 +812,10 @@
   function pollFlashProbe(jobId, coreId) {
     api("/api/jobs/" + jobId).then(function (job) {
       if (flashJob !== jobId) return;
+      if ($("flash-core").value !== coreId) {
+        flashJob = null;
+        return;
+      }
       if (job.status === "done") {
         flashJob = null;
         var result = job.result || {};
