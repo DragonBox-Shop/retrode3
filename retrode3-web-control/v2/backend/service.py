@@ -361,6 +361,71 @@ def core_registry():
             "cores": cores}
 
 
+
+def native_flash_capabilities(core_id):
+    """Optional metadata-only query. Must never trigger CFI bus commands."""
+    if not isinstance(core_id, str) or not CORE_ID.match(core_id):
+        raise ApiError(400, "invalid_core", "Invalid core ID")
+    registry = core_registry()
+    found = [c for c in registry["cores"] if c["id"] == core_id]
+    if not found:
+        raise ApiError(404, "core_not_found", "Flash core is not registered")
+    core = found[0]
+    if not (core["installed"] and core["enabled"] and core["usable"] and
+            core["status"] == "ready"):
+        return {"core": core_id, "slot": core["slot"],
+                "available": False, "write_supported": False,
+                "probe_supported": False, "reason": "core_not_ready"}
+    argv = [CLI_BIN, "--protocol", "ndjson-v1", "--core", core_id,
+            "--action", "get-flash-capabilities"]
+    try:
+        proc = subprocess.Popen(argv, stdin=subprocess.DEVNULL,
+                                stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+        try:
+            raw, unused = proc.communicate(timeout=4)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            proc.communicate()
+            raise ApiError(504, "flash_timeout", "Flash capability query timed out")
+    except OSError:
+        raise ApiError(503, "cli_unavailable", "Cannot start flash capability query")
+    # Older CLI binaries do not implement this optional action.
+    if proc.returncode != 0 or not raw or len(raw) > 16384:
+        return {"core": core_id, "slot": core["slot"],
+                "available": False, "probe_supported": False,
+                "write_supported": False, "reason": "flash_cli_unavailable"}
+    try:
+        lines = raw.decode("utf-8").splitlines()
+        if len(lines) != 1:
+            raise ValueError("Expected one Flash metadata event")
+        ev = json.loads(lines[0])
+        if (not isinstance(ev, dict) or ev.get("protocol") != PROTOCOL or
+                ev.get("version") != 1 or
+                ev.get("event") != "flash_capabilities" or
+                ev.get("core") != core_id or ev.get("slot") != core["slot"] or
+                type(ev.get("available")) is not bool or
+                type(ev.get("write_supported")) is not bool):
+            raise ValueError("Invalid flash capabilities envelope")
+        if not ev["available"]:
+            if ev["write_supported"]:
+                raise ValueError("Unavailable flash core claims write support")
+            return {"core": core_id, "slot": core["slot"],
+                    "available": False, "probe_supported": False,
+                    "write_supported": False}
+        cap = ev.get("capabilities")
+        if (not isinstance(cap, dict) or
+                type(cap.get("probe_supported")) is not bool or
+                type(cap.get("write_supported")) is not bool or
+                cap["write_supported"] != ev["write_supported"]):
+            raise ValueError("Invalid flash capabilities metadata")
+        return {"core": core_id, "name": core["name"], "slot": core["slot"],
+                "available": True, "probe_supported": cap["probe_supported"],
+                "write_supported": cap["write_supported"],
+                "capabilities": cap}
+    except (TypeError, ValueError, KeyError, UnicodeError):
+        raise ApiError(502, "flash_protocol_invalid", "Flash capability schema mismatch")
+
+
 def toggle_core(data):
     """Allow only a known installed core ID; no arbitrary shell or path input."""
     if not CORE_CONTROL_ENABLED:
@@ -664,7 +729,7 @@ class Job(object):
                         continue
                     if not sent:
                         continue
-                    if kind not in ("error", "progress", "probe_result", "slot_probe_result", "result"):
+                    if kind not in ("error", "progress", "probe_result", "slot_probe_result", "flash_probe_result", "result"):
                         continue
                     # Some parser errors have no request_id; do not associate
                     # unrelated valid IDs with our running operation.
@@ -682,6 +747,11 @@ class Job(object):
                             self.result = event
                             self.status = "done"
                         elif kind == "probe_result" and self.action == "probe":
+                            self.result = event
+                            self.status = "done"
+                        elif kind == "flash_probe_result" and self.action == "flash_probe":
+                            if event.get("core") != self.reader_id:
+                                raise ApiError(502, "invalid_result", "Wrong flash probe core")
                             self.result = event
                             self.status = "done"
                         elif kind == "result" and self.action == "read_rom":
@@ -734,7 +804,7 @@ class JobManager(object):
     def submit(self, data, automatic=False):
         reader_id = data.get("system")
         if (not isinstance(reader_id, str) or not CORE_ID.match(reader_id) or
-                data.get("command") not in ("probe", "read_rom")):
+                data.get("command") not in ("probe", "read_rom", "flash_probe")):
             raise ApiError(400, "unsupported", "Unknown reader or unsupported command")
         # The web API is v3-only: do not infer layout or silently forward
         # legacy NES-v2/SNES/MD parameters to an older installed reader.
@@ -748,15 +818,24 @@ class JobManager(object):
             if set(data) != {"system", "command"}:
                 raise ApiError(400, "invalid_command", "Probe takes no read options")
             selection = None
-        cap = reader_capability(reader_id)
-        if cap is None:
-            raise ApiError(400, "unsupported", "Core not registered by CLI")
-        if not cap["available"]:
-            raise ApiError(503, "native_protocol_unavailable",
-                           "The requested shared CLI core is not available")
-        features = cap["capabilities"]
-        if data["command"] not in features["commands"]:
-            raise ApiError(400, "unsupported", "Command unavailable for this reader")
+        if action == "flash_probe":
+            flash = native_flash_capabilities(reader_id)
+            if not flash["available"] or not flash["probe_supported"]:
+                raise ApiError(503, "flash_probe_unavailable",
+                               "Flash probe requires an approved kernel transport")
+            cap = {"id": reader_id, "name": flash["name"], "slot": flash["slot"],
+                   "folder": reader_id.upper(),
+                   "extension": KNOWN_ROM_EXTENSIONS.get(reader_id, "bin")}
+        else:
+            cap = reader_capability(reader_id)
+            if cap is None:
+                raise ApiError(400, "unsupported", "Core not registered by CLI")
+            if not cap["available"]:
+                raise ApiError(503, "native_protocol_unavailable",
+                               "The requested shared CLI core is not available")
+            features = cap["capabilities"]
+            if action not in features["commands"]:
+                raise ApiError(400, "unsupported", "Command unavailable for this reader")
         if selection is not None:
             # Metadata query is cartridge-I/O free. The native v3 core
             # remains the final authority for schema, parameters and safety.
@@ -1186,6 +1265,8 @@ class Handler(BaseHTTPRequestHandler):
                 self._json(200, capability_probe())
             elif path == "/api/cores":
                 self._json(200, core_registry())
+            elif re.match(r"^/api/flash-capabilities/[a-z0-9_-]{1,48}$", path):
+                self._json(200, native_flash_capabilities(path.rsplit("/", 1)[-1]))
             elif path.startswith("/api/reader-options/") and re.match(
                     r"^/api/reader-options/[a-z][a-z0-9_-]{0,31}$", path):
                 self._json(200, native_reader_options(path.rsplit("/", 1)[-1]))
