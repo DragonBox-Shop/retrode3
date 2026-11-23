@@ -534,13 +534,44 @@
     });
   }
   function renderJob(job) {
-    text($("job-label"), t(job.status));
     var progress = job.progress || {};
-    var percent = typeof progress.percent === "number" ? progress.percent : 0;
+    // Same progress widget for ROM reads and future Flash jobs.
+    // Flash progress is phase-local: erase sectors, program bytes, verify bytes.
+    var phases = {
+      read_rom: "progress_phase_read_rom",
+      erase: "progress_phase_erase",
+      program: "progress_phase_program",
+      verify: "progress_phase_verify"
+    };
+    var phase = Object.prototype.hasOwnProperty.call(phases, progress.phase) ?
+      phases[progress.phase] : null;
+    var busy = job.status === "running" || job.status === "cancelling";
+    var label = busy && phase ? t(phase) : t(job.status);
+    if (busy && phase && job.status === "cancelling")
+      label += " · " + t("cancelling");
+    text($("job-label"), label);
+    var percent = typeof progress.percent === "number" && isFinite(progress.percent) ?
+      Math.floor(Math.max(0, Math.min(100, progress.percent))) : 0;
     text($("job-percent"), percent + "%");
     $("job-fill").style.width = percent + "%";
-    text($("job-detail"), progress.bytes_total ?
-      humanSize(progress.bytes_done) + " / " + humanSize(progress.bytes_total) : "");
+    var detail = "";
+    if (progress.units === "sectors" &&
+        typeof progress.units_done === "number" &&
+        typeof progress.units_total === "number" &&
+        isFinite(progress.units_done) && isFinite(progress.units_total) &&
+        progress.units_done >= 0 && progress.units_total > 0 &&
+        progress.units_done <= progress.units_total) {
+      detail = progress.units_done + " / " + progress.units_total +
+        " " + t("progress_sectors");
+    } else if (typeof progress.bytes_total === "number" &&
+               typeof progress.bytes_done === "number" &&
+               isFinite(progress.bytes_total) && isFinite(progress.bytes_done) &&
+               progress.bytes_total > 0 && progress.bytes_done >= 0 &&
+               progress.bytes_done <= progress.bytes_total) {
+      detail = humanSize(progress.bytes_done) + " / " +
+        humanSize(progress.bytes_total);
+    }
+    text($("job-detail"), detail);
     var result = job.command === "read_rom" && job.status === "done" && job.result || null;
     var identity = result && result.identity || {};
     var verification = result && result.verification || {};
