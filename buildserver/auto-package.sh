@@ -56,19 +56,32 @@ sha="$(git -C "$checkout" rev-parse HEAD)"
 echo "OS Git $branch: $sha; APT: $suite"
 state="$base/cache/last-published-$branch.json"
 repo_base="$base/repository"
-if [[ -f "$state" ]] && python3 - "$state" "$repo_base" "$suite" "$sha" <<'PY'
+if [[ -f "$state" ]] && python3 - "$state" "$repo_base" "$suite" "$sha" "$checkout" <<'PY'
 import json
+import re
 import subprocess
 import sys
+from pathlib import Path
 
-manifest_path, base, suite, sha = sys.argv[1:]
+manifest_path, base, suite, sha, checkout = sys.argv[1:]
 try:
     with open(manifest_path, encoding="utf-8") as f:
         manifest = json.load(f)
-    if (manifest.get("os_commit") != sha or
+    previous = manifest.get("os_commit", "")
+    if (not isinstance(previous, str) or
+        not re.fullmatch(r"[0-9a-f]{40}", previous) or
         manifest.get("release_channel") != suite or
         not manifest.get("auto_versioned")):
         sys.exit(1)
+    if previous != sha:
+        # Documentation, CI and publisher-only changes do not change .debs.
+        classifier = Path(checkout) / "buildserver/release-changes.py"
+        result = subprocess.run(
+            [sys.executable, str(classifier), "--repo", checkout,
+             "--base", previous, "--head", sha],
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        if result.returncode != 0:
+            sys.exit(1)
     existing = subprocess.check_output(
         ["reprepro", "--basedir", base, "list", suite], text=True)
     indexed = set()
@@ -91,7 +104,8 @@ except (OSError, ValueError, KeyError, subprocess.CalledProcessError):
 sys.exit(0)
 PY
 then
-  echo "Already published: $branch commit $sha. Nothing to do."
+  echo "Already published: no package-affecting changes since the last release."
+  echo "Nothing to build or publish for $branch ($sha)."
   exit 0
 fi
 
@@ -130,12 +144,9 @@ except (OSError, ValueError):
     sys.exit(1)
 PY
   )" || continue
-  git -C "$checkout" merge-base --is-ancestor "$candidate_commit" "$sha" ||
-    continue
-  changed="$(git -C "$checkout" diff --name-only "$candidate_commit" "$sha")"
-  if [[ -n "$changed" && "$changed" != "buildserver/publish-debs.sh" &&
-        "$changed" != "buildserver/auto-package.sh" &&
-        "$changed" != "$(printf 'buildserver/auto-package.sh\nbuildserver/publish-debs.sh')" ]]; then
+  # Resume only if all intervening changes are guaranteed non-shipping.
+  if ! python3 "$checkout/buildserver/release-changes.py" \
+      --repo "$checkout" --base "$candidate_commit" --head "$sha"; then
     continue
   fi
   run="${manifest%/build-manifest.json}"
