@@ -43,7 +43,7 @@
   "writer_core": "Flash-fähiger Core",
   "writer_detect": "Flash erkennen",
   "writer_rom": "ROM-Datei",
-  "writer_file": "ROM aus der Spielebibliothek wählen",
+  "writer_file": "ROM-Datei vom Computer auswählen",
   "writer_warning": "Das gewählte ROM wird auf das erkannte Flashmodul geschrieben und anschließend vollständig geprüft.",
   "writer_write": "Löschen + Schreiben + Verify",
   "writer_verify": "Nur verifizieren",
@@ -53,7 +53,7 @@
   "writer_insert_cart": "Modul einlegen",
   "writer_cart_inserted": "Modul eingelegt",
   "writer_choose_file": "ROM-Datei auswählen",
-  "writer_detect_first": "Flash zunächst eindeutig erkennen und ROM auswählen.",
+  "writer_detect_first": "Flash erkennen und ROM-Datei hochladen.",
   "writer_verified": "Byte-für-Byte-Verify erfolgreich",
   "writer_title": "Spielmodul beschreiben",
   "writer_unavailable": "Schreiben ist noch nicht verfügbar",
@@ -191,5 +191,9 @@
   "slot_system_unrecognized": "System nicht erkannt",
   "slot_manual_label": "System manuell auswählen",
   "slot_manual_placeholder": "System auswählen…",
-  "slot_manual_note": "Manuelle Auswahl bestätigt keinen Adapter und ändert keine Spannung."
+  "slot_manual_note": "Manuelle Auswahl bestätigt keinen Adapter und ändert keine Spannung.",
+  "writer_uploaded": "ROM hochgeladen",
+  "writer_uploading": "ROM wird hochgeladen …",
+  "writer_upload_failed": "ROM-Upload fehlgeschlagen",
+  "writer_upload_bad_size": "ROM muss mindestens 512 Byte und höchstens 4 MiB groß sein (gerade Bytezahl)."
 }
