@@ -29,7 +29,7 @@ SENSE_ROOT = os.environ.get("RETRODE3_SYSFS_ROOT", "/sys/class/retrode3")
 
 CLI_BIN = "/usr/bin/retrode3-cli"
 # Flash operations follow the same shared CLI path as regular ROM reads.
-FLASH_ACTIONS = ("probe_flash", "write_flash", "verify_flash")
+FLASH_ACTIONS = ("probe_flash", "write_flash", "verify_flash", "flash_operation")
 CORECTL_BIN = "/usr/sbin/retrode3-corectl"
 CORE_CONTROL_ENABLED = os.environ.get("RETRODE3_CORE_CONTROL_ENABLED", "0") == "1"
 CORECTL_SUDO = os.environ.get("RETRODE3_CORECTL_SUDO", "1") == "1"
@@ -579,12 +579,14 @@ def capability_probe():
 
 class Job(object):
     def __init__(self, manager, reader_id, action, label,
-                 reader, automatic=False, selection=None, source=None):
+                 reader, automatic=False, selection=None, source=None,
+                 flash_options=None):
         self.manager = manager
         self.reader_id = reader_id
         self.reader = reader
         self.selection = selection
         self.source = source
+        self.flash_options = flash_options
         self.automatic = automatic
         self.id = uuid.uuid4().hex
         self.action = action
@@ -646,7 +648,9 @@ class Job(object):
                                            stderr=subprocess.DEVNULL, bufsize=0)
                 with self.lock:
                     self.process = process
-                deadline = time.time() + (3600 if self.action == "write_flash" else 900)
+                deadline = time.time() + (max(3600, (self.flash_options or {}).get(
+                    "verify_passes", 0) * 900) if self.action in
+                    ("write_flash", "verify_flash", "flash_operation") else 900)
                 sent = False
                 while time.time() < deadline:
                     if process.poll() is not None and not select.select([process.stdout], [], [], 0)[0]:
@@ -678,6 +682,10 @@ class Job(object):
                                 command["selection"] = self.selection
                             elif self.action in ("write_flash", "verify_flash"):
                                 command["source"] = self.source
+                            elif self.action == "flash_operation":
+                                command.update(self.flash_options)
+                                if self.source:
+                                    command["source"] = self.source
                             self._send(command)
                             sent = True
                         continue
@@ -710,13 +718,28 @@ class Job(object):
                                 raise ApiError(502, "invalid_result", "Unexpected Flash identity")
                             self.result = event
                             self.status = "done"
-                        elif kind == "result" and self.action in ("write_flash", "verify_flash"):
+                        elif kind == "result" and self.action in (
+                                "write_flash", "verify_flash", "flash_operation"):
                             verification = event.get("flash_verification") or {}
+                            requested = (self.flash_options or {}).get(
+                                "verify", self.action != "flash_operation")
+                            expected_status = "verified" if requested else "not_checked"
                             if (event.get("ok") is not True or
                                     event.get("command") != self.action or
-                                    verification.get("status") != "verified" or
-                                    verification.get("verified") is not True):
-                                raise ApiError(502, "invalid_result", "Flash verification not confirmed")
+                                    verification.get("status") != expected_status or
+                                    verification.get("verified") is not requested):
+                                raise ApiError(502, "invalid_result",
+                                               "Flash operation status inconsistent")
+                            if self.action == "flash_operation":
+                                operations = event.get("operations") or {}
+                                if any(operations.get(name) is not self.flash_options[name]
+                                       for name in ("erase", "write", "verify")):
+                                    raise ApiError(502, "invalid_result",
+                                                   "Flash operation stages inconsistent")
+                                if requested and verification.get("passes_completed") != (
+                                        self.flash_options["verify_passes"]):
+                                    raise ApiError(502, "invalid_result",
+                                                   "Not all Verify passes completed")
                             self.result = event
                             self.status = "done"
                         elif kind == "result" and self.action == "read_rom":
@@ -776,6 +799,7 @@ class JobManager(object):
             raise ApiError(400, "unsupported", "Flash operations are never automatic")
         selection = None
         source = None
+        flash_options = None
         if action == "read_rom":
             if set(data) != {"system", "command", "filename", "selection"}:
                 raise ApiError(400, "invalid_selection",
@@ -784,6 +808,25 @@ class JobManager(object):
         elif action in ("probe", "probe_flash"):
             if set(data) != {"system", "command"}:
                 raise ApiError(400, "invalid_command", "Probe takes no extra options")
+        elif action == "flash_operation":
+            required = {"system", "command", "erase", "write", "verify", "verify_passes"}
+            if set(data) not in (required, required | {"source"}):
+                raise ApiError(400, "invalid_command", "Invalid Flash operation fields")
+            if (type(data["erase"]) is not bool or
+                    type(data["write"]) is not bool or
+                    type(data["verify"]) is not bool or
+                    type(data["verify_passes"]) is not int):
+                raise ApiError(400, "invalid_command", "Invalid Flash stage value")
+            count = data["verify_passes"]
+            if (not any((data["erase"], data["write"], data["verify"])) or
+                    (data["verify"] and not 1 <= count <= 99) or
+                    (not data["verify"] and count != 0)):
+                raise ApiError(400, "invalid_command", "Invalid Flash stage selection")
+            source = data.get("source")
+            if (data["write"] or data["verify"]) and not source:
+                raise ApiError(400, "invalid_path", "Upload a ROM for Write or Verify")
+            flash_options = {key: data[key] for key in
+                             ("erase", "write", "verify", "verify_passes")}
         else:
             fields = {"system", "command", "source"}
             if set(data) != fields:
@@ -800,7 +843,9 @@ class JobManager(object):
         features = cap["capabilities"]
         if action not in features["commands"]:
             raise ApiError(400, "unsupported", "Command unavailable for this reader")
-        if action in ("write_flash", "verify_flash"):
+        if source is not None:
+            if not isinstance(source, str):
+                raise ApiError(400, "invalid_path", "ROM path must be a string")
             # A Flash source must be a regular ROM in this *logical* system
             # directory, not a user-supplied /dev path or a different core's ROM.
             if not source.startswith(cap["folder"] + "/"):
@@ -821,7 +866,7 @@ class JobManager(object):
         job = Job(self, reader_id, action,
                   sanitized_filename(data.get("filename")),
                   cap, automatic=automatic, selection=selection,
-                  source=source)
+                  source=source, flash_options=flash_options)
         with self.lock:
             if self.active is not None:
                 raise ApiError(409, "busy", "Cartridge reader already busy")
