@@ -72,5 +72,57 @@ class FlashWebJobs(unittest.TestCase):
 
 
 
+    def test_flexible_stages_verify_count_and_optional_source(self):
+        common = {"system": "md", "command": "flash_operation",
+                  "erase": True, "write": True, "verify": True,
+                  "verify_passes": 3, "source": "MD/game.md"}
+        job = WEB.JobManager().submit(common)
+        self.assertEqual(job["status"], "queued")
+        self.assertEqual(self.made[-1].opts["source"], self.file)
+        self.assertEqual(self.made[-1].opts["flash_options"],
+                         {"erase": True, "write": True,
+                          "verify": True, "verify_passes": 3})
+
+        erase_only = dict(common, erase=True, write=False,
+                          verify=False, verify_passes=0)
+        del erase_only["source"]
+        job = WEB.JobManager().submit(erase_only)
+        self.assertEqual(job["status"], "queued")
+        self.assertIsNone(self.made[-1].opts["source"])
+        self.assertFalse(self.made[-1].opts["flash_options"]["verify"])
+
+        write_only = dict(common, erase=False, write=True,
+                          verify=False, verify_passes=0)
+        self.assertEqual(WEB.JobManager().submit(write_only)["status"], "queued")
+
+        verify_only = dict(common, erase=False, write=False,
+                           verify=True, verify_passes=7)
+        self.assertEqual(WEB.JobManager().submit(verify_only)["status"], "queued")
+
+        for bad in (
+                dict(common, erase=False, write=False, verify=False, verify_passes=0),
+                dict(common, verify_passes=0),
+                dict(common, verify_passes=100),
+                dict(common, verify=False, verify_passes=3),
+                dict(common, verify="true"),
+                dict(common, verify_passes=True),
+                dict(common, source="/dev/slot-md"),
+                dict(common, source="GBA/game.md"),
+                dict(common, unknown="ignored")):
+            with self.assertRaises(WEB.ApiError):
+                WEB.JobManager().submit(bad)
+        without_rom = dict(common)
+        del without_rom["source"]
+        with self.assertRaises(WEB.ApiError):
+            WEB.JobManager().submit(without_rom)
+
+    def test_flash_operate_never_automatically_scheduled(self):
+        request = {"system": "md", "command": "flash_operation",
+                   "erase": True, "write": False, "verify": False,
+                   "verify_passes": 0}
+        with self.assertRaises(WEB.ApiError):
+            WEB.JobManager().submit(request, automatic=True)
+
+
 if __name__ == "__main__":
     unittest.main()
