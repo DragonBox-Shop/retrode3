@@ -89,19 +89,30 @@ mtools, dosfstools, e2fsprogs, xz and coreutils:
       --kernel-bundle /path/to/retrode3-kernel-7.3.0-rc5-letux-mips-retrode3+.tar.gz \
       --kernel-release '7.3.0-rc5-letux-mips-retrode3+' \
       --sd-preboot /path/to/retrode3-sd-preboot-1MiB.bin \
+      --migrate-stale-gpt \
       --ssh-authorized-key /home/user/.ssh/id_ed25519.pub \
       --output /path/to/retrode3-bookworm-test.img.xz
 
 The tool verifies the U-Boot uImage magic and MIPS architecture, DTB
 header, matching modules.dep, SysV/MIPSEL rootfs, original MBR
-signature and both filesystem images. It preserves raw SD bootstrap
-bytes 0..445 and sectors 1..2047, changing only the four MBR partition
-entries. It creates a regular-file MBR image with 128 MiB FAT32 boot
+signature and both filesystem images. The reference preboot backup contains
+both a valid but obsolete Android-era primary GPT (boot/recovery/pretest/etc.)
+and a separate Linux MBR. The default is to refuse this conflicting state.
+For the verified Retrode3 source-card layout only, --migrate-stale-gpt
+explicitly validates GPT CRCs and known partition names, then zeros the
+obsolete GPT header/entries in sectors 1-4 of the *copied* preboot image.
+Original bootloader bytes elsewhere remain unchanged; the new MBR partition
+entries replace only bytes 446-509. Never use this flag for arbitrary SD cards.
+The boot filesystem includes both the archival
+/ingenic/lx16-retrode-2.9.5.dtb and the U-Boot default /ingenic/lx16.dtb. It creates a regular-file MBR image with 128 MiB FAT32 boot
 and 1 GiB ext4 root, aligned at 1 MiB. The image is labelled
 FIRST_BOOT_TEST_ONLY. It is **not** a complete consumer image.
 
 **The current boot sequence has not yet been confirmed on the new
-SD card.** The existing bootargs.scr is a generic Letux/Beagle-era
+SD card.** U-Boot defaults embedded in the working preboot loader read
+/uImage and /ingenic/lx16.dtb from FAT and pass root=/dev/mmcblk0p2.
+These embedded defaults alone do not prove that the candidate boots.
+ The existing bootargs.scr is a generic Letux/Beagle-era
 script and may not be the script used to boot this specific board.
 The raw preboot backup covers the first 1 MiB only; if the original
 loader uses additional raw sectors, the source image must be inspected
