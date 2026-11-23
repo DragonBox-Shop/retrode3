@@ -87,6 +87,11 @@ jobs:
           preboot = bytearray(1024 * 1024)
           preboot[:4] = b"TEST"
           preboot[510:512] = bytes.fromhex("55aa")
+          # Synthetic source must carry the verified Retrode3 MBR geometry.
+          preboot[450]=0x0c
+          struct.pack_into("<II",preboot,454,6144,209408)
+          preboot[466]=0x83
+          struct.pack_into("<II",preboot,470,215552,59190751)
           pathlib.Path("build/synthetic-sd-preboot.bin").write_bytes(preboot)
           PY
           sudo python3 image/assemble-sd-image.py \
