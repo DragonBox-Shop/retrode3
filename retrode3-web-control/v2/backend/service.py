@@ -38,7 +38,7 @@ PHYSICAL_SLOTS = (("md", "Mega Drive"), ("snes", "Super Nintendo"),
                   ("nes", "Nintendo / Famicom"))
 # File format defaults are NOT a reader allowlist; unknown core IDs work
 # and use .bin until the CLI reports a ROM file extension.
-KNOWN_ROM_EXTENSIONS = {"snes": "sfc", "md": "md", "nes": "nes"}
+KNOWN_ROM_EXTENSIONS = {"snes": "sfc", "md": "md", "nes": "nes", "gba": "gba"}
 WLAN_BIN = os.environ.get("RETRODE3_WLAN_BINARY", "/usr/local/bin/retrode3-wlan")
 NET_SYSFS_ROOT = os.environ.get("RETRODE3_NET_SYSFS_ROOT", "/sys/class/net")
 RUN_SUDO = os.environ.get("RETRODE3_WLAN_SUDO", "1") == "1"
@@ -412,6 +412,19 @@ def toggle_core(data):
         MANAGER.bus_lock.release()
 
 
+def storage_system_slug(core):
+    """Keep the console folder independent of its physical adapter route.
+
+    For example, gba-md and gba-snes share ROMs/GBA. The core ID and slot
+    remain unchanged for discovery, electrical gating and job dispatch.
+    """
+    core_id = core["id"]
+    suffix = "-" + core["slot"]
+    if core_id.endswith(suffix) and len(core_id) > len(suffix):
+        return core_id[:-len(suffix)]
+    return core_id
+
+
 def reader_capability(core_id, registry=None):
     """Discover supported operations exclusively through the central CLI."""
     if registry is None:
@@ -421,10 +434,11 @@ def reader_capability(core_id, registry=None):
     core = next((c for c in registry["cores"] if c["id"] == core_id), None)
     if core is None:
         return None
+    system_slug = storage_system_slug(core)
     result = {"id": core["id"], "name": core["name"], "slot": core["slot"],
               "available": False, "transport": "cli",
-              "folder": core["id"].upper(),
-              "extension": KNOWN_ROM_EXTENSIONS.get(core["id"], "bin")}
+              "folder": system_slug.upper(),
+              "extension": KNOWN_ROM_EXTENSIONS.get(system_slug, "bin")}
     if not (core["installed"] and core["enabled"] and
             core["status"] == "ready" and core["usable"]):
         result["reason"] = "core_not_ready"

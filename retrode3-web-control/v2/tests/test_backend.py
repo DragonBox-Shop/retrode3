@@ -429,6 +429,25 @@ for line in sys.stdin:
         self.assertIsNone(MODULE.reader_capability("snes", {
             "available": True, "cores": [custom]}))
 
+
+    def test_rom_storage_uses_console_not_adapter_route(self):
+        for core_id, slot, expected_folder, expected_extension in (
+                ("gba-md", "md", "GBA", "gba"),
+                ("gba-snes", "snes", "GBA", "gba"),
+                ("md", "md", "MD", "md"),
+                ("sms-md", "md", "SMS", "bin"),
+                ("supergb-adapter", "snes", "SUPERGB-ADAPTER", "bin")):
+            core = {"id": core_id, "name": "Test core",
+                    "version": "1.0", "slot": slot, "installed": True,
+                    "enabled": True, "status": "ready", "usable": True,
+                    "actions": ["probe", "read_rom"]}
+            result = MODULE.reader_capability(core_id, {
+                "available": True, "cores": [core]})
+            self.assertEqual(result["folder"], expected_folder)
+            self.assertEqual(result["extension"], expected_extension)
+            self.assertEqual(result["id"], core_id)
+            self.assertEqual(result["slot"], slot)
+
     def test_autodetect_matches_core_slot_not_core_id(self):
         old_snapshot, old_capabilities = MODULE.slot_snapshot, MODULE.capability_probe
         slot = {"id": "md", "name": "Mega Drive", "status": "occupied"}
