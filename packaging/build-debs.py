@@ -341,7 +341,8 @@ def main():
             os.replace(str(work / record["filename"]), str(out / record["filename"]))
         manifest = {"release_channel": release_channel,
                     "os_repository": "DragonBox-Shop/retrode3",
-                    "os_commit": cmd(["git", "rev-parse", "HEAD"], cwd=REPO),
+                    "os_commit": cmd(["git", "-c", "safe.directory=" + str(REPO),
+                                      "rev-parse", "HEAD"], cwd=REPO),
                     "oscr_commit": lock["oscr_commit"],
                     "sanni_commit": lock["sanni_commit"],
                     "native_version": lock["native_version"],
