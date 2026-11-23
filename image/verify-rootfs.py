@@ -1,0 +1,92 @@
+#!/usr/bin/env python3
+"""Fail closed if this is not a completed Debian 12 MIPSEL SysV userspace."""
+import argparse
+import re
+import sys
+from pathlib import Path
+
+REQUIRED = (
+    "base-files", "base-passwd", "libc6", "dpkg", "apt", "dash",
+    "sysvinit-core", "sysv-rc", "initscripts", "udev", "kmod",
+    "ifupdown", "iproute2", "e2fsprogs",
+)
+FORBIDDEN = ("systemd-sysv", "openssh-server", "rsyslog", "retrode3-web-control")
+
+
+def package_db(root):
+    status = (root / "var/lib/dpkg/status").read_text(encoding="utf-8")
+    packages = {}
+    for stanza in re.split(r"\n\s*\n", status):
+        record = {}
+        for line in stanza.splitlines():
+            if not line or line[0].isspace() or ":" not in line:
+                continue
+            key, value = line.split(":", 1)
+            record[key] = value.strip()
+        if record.get("Status") == "install ok installed":
+            name = record.get("Package")
+            if not name or name in packages:
+                raise ValueError("duplicate or unnamed installed package")
+            packages[name] = record
+    return packages
+
+
+def verify(root):
+    if not root.is_dir():
+        raise ValueError("missing rootfs")
+    version = (root / "etc/debian_version").read_text(encoding="utf-8").strip()
+    if not version.startswith("12."):
+        raise ValueError("not Debian 12: " + version)
+    packages = package_db(root)
+    for name in REQUIRED:
+        if name not in packages:
+            raise ValueError("missing essential package: " + name)
+    for name in FORBIDDEN:
+        if name in packages:
+            raise ValueError("forbidden base package: " + name)
+    for name, record in packages.items():
+        if record.get("Architecture") not in ("mipsel", "all"):
+            raise ValueError("unexpected package architecture: " + name)
+    for name in ("etc/fstab", "etc/inittab", "etc/hostname", "etc/hosts"):
+        if not (root / name).is_file():
+            raise ValueError("missing configuration: " + name)
+    for name in ("usr/bin/qemu-mipsel-static", "usr/sbin/policy-rc.d"):
+        if (root / name).exists():
+            raise ValueError("build helper leaked: " + name)
+    if (root / "debootstrap").exists():
+        raise ValueError("foreign bootstrap did not complete")
+    inittab = (root / "etc/inittab").read_text(encoding="utf-8")
+    if not re.search(r"^id:2:initdefault:", inittab, re.MULTILINE):
+        raise ValueError("missing SysV runlevel")
+    if "ttyS2" not in inittab:
+        raise ValueError("missing serial console")
+    fstab = (root / "etc/fstab").read_text(encoding="utf-8")
+    if "/dev/mmcblk0p2 / ext4" not in fstab or "/dev/mmcblk0p1 /boot vfat" not in fstab:
+        raise ValueError("unexpected partition plan")
+    dash = next((root / p for p in ("bin/dash", "usr/bin/dash")
+                 if (root / p).is_file()), None)
+    if dash is None:
+        raise ValueError("missing shell binary")
+    with dash.open("rb") as file:
+        header = file.read(20)
+    # ELF32, little-endian, e_machine=EM_MIPS (8)
+    if (len(header) < 20 or header[:4] != b"\x7fELF" or
+            header[4:6] != b"\x01\x01" or header[18:20] != b"\x08\x00"):
+        raise ValueError("shell is not ELF32 little-endian MIPS")
+    return packages
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("root", type=Path)
+    args = parser.parse_args()
+    packages = verify(args.root)
+    print("Verified Bookworm MIPSEL SysV base: {} installed packages".format(len(packages)))
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except (OSError, ValueError) as exc:
+        print("ERROR: " + str(exc), file=sys.stderr)
+        sys.exit(1)
