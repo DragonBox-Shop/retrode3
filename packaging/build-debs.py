@@ -80,7 +80,7 @@ def validate_release_policy(lock):
     for field in ("native_version", "web_version"):
         version = lock.get(field, "")
         if (not isinstance(version, str) or
-                not re.fullmatch(r"[0-9][A-Za-z0-9.+:~\\-]*", version)):
+                not re.fullmatch(r"[0-9][A-Za-z0-9.+:~_-]*", version)):
             error("invalid Debian package version: " + field)
         if channel == "stable" and "~dev" in version:
             error("stable may not use development package versions: " + field)
