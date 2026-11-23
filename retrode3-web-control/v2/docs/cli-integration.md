@@ -145,11 +145,14 @@ The `PHYSICAL_SLOTS` list is **only** for familiar connector labels;
 other kernel-exported `/sys/class/retrode3/slot-*/sense` devices are
 enumerated dynamically. The CLI's `slot` names the physical connector,
 not the system's electrical safety or automatically detected adapter.
-For a new core, ROM output goes to a separate per-core folder under
-shared ROM storage, with generic `.bin` extension unless a known
-format has a conventional suffix. This is a filename preference only,
-not a core admission policy. A future CLI metadata field for the output
-extension would remove even that small presentation mapping.
+ROM output is grouped by logical console in shared ROM storage, not
+necessarily by the adapter-specific core ID. If the core ID ends in its
+physical slot suffix, such as `gba-md` or `gba-snes`, the suffix is
+removed for the output folder: both save into `ROMs/GBA/` with `.gba`
+extension. The full core ID is unchanged for selection and bus safety.
+Unknown formats retain the generic `.bin` extension. A future CLI
+metadata field for the output folder and extension could replace this
+conservative naming convention without hard-coding systems in the Web UI.
 
 The kernel's existing `KOBJ_CHANGE` event provides `SLOT=slot-...`
 and `SENSE=active|empty`. A single background thread in the loopback
