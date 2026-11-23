@@ -94,6 +94,7 @@ const vm = require("vm");
   // Upload via native file requester (not a list of files already on the device).
   ctx.activeJob = null;
   ctx.slotData.slots[0].status = "occupied";
+  ctx.writerIdentified = null;
   ctx.writerSourcePath = "";
   let upload = null;
   ctx.FormData = class { constructor() { this.values = []; } append(k, v) { this.values.push([k,v]); }};
