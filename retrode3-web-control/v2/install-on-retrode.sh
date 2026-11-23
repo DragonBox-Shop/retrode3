@@ -13,18 +13,25 @@ info() { echo "==> $*"; }
 [ -f "$BASE/backend/service.py" ] || fail "Missing backend/service.py"
 [ -f "$BASE/web/index.php" ] || fail "Missing web/index.php"
 [ -f "$BASE/service/retrode3-web-v2.init" ] || fail "Missing init script"
+[ -f "$BASE/service/retrode3-flashctl.py" ] || fail "Missing Flash bridge"
+[ -f "$BASE/service/retrode3-flashctl.sudoers" ] || fail "Missing Flash sudoers policy"
 [ -f "$BASE/rollback-on-retrode.sh" ] || fail "Missing rollback script"
 [ -f "$BASE/manage-auth-on-retrode.sh" ] || fail "Missing authentication manager"
 [ -d "$WWW" ] || fail "Webroot $WWW not found."
 [ -d /usr/local/games ] || fail "Games share /usr/local/games missing."
 id www-data >/dev/null 2>&1 || fail "Account www-data missing."
 command -v python3 >/dev/null 2>&1 || fail "Python3 missing."
+command -v sudo >/dev/null 2>&1 || fail "sudo required for Flash test bridge."
+command -v visudo >/dev/null 2>&1 || fail "visudo required for Flash test bridge."
 command -v php >/dev/null 2>&1 || fail "PHP CLI missing."
 command -v start-stop-daemon >/dev/null 2>&1 || fail "start-stop-daemon missing."
 php -r 'if (!function_exists("password_hash") || !function_exists("password_verify") || !function_exists("hash_equals")) exit(1);' ||
     fail "PHP >= 5.6 required."
 python3 -c 'import sys; assert sys.version_info >= (3,4)' || fail "Python >= 3.4 required."
 python3 -m py_compile "$BASE/backend/service.py" || fail "Backend syntax error."
+python3 -m py_compile "$BASE/service/retrode3-flashctl.py" || fail "Flash bridge syntax error."
+visudo -c -f "$BASE/service/retrode3-flashctl.sudoers" >/dev/null ||
+    fail "Invalid Flash sudoers policy."
 for f in "$BASE"/web/*.php; do php -l "$f" >/dev/null || fail "PHP syntax error $f"; done
 info "Preflight checks passed."
 
@@ -123,6 +130,22 @@ done
 [ -f /run/lock/retrode3/bus.lock ] && [ ! -L /run/lock/retrode3/bus.lock ] ||
     fail "OS bus lock file unavailable"
 
+# Install only a fixed root-owned Flash action validator, never allow sudo
+# access to the generic CLI itself. The bridge can operate immediately
+# on an experimental Flash-enabled .so, without a prior hardware-test gate.
+mkdir -p /etc/sudoers.d
+[ ! -L /usr/sbin/retrode3-flashctl ] || fail "Unsafe Flash helper symlink"
+[ ! -L /etc/sudoers.d/retrode3-flashctl ] || fail "Unsafe sudoers symlink"
+if [ -e /usr/sbin/retrode3-flashctl ]; then
+    cp -a /usr/sbin/retrode3-flashctl /usr/sbin/retrode3-flashctl.prev
+fi
+if [ -e /etc/sudoers.d/retrode3-flashctl ]; then
+    cp -a /etc/sudoers.d/retrode3-flashctl /etc/sudoers.d/retrode3-flashctl.prev
+fi
+install -o root -g root -m 0755 "$BASE/service/retrode3-flashctl.py" /usr/sbin/retrode3-flashctl
+install -o root -g root -m 0440 "$BASE/service/retrode3-flashctl.sudoers" /etc/sudoers.d/retrode3-flashctl
+visudo -c -f /etc/sudoers.d/retrode3-flashctl >/dev/null ||
+    fail "Installed Flash sudoers policy invalid"
 mkdir -p "$ROOT/backend" "$BACKUP_ROOT"
 cp "$BASE/backend/service.py" "$ROOT/backend/service.py"
 chown root:root "$ROOT/backend/service.py"
