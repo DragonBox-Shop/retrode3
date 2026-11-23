@@ -36,7 +36,7 @@ test -r "$base/conf/distributions"
 test -d "$public"
 (cd "$run" && sha256sum --check --strict SHA256SUMS)
 # Verify the complete set before the FIRST reprepro import.
-python3 - "$run" "$suite" "$root" "$public" <<'PY'
+python3 - "$run" "$suite" "$root" "$public" "$base" <<'PY'
 import hashlib
 import importlib.util
 import json
@@ -48,6 +48,7 @@ import sys
 
 run, suite, root = pathlib.Path(sys.argv[1]), sys.argv[2], pathlib.Path(sys.argv[3])
 pool = pathlib.Path(sys.argv[4]) / "pool"
+repo_base = pathlib.Path(sys.argv[5])
 manifest = json.loads((run / "build-manifest.json").read_text())
 lock = json.loads((root / "packaging/native-source-lock.json").read_text())
 if manifest.get("release_channel") != suite or lock.get("release_channel") != suite:
@@ -93,7 +94,7 @@ if len(expected) != len(records) or set(expected) != {x.name for x in files}:
     sys.exit("error: manifest package file set differs from build output")
 # Refuse a downgrade or same-version rewrite before importing any packages.
 indexed = subprocess.check_output(
-    ["reprepro", "--basedir", str(pool.parent), "list", suite],
+    ["reprepro", "--basedir", str(repo_base), "list", suite],
     text=True)
 previous = {}
 for line in indexed.splitlines():
