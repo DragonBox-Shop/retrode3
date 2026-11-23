@@ -54,3 +54,40 @@ outside the container; a separate builder UID would be stronger.
 
 The target device libc/GLIBCXX versions still need a hardware/sysroot
 compatibility check before deploying any of these packages.
+
+## One-command build and publish on amaterasu
+
+Once, as the `retrode` user, install the two launchers:
+
+```sh
+bash /srv/www/vhosts/retrode.com/buildserver/src/retrode3-testing-pr/buildserver/install-launchers.sh
+```
+
+This creates two executable files **outside** the public DocumentRoot:
+
+- `/srv/www/vhosts/retrode.com/package_develop.sh` (Git `develop` -> APT `testing`)
+- `/srv/www/vhosts/retrode.com/package_master.sh` (Git `master` -> APT `stable`)
+
+Each invocation takes a shared nonblocking `flock`, verifies the branch and
+clean tracked files, fetches and fast-forwards its dedicated Git checkout,
+checks whether the exact source commit is already published, then performs
+the constrained rootless Podman crossbuild. After the build it verifies
+the manifest, all SHA256 sums, source commit, expected package versions and
+the pool/installed-suite versions, publishes explicitly with `reprepro`,
+and saves an idempotency marker. Build/publish logs are kept in
+`buildserver/artifacts/logs`.
+
+Automatic runs set `RETRODE3_AUTO_VERSION=1` and append a deterministic
+`+autoYYYYMMDDhhmmss.SHA12` suffix to the Debian *revision* in each package
+without changing the Git-tracked source lock. The timestamp comes from the
+Git commit date in UTC, not the current build time, so retries of the same
+commit receive the same versions. Publication refuses versions that do not
+sort newer than those already in the target suite. If a run is interrupted,
+a rerun may reuse exactly matching already published package files, but
+different bytes under an existing filename are never silently replaced.
+
+This is a **manual trigger** (no cron or hook) with fully automatic steps
+after invocation. It does not update firmware, kernel modules, rootfs images
+or customer devices. The build is deliberately cross-compiled against
+Debian Bookworm, not a verified legacy-device sysroot.
+
