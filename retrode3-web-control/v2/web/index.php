@@ -87,10 +87,24 @@ header("Content-Security-Policy: default-src 'self'; img-src 'self'; style-src '
 <label for="writer-file" data-i18n="writer_file">Choose ROM file to upload</label>
 <input id="writer-file" type="file" accept=".md,.bin,.gen,.sfc,.smc,.gba,.rom" />
 <p id="writer-upload-status" class="muted small" role="status"></p>
-<p class="muted small" data-i18n="writer_warning">Writing erases existing sectors on the cartridge. Use a backed-up test cartridge.</p>
+<div class="flash-options" role="group" aria-labelledby="writer-options-title">
+<strong id="writer-options-title" data-i18n="writer_options">Operations</strong>
+<label class="flash-check"><input id="writer-erase" type="checkbox" checked />
+<span data-i18n="writer_erase">Erase</span></label>
+<label class="flash-check"><input id="writer-program" type="checkbox" checked />
+<span data-i18n="writer_program">Write</span></label>
+<div class="flash-verify-row">
+<label class="flash-check"><input id="writer-check" type="checkbox" checked />
+<span data-i18n="writer_verify">Verify</span></label>
+<label class="flash-count" for="writer-verify-passes">
+<span data-i18n="writer_verify_count">Number of Verify passes</span>
+<input id="writer-verify-passes" type="number" min="1" max="99" step="1" value="1" inputmode="numeric"/>
+</label>
+</div>
+<p class="muted small" id="writer-operation-hint" role="status"></p>
+</div>
 <div class="actions">
-<button id="writer-write" type="button" class="btn danger" data-i18n="writer_write">Erase + write + verify</button>
-<button id="writer-verify" type="button" class="btn secondary" data-i18n="writer_verify">Verify only</button>
+<button id="writer-start" type="button" class="btn primary" data-i18n="writer_start">Start operation</button>
 </div>
 </div>
 </div>
