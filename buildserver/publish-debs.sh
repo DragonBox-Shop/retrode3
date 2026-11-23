@@ -91,6 +91,20 @@ if not files or len(files) != len(records):
 expected = {x["filename"]: x for x in records}
 if len(expected) != len(records) or set(expected) != {x.name for x in files}:
     sys.exit("error: manifest package file set differs from build output")
+# Refuse a downgrade or same-version rewrite before importing any packages.
+indexed = subprocess.check_output(
+    ["reprepro", "--basedir", str(pool.parent), "list", suite],
+    text=True)
+previous = {}
+for line in indexed.splitlines():
+    prefix, sep, payload = line.partition(": ")
+    if not sep or not prefix.startswith(suite + "|"):
+        continue
+    name, version = payload.rsplit(" ", 1)
+    old = previous.get(name)
+    if old is None or subprocess.call(
+            ["dpkg", "--compare-versions", version, "gt", old]) == 0:
+        previous[name] = version
 for file in files:
     digest = hashlib.sha256(file.read_bytes()).hexdigest()
     if digest != expected[file.name]["sha256"]:
@@ -116,6 +130,12 @@ for file in files:
         sys.exit("error: version mismatch: " + file.name)
     if info[2] != ("all" if info[0] == "retrode3-web-control" else "mipsel"):
         sys.exit("error: architecture mismatch: " + file.name)
+    old = previous.get(info[0])
+    if old is not None and subprocess.call(
+            ["dpkg", "--compare-versions", info[1], "gt", old]) != 0:
+        sys.exit("error: published " + suite + " version " + old +
+                 " of " + info[0] + " is not older than " + info[1] +
+                 "; refusing downgrade or same-version republish")
 print("Preflight OK:", suite, len(files), "packages, OS", head)
 PY
 for deb in "$run"/*.deb; do
