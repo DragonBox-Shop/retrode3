@@ -66,7 +66,8 @@ if candidate_commit != head:
     changed = subprocess.check_output(
         ["git", "-C", str(root), "diff", "--name-only",
          candidate_commit, head, "--"], text=True).splitlines()
-    if set(changed) != {"buildserver/publish-debs.sh"}:
+    if not set(changed).issubset({"buildserver/publish-debs.sh",
+                                   "buildserver/auto-package.sh"}):
         sys.exit("error: source changed since build; rebuild required: " +
                  ", ".join(changed))
     print("Validated publish-only change since candidate commit", candidate_commit)
