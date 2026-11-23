@@ -3,9 +3,15 @@ name: Build actual mipsel Debian test candidates
 on:
   workflow_dispatch:
   push:
-    branches: [develop]
+    branches: [develop, master]
     paths:
       - 'packaging/**'
+      - 'buildserver/**'
+      - '.github/workflows/debian-mipsel-candidates.yml'
+  pull_request:
+    paths:
+      - 'packaging/**'
+      - 'buildserver/**'
       - '.github/workflows/debian-mipsel-candidates.yml'
 
 permissions:
