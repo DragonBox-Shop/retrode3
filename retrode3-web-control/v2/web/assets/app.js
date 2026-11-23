@@ -9,6 +9,7 @@
   var coreState = null, corePending = false;
   var readerOptions = null, readerOptionsLoading = false, readerOptionsRequest = 0;
   var genericWidget = null;
+  var writerIdentified = null;
   var csrf = document.querySelector('meta[name="csrf-token"]').content;
   var $ = function (id) { return document.getElementById(id); };
   function t(key) { return messages[key] || key; }
@@ -55,6 +56,7 @@
     if (slotData) renderSlots();
     renderSelectedProbe();
     renderCores();
+    renderWriterState();
   }
   function setLocale(lang) {
     if (!/^(en|de)$/.test(lang)) lang = "en";
@@ -74,8 +76,15 @@
     document.querySelectorAll(".page").forEach(function (el) {
       el.classList.toggle("active", el.id === id);
     });
+    if (id === "writer") {
+      $("writer-progress-anchor").appendChild($("job-panel"));
+      loadWriterFiles();
+    } else {
+      $("reader-progress-anchor").appendChild($("job-panel"));
+    }
     if (id === "files") listFiles();
     if (id === "reader") loadCapabilities();
+    if (id === "writer") renderWriterState();
     if (id === "settings") loadSettings();
     if (id === "plugins") loadCores();
   }
@@ -138,7 +147,7 @@
     $("read").disabled = !reader || commands.indexOf("read_rom") === -1 ||
       Boolean(activeJob) || readerOptionsLoading || !genericSchema() ||
       !genericWidget || !genericWidget.allowed();
-
+    renderWriterState();
   }
   function selectReader(id) {
     var previous = selectedReader;
@@ -475,6 +484,7 @@
         option.value = reader.id; text(option, reader.name); select.appendChild(option);
       });
       selectReader(previous);
+      updateWriterReaders();
       if (!activeJob) slotFingerprint = null;
       return refreshSlots();
     }).catch(function (error) {
@@ -498,6 +508,122 @@
     });
     if (updateFilename !== false && data.title) $("filename").value = data.title;
     renderGenericOptions();
+  }
+  function flashReader() {
+    return readerById($("writer-system").value);
+  }
+  function flashSupports(reader, action) {
+    return !!reader && (reader.capabilities.commands || []).indexOf(action) !== -1;
+  }
+  function updateWriterReaders() {
+    var select = $("writer-system"), preferred = select.value;
+    select.innerHTML = "";
+    var empty = document.createElement("option");
+    empty.value = ""; text(empty, t("choose_reader")); select.appendChild(empty);
+    readers().forEach(function (reader) {
+      if (!flashSupports(reader, "probe_flash")) return;
+      var option = document.createElement("option");
+      option.value = reader.id; text(option, reader.name); select.appendChild(option);
+    });
+    if (readerById(preferred) && flashSupports(readerById(preferred), "probe_flash"))
+      select.value = preferred;
+    else if (readerById(selectedReader) &&
+             flashSupports(readerById(selectedReader), "probe_flash"))
+      select.value = selectedReader;
+    else if (select.options.length === 2) select.value = select.options[1].value;
+    renderWriterState();
+  }
+  function renderWriterState() {
+    var reader = flashReader();
+    var id = reader && reader.id;
+    var slot = reader && slotData && slotData.slots.filter(function (entry) {
+      return entry.id === reader.slot;
+    })[0];
+    var occupied = slot && slot.status === "occupied";
+    if (!occupied || !reader || !writerIdentified ||
+        writerIdentified.reader !== id || writerIdentified.slot !== reader.slot)
+      writerIdentified = null;
+    text($("writer-slot-status"), reader ?
+      (reader.name + " · " + reader.slot + " · " +
+       t(occupied ? "writer_cart_inserted" : "writer_insert_cart")) :
+      t("writer_missing_core"));
+    var info = writerIdentified && writerIdentified.data;
+    text($("writer-flash-status"), info ?
+      t("writer_detected") + ": 0x" + Number(info.manufacturer_id).toString(16) +
+      " / 0x" + Number(info.device_id).toString(16) +
+      " · " + humanSize(info.capacity_bytes) +
+      " · " + info.sector_count + " " + t("progress_sectors") :
+      t("writer_not_detected"));
+    var file = $("writer-file").value;
+    $("writer-detect").disabled = !occupied || !flashSupports(reader, "probe_flash") ||
+      Boolean(activeJob);
+    $("writer-write").disabled = !writerIdentified || !file ||
+      !flashSupports(reader, "write_flash") || Boolean(activeJob);
+    $("writer-verify").disabled = !writerIdentified || !file ||
+      !flashSupports(reader, "verify_flash") || Boolean(activeJob);
+  }
+  function loadWriterFiles() {
+    var reader = flashReader();
+    var picker = $("writer-file"), selected = picker.value;
+    picker.innerHTML = "";
+    var empty = document.createElement("option");
+    empty.value = ""; text(empty, t("writer_choose_file")); picker.appendChild(empty);
+    renderWriterState();
+    if (!reader) return Promise.resolve();
+    var found = [], visited = 0;
+    function scan(path, depth) {
+      if (++visited > 32) return Promise.resolve();
+      return api("/api/files", undefined, path).then(function (listing) {
+        var jobs = [];
+        (listing.items || []).forEach(function (item) {
+          if (found.length >= 256) return;
+          if (item.directory) {
+            if (depth < 2) jobs.push(scan(item.path, depth + 1));
+          } else if (typeof item.size === "number" && item.size >= 512 &&
+                     item.size <= 4194304 && item.size % 2 === 0) {
+            found.push(item.path);
+          }
+        });
+        return Promise.all(jobs);
+      });
+    }
+    return scan(reader.folder, 0).then(function () {
+      if (flashReader() !== reader) return;
+      found.sort().forEach(function (path) {
+        var option = document.createElement("option");
+        option.value = path; text(option, path); picker.appendChild(option);
+      });
+      if (found.indexOf(selected) !== -1) picker.value = selected;
+      renderWriterState();
+    }).catch(function (err) {
+      renderWriterState();
+      // A newly installed core may not have a ROM folder yet.
+      if (err && err.message && /not found/i.test(err.message)) return;
+      fail(err);
+    });
+  }
+  function startFlashJob(action) {
+    var reader = flashReader();
+    if (!reader || !flashSupports(reader, action) || activeJob) return;
+    if (action !== "probe_flash" && (!writerIdentified || !$("writer-file").value))
+      return notify(t("writer_detect_first"));
+    var payload = {system: reader.id, command: action};
+    if (action !== "probe_flash") payload.source = $("writer-file").value;
+    if (action === "write_flash") {
+      if (!confirm(t("writer_confirm_erase") + "\n" + payload.source)) return;
+      payload.confirm_erase = true;
+    }
+    if (action === "probe_flash") writerIdentified = null;
+    renderWriterState();
+    api("/api/jobs", payload).then(function (job) {
+      activeJob = job.id;
+      $("job-panel").hidden = false;
+      $("cancel").disabled = false;
+      $("writer-progress-anchor").appendChild($("job-panel"));
+      renderJob(job);
+      renderWriterState();
+      schedulePoll();
+    }).catch(function (err) { renderWriterState(); fail(err); });
   }
   function startJob(command) {
     var reader = readerById(selectedReader);
@@ -583,7 +709,11 @@
       }).join(" · ") : "";
     var verifyText = verification.status ?
       t("verification_" + verification.status) : "";
-    text($("job-result-details"), result ?
+    if ((job.command === "write_flash" || job.command === "verify_flash") &&
+        job.status === "done" && job.result && job.result.flash_verification) {
+      text($("job-result-details"), t("writer_verified") + ": " +
+        humanSize(job.result.flash_verification.bytes_compared));
+    } else text($("job-result-details"), result ?
       (title ? title + " · " : "") +
       (result.layout_id ? result.layout_id + " · " : "") +
       (configurationText ? configurationText + " · " : "") +
@@ -602,14 +732,22 @@
         }
         probeTarget = null;
         notify(t("probe_finished"));
-      }
-      else {
+      } else if (job.command === "probe_flash") {
+        writerIdentified = {reader: job.system, slot: (readerById(job.system) || {}).slot,
+          data: job.result || {}};
+        renderWriterState();
+        notify(t("writer_detected"));
+      } else if (job.command === "write_flash" || job.command === "verify_flash") {
+        notify(t("writer_verified"));
+      } else {
         var verify = job.result && job.result.verification;
         notify(t("read_finished") + (verify && verify.status ?
           " · " + t("verification_" + verify.status) : ""));
       }
     } else if (job.status === "failed") {
       if (job.command === "probe") probeTarget = null;
+      if (job.command === "probe_flash") writerIdentified = null;
+      renderWriterState();
       notify(t("failed") + ": " + (job.error && (job.error.message || job.error.code) || t("unknown")));
     } else if (job.status === "cancelled") {
       if (job.command === "probe") probeTarget = null;
@@ -628,6 +766,7 @@
       else {
         activeJob = null;
         renderCores();
+        renderWriterState();
         $("cancel").disabled = true;
         loadCapabilities();
         loadCores();
@@ -811,6 +950,14 @@
     });
     $("probe").addEventListener("click", function () { startJob("probe"); });
     $("read").addEventListener("click", function () { startJob("read_rom"); });
+    $("writer-system").addEventListener("change", function () {
+      writerIdentified = null; loadWriterFiles();
+    });
+    $("writer-file").addEventListener("change", renderWriterState);
+    $("writer-refresh-files").addEventListener("click", loadWriterFiles);
+    $("writer-detect").addEventListener("click", function () { startFlashJob("probe_flash"); });
+    $("writer-write").addEventListener("click", function () { startFlashJob("write_flash"); });
+    $("writer-verify").addEventListener("click", function () { startFlashJob("verify_flash"); });
     $("cancel").addEventListener("click", function () {
       if (activeJob) api("/api/jobs/" + activeJob + "/cancel", {}).catch(fail);
     });
@@ -850,6 +997,10 @@
   function resumeJob() {
     api("/api/jobs/active").then(function (job) {
       if (!job.id || job.automatic) return;
+      if (["probe_flash", "write_flash", "verify_flash"].indexOf(job.command) !== -1) {
+        showTab("writer");
+        $("writer-system").value = job.system;
+      }
       $("job-panel").hidden = false;
       renderJob(job);
       if (["done", "failed", "cancelled"].indexOf(job.status) === -1) {
