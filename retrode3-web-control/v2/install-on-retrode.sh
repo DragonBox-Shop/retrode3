@@ -1,10 +1,9 @@
 #!/bin/sh
-# Development install on the Retrode. Backup and rollback included.
+# Install the current Retrode3 Web v2 implementation on the device.
 set -eu
 BASE=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 ROOT=/opt/retrode3-web-v2
 WWW=/var/www/html
-BACKUP_ROOT=/var/backups/retrode3-web-v2
 AUTH=/etc/retrode3-web-control.auth
 fail() { echo "ERROR: $*" >&2; exit 1; }
 info() { echo "==> $*"; }
@@ -13,25 +12,17 @@ info() { echo "==> $*"; }
 [ -f "$BASE/backend/service.py" ] || fail "Missing backend/service.py"
 [ -f "$BASE/web/index.php" ] || fail "Missing web/index.php"
 [ -f "$BASE/service/retrode3-web-v2.init" ] || fail "Missing init script"
-[ -f "$BASE/service/retrode3-flashctl.py" ] || fail "Missing Flash bridge"
-[ -f "$BASE/service/retrode3-flashctl.sudoers" ] || fail "Missing Flash sudoers policy"
-[ -f "$BASE/rollback-on-retrode.sh" ] || fail "Missing rollback script"
 [ -f "$BASE/manage-auth-on-retrode.sh" ] || fail "Missing authentication manager"
 [ -d "$WWW" ] || fail "Webroot $WWW not found."
 [ -d /usr/local/games ] || fail "Games share /usr/local/games missing."
 id www-data >/dev/null 2>&1 || fail "Account www-data missing."
 command -v python3 >/dev/null 2>&1 || fail "Python3 missing."
-command -v sudo >/dev/null 2>&1 || fail "sudo required for Flash test bridge."
-command -v visudo >/dev/null 2>&1 || fail "visudo required for Flash test bridge."
 command -v php >/dev/null 2>&1 || fail "PHP CLI missing."
 command -v start-stop-daemon >/dev/null 2>&1 || fail "start-stop-daemon missing."
 php -r 'if (!function_exists("password_hash") || !function_exists("password_verify") || !function_exists("hash_equals")) exit(1);' ||
     fail "PHP >= 5.6 required."
 python3 -c 'import sys; assert sys.version_info >= (3,4)' || fail "Python >= 3.4 required."
 python3 -m py_compile "$BASE/backend/service.py" || fail "Backend syntax error."
-python3 -m py_compile "$BASE/service/retrode3-flashctl.py" || fail "Flash bridge syntax error."
-visudo -c -f "$BASE/service/retrode3-flashctl.sudoers" >/dev/null ||
-    fail "Invalid Flash sudoers policy."
 for f in "$BASE"/web/*.php; do php -l "$f" >/dev/null || fail "PHP syntax error $f"; done
 info "Preflight checks passed."
 
@@ -130,23 +121,10 @@ done
 [ -f /run/lock/retrode3/bus.lock ] && [ ! -L /run/lock/retrode3/bus.lock ] ||
     fail "OS bus lock file unavailable"
 
-# Install only a fixed root-owned Flash action validator, never allow sudo
-# access to the generic CLI itself. The bridge can operate immediately
-# on an experimental Flash-enabled .so, without a prior hardware-test gate.
-mkdir -p /etc/sudoers.d
-[ ! -L /usr/sbin/retrode3-flashctl ] || fail "Unsafe Flash helper symlink"
-[ ! -L /etc/sudoers.d/retrode3-flashctl ] || fail "Unsafe sudoers symlink"
-if [ -e /usr/sbin/retrode3-flashctl ]; then
-    cp -a /usr/sbin/retrode3-flashctl /usr/sbin/retrode3-flashctl.prev
-fi
-if [ -e /etc/sudoers.d/retrode3-flashctl ]; then
-    cp -a /etc/sudoers.d/retrode3-flashctl /etc/sudoers.d/retrode3-flashctl.prev
-fi
-install -o root -g root -m 0755 "$BASE/service/retrode3-flashctl.py" /usr/sbin/retrode3-flashctl
-install -o root -g root -m 0440 "$BASE/service/retrode3-flashctl.sudoers" /etc/sudoers.d/retrode3-flashctl
-visudo -c -f /etc/sudoers.d/retrode3-flashctl >/dev/null ||
-    fail "Installed Flash sudoers policy invalid"
-mkdir -p "$ROOT/backend" "$BACKUP_ROOT"
+# Flash jobs use the same shared CLI and device permissions as ROM reads.
+# Older experimental test installs may still have the obsolete root bridge.
+rm -f /etc/sudoers.d/retrode3-flashctl /usr/sbin/retrode3-flashctl
+mkdir -p "$ROOT/backend"
 cp "$BASE/backend/service.py" "$ROOT/backend/service.py"
 chown root:root "$ROOT/backend/service.py"
 chmod 0644 "$ROOT/backend/service.py"
@@ -158,7 +136,6 @@ EOF
 chown root:root "$ROOT/start.sh"
 chmod 0755 "$ROOT/start.sh"
 if [ -f /etc/init.d/retrode3-web-v2 ]; then
-    cp -a /etc/init.d/retrode3-web-v2 /etc/init.d/retrode3-web-v2.prev
     service retrode3-web-v2 stop || true
 fi
 cp "$BASE/service/retrode3-web-v2.init" /etc/init.d/retrode3-web-v2
@@ -216,21 +193,17 @@ chown -R root:root "$STAGE"
 find "$STAGE" -type d -exec chmod 0755 {} \;
 find "$STAGE" -type f -exec chmod 0644 {} \;
 
-STAMP=$(date '+%Y%m%d-%H%M%S')
-BACKUP="$BACKUP_ROOT/$STAMP"
-[ ! -e "$BACKUP" ] || fail "Backup location already exists."
-mkdir "$BACKUP"
-info "Backing up $WWW to $BACKUP"
-cp -a "$WWW" "$BACKUP/previous-webroot"
-[ -f "$BACKUP/previous-webroot/index.php" ] || fail "Legacy backup check failed."
-mv "$WWW" "$BACKUP/old-active-webroot"
+# Replace the served Web files directly. The old directory is kept only
+# during the rename, then deleted; no persistent backup/rollback mechanism.
+OLD="$WWW-retrode3-v2-replacing-$"
+[ ! -e "$OLD" ] || fail "Temporary replacement directory already exists."
+mv "$WWW" "$OLD"
 if ! mv "$STAGE" "$WWW"; then
-    mv "$BACKUP/old-active-webroot" "$WWW" || true
-    fail "Could not replace webroot; old website restored."
+    mv "$OLD" "$WWW" || true
+    fail "Could not activate new Web files."
 fi
-printf '%s\n' "$BACKUP" > "$BACKUP_ROOT/latest"
-cp "$BASE/rollback-on-retrode.sh" /usr/local/sbin/retrode3-web-v2-rollback
-chmod 0755 /usr/local/sbin/retrode3-web-v2-rollback
+rm -rf "$OLD"
+rm -f /usr/local/sbin/retrode3-web-v2-rollback
 if command -v update-rc.d >/dev/null 2>&1; then
     update-rc.d retrode3-web-v2 defaults >/dev/null || true
 fi
@@ -278,7 +251,6 @@ fi
 info "SUCCESS: New frontend is installed at http://172.31.255.1/"
 info "Check service: service retrode3-web-v2 status"
 info "Read logs: tail -n 50 /var/log/retrode3-web-v2.log"
-info "Rollback: /usr/local/sbin/retrode3-web-v2-rollback"
 info "Login: no password by default. Optional password: retrode3-web-v2-auth enable."
 
 # Only a private checkout is pulled. Do not expose a .git directory to HTTP.
@@ -295,7 +267,7 @@ exec /bin/sh "$SOURCE/retrode3-web-control/v2/update-on-retrode.sh"
 EOF
         chmod 0755 /usr/local/sbin/retrode3-web-v2-update
         chown root:root /usr/local/sbin/retrode3-web-v2-update
-        info "Next updates: retrode3-web-v2-update (Git pull + deploy + backup)"
+        info "Next updates: retrode3-web-v2-update (Git pull + deploy)"
     fi
 fi
 
