@@ -59,18 +59,17 @@ candidate_commit = manifest.get("os_commit", "")
 if not isinstance(candidate_commit, str) or not re.fullmatch(r"[0-9a-f]{40}", candidate_commit):
     sys.exit("error: missing or invalid source Git commit in build manifest")
 if candidate_commit != head:
-    # A publish-script-only fix does not change the package payload.
-    if subprocess.call(["git", "-C", str(root), "merge-base", "--is-ancestor",
-                        candidate_commit, head]) != 0:
-        sys.exit("error: candidate source is not an ancestor of current branch")
-    changed = subprocess.check_output(
-        ["git", "-C", str(root), "diff", "--name-only",
-         candidate_commit, head, "--"], text=True).splitlines()
-    if not set(changed).issubset({"buildserver/publish-debs.sh",
-                                   "buildserver/auto-package.sh"}):
-        sys.exit("error: source changed since build; rebuild required: " +
-                 ", ".join(changed))
-    print("Validated publish-only change since candidate commit", candidate_commit)
+    # Only known non-package changes may differ from the built source commit.
+    helper = root / "buildserver/release-changes.py"
+    check = subprocess.run(
+        [sys.executable, str(helper), "--repo", str(root),
+         "--base", candidate_commit, "--head", head],
+        capture_output=True, text=True)
+    if check.returncode != 0:
+        sys.exit("error: cannot reuse candidate: package inputs changed "
+                 "or Git history could not be verified; rebuild required. " +
+                 check.stdout.strip() + " " + check.stderr.strip())
+    print("Validated non-package changes since candidate commit", candidate_commit)
 auto = os.environ.get("RETRODE3_AUTO_VERSION", "0") == "1"
 if bool(manifest.get("auto_versioned", False)) != auto:
     sys.exit("error: automatic-version mode differs from build manifest")
