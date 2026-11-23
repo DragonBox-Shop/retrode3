@@ -77,6 +77,18 @@ def check_archive(path, bundle=False, release=""):
                 fail("boot bundle missing files: " + ", ".join(sorted(required - names)))
 
 
+def check_preboot(path):
+    """Retain the board's raw SD loader, but not its old partition table."""
+    if not path.is_file() or path.stat().st_size != BOOT_START * SECTOR_SIZE:
+        fail("expected exactly the first 1 MiB of the working Retrode3 SD")
+    data = path.read_bytes()
+    if data[510:512] != b"\x55\xaa":
+        fail("working SD does not have a DOS partition-table signature")
+    if data[512:520] == b"EFI PART":
+        fail("working SD uses GPT; safe loader migration requires another layout")
+    return data
+
+
 def verify_boot_files(bundle, release):
     image = bundle / "boot/uImage"
     dtb = bundle / "boot/ingenic" / DTB_NAME
@@ -135,6 +147,7 @@ def compose(args):
         fail("run inside a disposable build container/runner as root to preserve filesystem ownership")
     source = args.rootfs.resolve(strict=True)
     kernel = args.kernel_bundle.resolve(strict=True)
+    preboot = check_preboot(args.sd_preboot.resolve(strict=True))
     output = args.output.absolute()
     if output.suffix != ".xz" or not output.name.endswith(".img.xz"):
         fail("output must have .img.xz extension")
@@ -192,12 +205,25 @@ def compose(args):
              "-d", str(root), str(rootfs))
         call("e2fsck", "-fn", str(rootfs))
         call("truncate", "-s", str(TOTAL_SECTORS * SECTOR_SIZE), str(disk))
+        # X1600 may boot its SPL from the raw SD sectors, not the FAT files.
+        # Preserve those bytes before writing the new MBR partition table.
+        with disk.open("r+b") as stream:
+            stream.write(preboot)
         layout = (
             "label: dos\nunit: sectors\n"
             "start={}, size={}, type=c\n"
             "start={}, size={}, type=83\n"
         ).format(BOOT_START, BOOT_SECTORS, ROOT_START, ROOT_SECTORS)
         call("sfdisk", "--wipe", "never", str(disk), input_data=layout)
+        with disk.open("r+b") as stream:
+            new_mbr = stream.read(SECTOR_SIZE)
+            # Keep the original SPL/boot code and disk signature (bytes 0..445).
+            # Only the four DOS partition entries and 0x55aa are replaced.
+            stream.seek(0)
+            stream.write(preboot[:446] + new_mbr[446:512])
+            stream.seek(SECTOR_SIZE)
+            if stream.read(BOOT_START * SECTOR_SIZE - SECTOR_SIZE) != preboot[512:]:
+                fail("partition tool modified raw SD loader sectors")
         # seek is in 1 MiB blocks, and both partitions are aligned.
         call("dd", "if=" + str(bootfs), "of=" + str(disk),
              "bs=1M", "seek=1", "conv=notrunc", "status=none")
@@ -221,6 +247,8 @@ def compose(args):
             "kernel_dtb_sha256": digest(boot / "boot/ingenic" / DTB_NAME),
             "rootfs_archive_sha256": digest(source),
             "kernel_bundle_sha256": digest(kernel),
+            "sd_preboot_sha256": digest(args.sd_preboot),
+            "raw_loader_source": "first 1 MiB of working development SD; MBR partitions replaced",
             "image_sha256": digest(compressed),
             "partition_table": "dos",
             "sector_size": SECTOR_SIZE,
@@ -252,6 +280,8 @@ def main():
     parser.add_argument("--rootfs", type=Path, required=True)
     parser.add_argument("--kernel-bundle", type=Path, required=True)
     parser.add_argument("--kernel-release", required=True)
+    parser.add_argument("--sd-preboot", type=Path, required=True,
+                        help="read-only 1MiB snapshot of original boot SD, required to preserve X1600 SPL")
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--ssh-authorized-key", type=Path,
                         help="public key to enable SSH over USB NCM in FIRST-BOOT TEST IMAGE ONLY")
