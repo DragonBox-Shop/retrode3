@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Compose a regular-file, test-only Retrode3 SD image. Never accesses block devices."""
 import argparse
+import base64
 import hashlib
 import json
 import os
@@ -93,9 +94,45 @@ def verify_boot_files(bundle, release):
         fail("missing modules.dep for selected running kernel")
 
 
+def provision_test_access(root, key_file):
+    """One test-only USB-NCM/Dropbear service, never enabled by default."""
+    line = key_file.read_text(encoding="utf-8").strip()
+    tokens = line.split()
+    if len(tokens) < 2 or tokens[0] not in (
+            "ssh-ed25519", "ecdsa-sha2-nistp256", "ssh-rsa"):
+        fail("SSH key must be a supported one-line public key")
+    try:
+        raw = base64.b64decode(tokens[1], validate=True)
+    except (ValueError, base64.binascii.Error) as exc:
+        fail("invalid public SSH key encoding: " + str(exc))
+    if len(raw) < 20 or len(raw) > 8192 or "\n" in line or "\r" in line:
+        fail("invalid SSH public key length or whitespace")
+    if (root / "etc/init.d/retrode3-bringup-usb").exists():
+        fail("unexpected existing test USB service")
+    key_dir = root / "root/.ssh"
+    key_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
+    os.chmod(key_dir, 0o700)
+    authorized = key_dir / "authorized_keys"
+    if authorized.exists():
+        fail("refusing to overwrite SSH authorized_keys")
+    authorized.write_text(line + "\n", encoding="utf-8")
+    os.chmod(authorized, 0o600)
+    service = root / "etc/init.d/retrode3-bringup-usb"
+    shutil.copyfile(Path(__file__).with_name("assets") /
+                    "retrode3-bringup-usb.init", service)
+    os.chmod(service, 0o755)
+    link = root / "etc/rc2.d/S02retrode3-bringup-usb"
+    link.parent.mkdir(parents=True, exist_ok=True)
+    if link.exists() or link.is_symlink():
+        fail("test USB init symlink already exists")
+    link.symlink_to("../init.d/retrode3-bringup-usb")
+
+
 def compose(args):
     if not RELEASE.fullmatch(args.kernel_release):
         fail("invalid kernel release name")
+    if os.geteuid() != 0:
+        fail("run inside a disposable build container/runner as root to preserve filesystem ownership")
     source = args.rootfs.resolve(strict=True)
     kernel = args.kernel_bundle.resolve(strict=True)
     output = args.output.absolute()
@@ -134,6 +171,8 @@ def compose(args):
             fail("rootfs already has this kernel's modules")
         call("cp", "-a", str(boot / "lib/modules" / args.kernel_release),
              str(rootmodules / args.kernel_release))
+        if args.ssh_authorized_key:
+            provision_test_access(root, args.ssh_authorized_key.resolve(strict=True))
 
         bootfs = work / "boot.fat"
         rootfs = work / "root.ext4"
@@ -187,7 +226,9 @@ def compose(args):
             "sector_size": SECTOR_SIZE,
             "boot": {"start_sector": BOOT_START, "sectors": BOOT_SECTORS, "filesystem": "FAT32"},
             "root": {"start_sector": ROOT_START, "sectors": ROOT_SECTORS, "filesystem": "ext4"},
-            "userland_access": "serial console only; no SSH, Web or USB network yet",
+            "userland_access": ("serial and USB NCM 172.31.255.1/30 with SSH-key-only Dropbear"
+                                if args.ssh_authorized_key else "serial console only"),
+            "test_ssh_enabled": bool(args.ssh_authorized_key),
             "bootloader_note": "Existing board U-Boot is assumed; boot path not yet physically validated",
         }
         manifest_path = output.with_name(output.name[:-7] + ".manifest.json")
@@ -212,6 +253,8 @@ def main():
     parser.add_argument("--kernel-bundle", type=Path, required=True)
     parser.add_argument("--kernel-release", required=True)
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--ssh-authorized-key", type=Path,
+                        help="public key to enable SSH over USB NCM in FIRST-BOOT TEST IMAGE ONLY")
     args = parser.parse_args()
     try:
         compose(args)
