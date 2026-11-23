@@ -1,0 +1,72 @@
+name: Debian 12 mipsel SysV rootfs candidate (not bootable)
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [develop]
+    paths:
+      - 'image/**'
+      - '.github/workflows/bookworm-rootfs.yml'
+  pull_request:
+    paths:
+      - 'image/**'
+      - '.github/workflows/bookworm-rootfs.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: bookworm-mipsel-rootfs-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  static-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check script syntax and rootfs policy
+        run: |
+          set -eu
+          bash -n image/build-bookworm-rootfs.sh
+          python3 -m py_compile image/verify-rootfs.py image/manifest-rootfs.py
+          python3 -m unittest discover -s image/tests -p 'test_*.py' -v
+
+  build-mipsel-base:
+    runs-on: ubuntu-latest
+    needs: static-tests
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install foreign-architecture bootstrap tools
+        run: |
+          set -eux
+          sudo apt-get update
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y \
+            debootstrap qemu-user-static binfmt-support debian-archive-keyring xz-utils
+          sudo update-binfmts --enable qemu-mipsel
+          test -r /proc/sys/fs/binfmt_misc/qemu-mipsel
+          grep -x enabled /proc/sys/fs/binfmt_misc/qemu-mipsel
+      - name: Build candidate without touching host disks
+        run: |
+          set -eu
+          mkdir -p build/bookworm-rootfs
+          sudo env SOURCE_DATE_EPOCH=1795392000 \
+            bash image/build-bookworm-rootfs.sh "$PWD/build/bookworm-rootfs"
+          (cd build/bookworm-rootfs && sha256sum --check --strict SHA256SUMS)
+          python3 - <<'PY'
+          import json
+          p = json.load(open("build/bookworm-rootfs/retrode3-bookworm-mipsel-manifest.json"))
+          assert p["architecture"] == "mipsel" and p["init"] == "sysvinit-core"
+          assert p["bootable"] is False and p["customer_releasable"] is False
+          assert "systemd-sysv" not in p["installed_packages"]
+          PY
+      - name: Upload rootfs candidate (NOT BOOTABLE)
+        uses: actions/upload-artifact@v4
+        with:
+          name: retrode3-bookworm-mipsel-rootfs-UNBOOTABLE
+          path: |
+            build/bookworm-rootfs/retrode3-bookworm-mipsel-rootfs.tar.xz
+            build/bookworm-rootfs/retrode3-bookworm-mipsel-manifest.json
+            build/bookworm-rootfs/SHA256SUMS
+          retention-days: 7
+          if-no-files-found: error
