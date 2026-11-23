@@ -45,9 +45,14 @@ def check_archive(path, bundle=False, release=""):
         for member in archive:
             p = PurePosixPath(member.name)
             parts = [part for part in p.parts if part != "."]
-            if not parts or p.is_absolute() or ".." in parts:
+            if not parts:
+                # GNU tar -C root -cf ... . emits a harmless ./ root entry.
+                if not bundle and member.isdir() and member.name in (".", "./"):
+                    continue
                 fail("unsafe archive pathname: " + member.name)
-            if member.isdev() or member.isfifo() or member.islnk():
+            if p.is_absolute() or ".." in parts:
+                fail("unsafe archive pathname: " + member.name)
+            if bundle and (member.isdev() or member.isfifo() or member.islnk()):
                 fail("unexpected special or hardlinked file: " + member.name)
             if bundle:
                 normalized = "/".join(parts)
