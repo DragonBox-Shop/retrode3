@@ -1,55 +1,36 @@
 # Retrode3 Web Control v2: shared CLI integration
 
-## Experimental Write Cartridge integration (feature branch only)
+## Write Cartridge via the shared CLI
 
-This branch adds the **functional** Write Cartridge page, using the same
-shared CLI jobs, progress panel and cancellation as Read Cartridge.
-The operations shown depend on the installed core's advertised
-`probe_flash`, `write_flash` and `verify_flash` capabilities.
-The browser never constructs chip-specific erase commands.
+Read and Write Cartridge use the **same Web job manager**, the **same**
+`/usr/bin/retrode3-cli` and dynamic core capabilities. There is no
+special privileged bridge, unlock button, lab-only core or extra
+confirmation prompt.
 
-**Development hardware requirements:**
+The installed MegaDrive `md.so` advertises `probe_flash`,
+`write_flash` and `verify_flash` alongside ordinary ROM reading.
+The kernel permits the Flash ioctls through existing
+`/dev/slot-md` device permissions (`retrode3-reader` group). The
+SysV Web service already configures that group for device files
+and the core's scoped hardware-voltage profiles.
 
-1. A kernel Flash test module from
-   `DragonBox-Shop/retrode3-kernel` PR #7, with matching Letux 7.3
-   vermagic and `Module.symvers`, tested as a separate `.ko`.
-2. A Flash-enabled **laboratory** `md.so` from
-   `DragonBox-Shop/retrode3-oscr` PR #22, built with
-   `make -f Makefile.migration native-md-flash-lab` and substituted
-   only on the test Retrode3 with backup of the original `md.so`.
-   The normal production `md.so` intentionally remains read-only.
-3. The updated test `retrode3-cli` from that same OSCR branch, so that
-   `--list-cores` advertises the three Flash actions and the shared
-   host understands the new NDJSON commands.
-4. This branch's Web v2 installer installs the **root-owned**
-   `/usr/sbin/retrode3-flashctl` and a sudoers rule granting only that
-   argument-free validator to `www-data`. **Never** grant
-   `www-data` sudo access to `retrode3-cli` itself.
-   The helper accepts a single Flash command and subsequent cancellation
-   for the same request ID, enforces one ROM source under the ROMs tree,
-   and snapshots the ROM into a private root-only file before passing
-   it to the CLI. No arbitrary command-line arguments or output paths
-   pass through it.
+The customer workflow:
 
-**Web interaction:** select a Flash-capable core, insert the known test
-cartridge, press **Detect Flash**, select an existing ROM in that core's
-logical `ROMs/<SYSTEM>/` directory, and then choose **Erase + write +
-verify** or **Verify only**. Writing always prompts for confirmation
-and performs complete byte-for-byte post-write verification. Verify only
-never issues erase/program commands. Progress is displayed separately for
-erase sectors, programmed bytes and compared bytes.
+1. Insert a Flash cartridge and select the supported core in Write Cart
+2. Detect Flash to determine manufacturer/device ID and CFI geometry
+3. Select a ROM from that system's logical ROM directory
+4. Click Write (erase + program + automatic full byte-for-byte verify),
+   or click Verify only for a read-only comparison
 
-**Safety:** the test Web installer does not update the kernel or install
-the Flash MD core; those remain independent deliberate lab deployments.
-There is no manufacturing/release approval requirement to run the
-experimental functions, but the kernel still checks slot presence, 5-V
-connector selection, CFI+device ID, sector geometry and the two temporary
-root-only test gates. A failed job must be treated as a possibly partially
-programmed cartridge. On rollback the installer restores/removes the
-privileged helper and sudoers rule. Keep this experimental HTTP Web UI
-on a trusted network and **enable a Web password** before remote use.
-This is not a customer-ready production Flash writer.
+An **unrecognized or unsupported** chip will not be writable. The
+kernel/core check actual chip identity, power/slot and geometry on every
+destructive operation. The CLI owns exclusive bus serialization,
+cancellation and genuine per-phase progress. No additional approval or
+root privilege step is required to use normal Web features.
 
+The code stays on feature branches until device tests pass, without
+special *runtime* test switches. The Web installer does not install
+kernel or native core binaries and has no persistent rollback command.
 
 > **Development integration (2026-11-20):** `develop`
 > now uses the regular NES `nes.so` with MMC1 mapper-1 ROM
