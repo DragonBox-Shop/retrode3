@@ -85,7 +85,7 @@ def auto_version_lock(lock, os_commit, epoch, oscr_commit=None, version_stamp=No
         int(epoch), datetime.timezone.utc
     ).strftime("%Y%m%d%H%M%S")
     if version_stamp is not None:
-        if not re.fullmatch(r"[0-9]{14}", version_stamp):
+        if not re.fullmatch(r"(?:[0-9]{14}|[0-9]{23})", version_stamp):
             error("invalid UTC package build version stamp")
         stamp = version_stamp
     suffix = "+auto" + stamp + "." + os_commit[:12]
