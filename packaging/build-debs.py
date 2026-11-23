@@ -70,6 +70,26 @@ DESCRIPTIONS = {
 def error(message):
     raise ValueError(message)
 
+def validate_release_policy(lock):
+    """Validate package versioning and channel without weakening the ABI gate."""
+    channel = lock.get("release_channel")
+    if channel not in ("testing", "stable"):
+        error("unexpected release channel: " + str(channel))
+    if lock.get("core_discovery_abi") != 1 or lock.get("core_operations_abi") != 1:
+        error("unsupported core ABI; review before changing")
+    for field in ("native_version", "web_version"):
+        version = lock.get(field, "")
+        if (not isinstance(version, str) or
+                not re.fullmatch(r"[0-9][A-Za-z0-9.+:~\\-]*", version)):
+            error("invalid Debian package version: " + field)
+        if channel == "stable" and "~dev" in version:
+            error("stable may not use development package versions: " + field)
+        if channel == "testing" and "~dev" not in version:
+            error("testing requires a development package version: " + field)
+    return channel
+
+
+
 
 def cmd(argv, cwd=None):
     return subprocess.check_output(argv, cwd=str(cwd) if cwd else None,
@@ -349,9 +369,7 @@ def main():
     args = parser.parse_args()
     lock = json.loads((HERE / "native-source-lock.json").read_text(encoding="utf-8"))
     layout = json.loads((HERE / "retrode3-core-layout.json").read_text(encoding="utf-8"))
-    if (lock["release_channel"] != "develop-test-only" or
-            lock["core_discovery_abi"] != 1 or lock["core_operations_abi"] != 1):
-        error("unexpected release policy or core ABI; review before changing")
+    release_channel = validate_release_policy(lock)
     oscr = Path(args.oscr_source).resolve()
     stage = Path(args.stage).resolve()
     verify_oscr(oscr, lock)
@@ -384,7 +402,9 @@ def main():
                             "package": package})
         for record in records:
             os.replace(str(work / record["filename"]), str(out / record["filename"]))
-        manifest = {"release_channel": lock["release_channel"],
+        manifest = {"release_channel": release_channel,
+                    "os_repository": "DragonBox-Shop/retrode3",
+                    "os_commit": cmd(["git", "rev-parse", "HEAD"], cwd=REPO),
                     "oscr_commit": lock["oscr_commit"],
                     "sanni_commit": lock["sanni_commit"],
                     "native_version": lock["native_version"],
@@ -400,7 +420,7 @@ def main():
             encoding="utf-8")
     for record in records:
         print(record["sha256"] + "  " + record["filename"])
-    print("OFFLINE test candidates only; no install, publication or image build.")
+    print("OFFLINE packages only; no install, publication or image build.")
 
 
 if __name__ == "__main__":
