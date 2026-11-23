@@ -25,10 +25,14 @@ done
 }
 mkdir -p "$base/cache" "$base/artifacts/candidates/$suite" "$base/artifacts/logs"
 # One lock protects both suites and reprepro's shared package pool.
-exec 9>"$base/cache/package-automation.lock"
-if ! flock -n 9; then
-  echo "ERROR: another Retrode3 package run is active" >&2
-  exit 1
+# Preserve the same open file descriptor across the update/re-exec.
+if [[ "$phase" != updated || "${RETRODE3_AUTOMATION_LOCK_HELD:-0}" != 1 ]]; then
+  exec 9>"$base/cache/package-automation.lock"
+  if ! flock -n 9; then
+    echo "ERROR: another Retrode3 package run is active" >&2
+    exit 1
+  fi
+  export RETRODE3_AUTOMATION_LOCK_HELD=1
 fi
 current_branch="$(git -C "$checkout" symbolic-ref --quiet --short HEAD)" || {
   echo "ERROR: checkout is detached: $checkout" >&2; exit 1;
