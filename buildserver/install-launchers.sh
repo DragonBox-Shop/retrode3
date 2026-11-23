@@ -17,7 +17,11 @@ for spec in "master:retrode3-stable-pr" "develop:retrode3-testing-pr"; do
   branch="${spec%%:*}"
   checkout="${spec#*:}"
   target="$vhost/package_$branch.sh"
-  if [[ -e "$target" ]] && ! grep -Fqx       '# Managed by Retrode3 buildserver/install-launchers.sh' "$target"; then
+  if [[ -L "$target" ]]; then
+    echo "Refusing to replace symbolic link: $target" >&2
+    exit 1
+  fi
+  if [[ -e "$target" ]] && ! grep -Fqx '# Managed by Retrode3 buildserver/install-launchers.sh' "$target"; then
     echo "Refusing to overwrite unmanaged file: $target" >&2
     exit 1
   fi
