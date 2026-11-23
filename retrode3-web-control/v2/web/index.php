@@ -84,9 +84,9 @@ header("Content-Security-Policy: default-src 'self'; img-src 'self'; style-src '
 </div>
 <div class="panel">
 <h2 data-i18n="writer_rom">ROM file</h2>
-<label for="writer-file" data-i18n="writer_file">Select file from shared ROMs</label>
-<select id="writer-file"><option value="">—</option></select>
-<button id="writer-refresh-files" type="button" class="btn secondary" data-i18n="refresh">Refresh</button>
+<label for="writer-file" data-i18n="writer_file">Choose ROM file to upload</label>
+<input id="writer-file" type="file" accept=".md,.bin,.gen,.sfc,.smc,.gba,.rom" />
+<p id="writer-upload-status" class="muted small" role="status"></p>
 <p class="muted small" data-i18n="writer_warning">Writing erases existing sectors on the cartridge. Use a backed-up test cartridge.</p>
 <div class="actions">
 <button id="writer-write" type="button" class="btn danger" data-i18n="writer_write">Erase + write + verify</button>
