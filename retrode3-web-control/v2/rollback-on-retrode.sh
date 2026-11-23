@@ -22,6 +22,16 @@ if ! cp -a "$BACKUP/previous-webroot" /var/www/html; then
     echo "ERROR: restore failed. Recover from $BACKUP/previous-webroot" >&2
     exit 1
 fi
+# Stop Web first; no more Flash operations can start while reverting the
+# narrowly delegated root helper. Restore a previous helper when available,
+# otherwise remove the experimental command and its sudo permission.
+for FLASH_PATH in /etc/sudoers.d/retrode3-flashctl /usr/sbin/retrode3-flashctl; do
+    if [ -e "${FLASH_PATH}.prev" ]; then
+        mv -f "${FLASH_PATH}.prev" "$FLASH_PATH"
+    else
+        rm -f "$FLASH_PATH"
+    fi
+done
 if command -v update-rc.d >/dev/null 2>&1; then
     update-rc.d -f retrode3-web-v2 remove >/dev/null 2>&1 || true
 fi
