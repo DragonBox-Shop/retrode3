@@ -1,4 +1,0 @@
-# The Web backend remains www-data. Permit only this specific root-owned
-# Flash-command validator (NO command-line arguments), never retrode3-cli.
-# The helper checks the JSON command, source path and confirmation again.
-www-data ALL=(root) NOPASSWD: /usr/sbin/retrode3-flashctl ""
