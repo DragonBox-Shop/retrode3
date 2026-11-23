@@ -739,6 +739,17 @@
         progress.verify_passes > 1)
       detail += " · " + t("writer_verify_pass") + " " +
         progress.verify_pass + "/" + progress.verify_passes;
+    // The native CLI measures speed against a monotonic phase clock,
+    // not between two browser poll callbacks. Only byte-based phases
+    // (Write and Verify) include bytes_per_second.
+    if ((progress.phase === "program" || progress.phase === "verify") &&
+        typeof progress.bytes_per_second === "number" &&
+        isFinite(progress.bytes_per_second) && progress.bytes_per_second > 0) {
+      var kibPerSecond = progress.bytes_per_second / 1024;
+      detail += " · " + kibPerSecond.toLocaleString(undefined, {
+        minimumFractionDigits: 1, maximumFractionDigits: 1
+      }) + " KiB/s";
+    }
     text($("job-detail"), detail);
     var result = job.command === "read_rom" && job.status === "done" && job.result || null;
     var identity = result && result.identity || {};
