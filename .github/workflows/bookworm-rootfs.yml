@@ -28,7 +28,7 @@ jobs:
         run: |
           set -eu
           bash -n image/build-bookworm-rootfs.sh
-          python3 -m py_compile image/verify-rootfs.py image/manifest-rootfs.py
+          python3 -m py_compile image/verify-rootfs.py image/manifest-rootfs.py image/assemble-sd-image.py
           python3 -m unittest discover -s image/tests -p 'test_*.py' -v
 
   build-mipsel-base:
@@ -61,6 +61,37 @@ jobs:
           assert p["bootable"] is False and p["customer_releasable"] is False
           assert "systemd-sysv" not in p["installed_packages"]
           PY
+      - name: Test SD image layout with synthetic kernel files (NOT FOR BOOTING)
+        run: |
+          set -eu
+          sudo apt-get install -y --no-install-recommends fdisk mtools dosfstools e2fsprogs
+          mkdir -p build/fixture/boot/ingenic
+          mkdir -p build/fixture/lib/modules/7.3.0-rc5-letux-mips-retrode3+
+          python3 - <<'PY'
+          import pathlib
+          root=pathlib.Path("build/fixture")
+          hdr=bytearray(64)
+          hdr[0:4]=bytes.fromhex("27051956")
+          hdr[29]=5
+          (root/"boot/uImage").write_bytes(hdr)
+          (root/"boot/bootargs.scr").write_bytes(b"fixture not bootable\n")
+          (root/"boot/ingenic/lx16-retrode-2.9.5.dtb").write_bytes(bytes.fromhex("d00dfeed")+b"\0"*60)
+          (root/"lib/modules/7.3.0-rc5-letux-mips-retrode3+/modules.dep").write_bytes(b"")
+          PY
+          tar -C build/fixture -czf build/fixture-kernel.tar.gz boot lib
+          sudo python3 image/assemble-sd-image.py \
+            --rootfs "$PWD/build/bookworm-rootfs/retrode3-bookworm-mipsel-rootfs.tar.xz" \
+            --kernel-bundle "$PWD/build/fixture-kernel.tar.gz" \
+            --kernel-release '7.3.0-rc5-letux-mips-retrode3+' \
+            --output "$PWD/build/synthetic-boot-test.img.xz"
+          (cd build && sha256sum --check synthetic-boot-test.manifest.SHA256SUMS)
+          xz -dc build/synthetic-boot-test.img.xz > build/synthetic-boot-test.img
+          sfdisk -d build/synthetic-boot-test.img | tee build/image-layout.txt
+          grep -E -q 'start= *2048, size= *262144' build/image-layout.txt
+          grep -E -q 'start= *264192, size= *2097152' build/image-layout.txt
+          # Never publish the synthetic image: it contains fake uImage and DTB.
+          rm -f build/synthetic-boot-test.img build/synthetic-boot-test.img.xz \
+            build/synthetic-boot-test.manifest.json build/synthetic-boot-test.manifest.SHA256SUMS
       - name: Upload rootfs candidate (NOT BOOTABLE)
         uses: actions/upload-artifact@v4
         with:
