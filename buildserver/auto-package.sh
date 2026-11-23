@@ -64,17 +64,29 @@ fi
 export RETRODE3_FOLLOW_OSCR_BRANCH=1
 export RETRODE3_OSCR_BRANCH="$branch"
 export RETRODE3_OSCR_COMMIT="$oscr_sha"
+# Fetch Git history only; do not check out or modify the OSCR project here.
+# Needed to ignore documentation-only OSCR commits without new .deb files.
+oscr_history="$base/cache/oscr-git-history.git"
+if [[ ! -d "$oscr_history" ]]; then
+  git init --quiet --bare "$oscr_history"
+fi
+git --git-dir="$oscr_history" fetch --quiet --no-tags "$oscr_url" \
+    "+refs/heads/$branch:refs/heads/$branch"
+if [[ "$(git --git-dir="$oscr_history" rev-parse "refs/heads/$branch")" != "$oscr_sha" ]]; then
+  echo "ERROR: OSCR moved while selecting the build snapshot; retry" >&2
+  exit 1
+fi
 echo "OS Git $branch: $sha; OSCR $branch: $oscr_sha; APT: $suite"
 state="$base/cache/last-published-$branch.json"
 repo_base="$base/repository"
-if [[ -f "$state" ]] && python3 - "$state" "$repo_base" "$suite" "$sha" "$checkout" "$oscr_sha" <<'PY'
+if [[ -f "$state" ]] && python3 - "$state" "$repo_base" "$suite" "$sha" "$checkout" "$oscr_sha" "$oscr_history" <<'PY'
 import json
 import re
 import subprocess
 import sys
 from pathlib import Path
 
-manifest_path, base, suite, sha, checkout, oscr_sha = sys.argv[1:]
+manifest_path, base, suite, sha, checkout, oscr_sha, oscr_history = sys.argv[1:]
 try:
     with open(manifest_path, encoding="utf-8") as f:
         manifest = json.load(f)
@@ -82,16 +94,25 @@ try:
     if (not isinstance(previous, str) or
         not re.fullmatch(r"[0-9a-f]{40}", previous) or
         manifest.get("release_channel") != suite or
-        manifest.get("oscr_commit") != oscr_sha or
         manifest.get("oscr_branch") != ("master" if suite == "stable" else "develop") or
         not manifest.get("auto_versioned")):
         sys.exit(1)
+    classifier = Path(checkout) / "buildserver/release-changes.py"
     if previous != sha:
         # Documentation, CI and publisher-only changes do not change .debs.
-        classifier = Path(checkout) / "buildserver/release-changes.py"
         result = subprocess.run(
             [sys.executable, str(classifier), "--repo", checkout,
              "--base", previous, "--head", sha],
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        if result.returncode != 0:
+            sys.exit(1)
+    old_oscr = manifest.get("oscr_commit", "")
+    if not isinstance(old_oscr, str) or not re.fullmatch(r"[0-9a-f]{40}", old_oscr):
+        sys.exit(1)
+    if old_oscr != oscr_sha:
+        result = subprocess.run(
+            [sys.executable, str(classifier), "--scope", "oscr",
+             "--repo", oscr_history, "--base", old_oscr, "--head", oscr_sha],
             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         if result.returncode != 0:
             sys.exit(1)
