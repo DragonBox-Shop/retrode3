@@ -609,10 +609,6 @@
       return notify(t("writer_detect_first"));
     var payload = {system: reader.id, command: action};
     if (action !== "probe_flash") payload.source = $("writer-file").value;
-    if (action === "write_flash") {
-      if (!confirm(t("writer_confirm_erase") + "\n" + payload.source)) return;
-      payload.confirm_erase = true;
-    }
     if (action === "probe_flash") writerIdentified = null;
     renderWriterState();
     api("/api/jobs", payload).then(function (job) {
