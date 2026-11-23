@@ -1,0 +1,116 @@
+name: Debian 12 mipsel SysV rootfs candidate (not bootable)
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [develop]
+    paths:
+      - 'image/**'
+      - '.github/workflows/bookworm-rootfs.yml'
+  pull_request:
+    paths:
+      - 'image/**'
+      - '.github/workflows/bookworm-rootfs.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: bookworm-mipsel-rootfs-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  static-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check script syntax and rootfs policy
+        run: |
+          set -eu
+          bash -n image/build-bookworm-rootfs.sh
+          sh -n image/capture-current-kernel.sh image/capture-sd-preboot.sh image/assets/retrode3-bringup-usb.init
+          python3 -m py_compile image/verify-rootfs.py image/manifest-rootfs.py image/assemble-sd-image.py
+          python3 -m unittest discover -s image/tests -p 'test_*.py' -v
+
+  build-mipsel-base:
+    # Ubuntu 26.04 replaced qemu-user-static with virtual package providers.
+    runs-on: ubuntu-24.04
+    needs: static-tests
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install foreign-architecture bootstrap tools
+        run: |
+          set -eux
+          sudo apt-get update
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y \
+            debootstrap qemu-user-static binfmt-support debian-archive-keyring xz-utils
+          sudo update-binfmts --enable qemu-mipsel
+          test -r /proc/sys/fs/binfmt_misc/qemu-mipsel
+          grep -x enabled /proc/sys/fs/binfmt_misc/qemu-mipsel
+      - name: Build candidate without touching host disks
+        run: |
+          set -eu
+          mkdir -p build/bookworm-rootfs
+          sudo env SOURCE_DATE_EPOCH=1795392000 \
+            bash image/build-bookworm-rootfs.sh "$PWD/build/bookworm-rootfs"
+          (cd build/bookworm-rootfs && sha256sum --check --strict SHA256SUMS)
+          python3 - <<'PY'
+          import json
+          p = json.load(open("build/bookworm-rootfs/retrode3-bookworm-mipsel-manifest.json"))
+          assert p["architecture"] == "mipsel" and p["init"] == "sysvinit-core"
+          assert p["bootable"] is False and p["customer_releasable"] is False
+          assert "systemd-sysv" not in p["installed_packages"]
+          PY
+      - name: Test SD image layout with synthetic kernel files (NOT FOR BOOTING)
+        run: |
+          set -eu
+          sudo apt-get install -y --no-install-recommends fdisk mtools dosfstools e2fsprogs
+          mkdir -p build/fixture/boot/ingenic
+          mkdir -p build/fixture/lib/modules/7.3.0-rc5-letux-mips-retrode3+
+          python3 - <<'PY'
+          import pathlib
+          root=pathlib.Path("build/fixture")
+          hdr=bytearray(64)
+          hdr[0:4]=bytes.fromhex("27051956")
+          hdr[29]=5
+          (root/"boot/uImage").write_bytes(hdr)
+          (root/"boot/bootargs.scr").write_bytes(b"fixture not bootable\n")
+          (root/"boot/ingenic/lx16-retrode-2.9.5.dtb").write_bytes(bytes.fromhex("d00dfeed")+b"\0"*60)
+          (root/"lib/modules/7.3.0-rc5-letux-mips-retrode3+/modules.dep").write_bytes(b"")
+          PY
+          tar -C build/fixture -czf build/fixture-kernel.tar.gz boot lib
+          python3 - <<'PY'
+          import base64, pathlib, struct
+          payload = struct.pack(">I",11)+b"ssh-ed25519"+struct.pack(">I",32)+b"0"*32
+          pathlib.Path("build/bringup.pub").write_text("ssh-ed25519 "+base64.b64encode(payload).decode()+" test-card-only\n")
+          preboot = bytearray(1024 * 1024)
+          preboot[:4] = b"TEST"
+          preboot[510:512] = bytes.fromhex("55aa")
+          pathlib.Path("build/synthetic-sd-preboot.bin").write_bytes(preboot)
+          PY
+          sudo python3 image/assemble-sd-image.py \
+            --rootfs "$PWD/build/bookworm-rootfs/retrode3-bookworm-mipsel-rootfs.tar.xz" \
+            --kernel-bundle "$PWD/build/fixture-kernel.tar.gz" \
+            --kernel-release '7.3.0-rc5-letux-mips-retrode3+' \
+            --sd-preboot "$PWD/build/synthetic-sd-preboot.bin" \
+            --ssh-authorized-key "$PWD/build/bringup.pub" \
+            --output "$PWD/build/synthetic-boot-test.img.xz"
+          (cd build && sha256sum --check synthetic-boot-test.SHA256SUMS)
+          xz -dc build/synthetic-boot-test.img.xz > build/synthetic-boot-test.img
+          sfdisk -d build/synthetic-boot-test.img | tee build/image-layout.txt
+          grep -E -q 'start= *2048, size= *262144' build/image-layout.txt
+          grep -E -q 'start= *264192, size= *2097152' build/image-layout.txt
+          # Never publish the synthetic image: it contains fake uImage and DTB.
+          rm -f build/synthetic-boot-test.img build/synthetic-boot-test.img.xz \
+            build/synthetic-boot-test.manifest.json build/synthetic-boot-test.SHA256SUMS
+      - name: Upload rootfs candidate (NOT BOOTABLE)
+        uses: actions/upload-artifact@v4
+        with:
+          name: retrode3-bookworm-mipsel-rootfs-UNBOOTABLE
+          path: |
+            build/bookworm-rootfs/retrode3-bookworm-mipsel-rootfs.tar.xz
+            build/bookworm-rootfs/retrode3-bookworm-mipsel-manifest.json
+            build/bookworm-rootfs/SHA256SUMS
+          retention-days: 7
+          if-no-files-found: error
