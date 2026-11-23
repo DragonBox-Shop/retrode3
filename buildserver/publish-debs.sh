@@ -40,6 +40,7 @@ python3 - "$run" "$suite" "$root" <<'PY'
 import hashlib
 import json
 import pathlib
+import re
 import subprocess
 import sys
 
@@ -51,7 +52,7 @@ if manifest.get("release_channel") != suite or lock.get("release_channel") != su
 head = subprocess.check_output(["git", "-C", str(root), "rev-parse", "HEAD"],
                                text=True).strip()
 candidate_commit = manifest.get("os_commit", "")
-if not isinstance(candidate_commit, str) or not __import__("re").fullmatch(r"[0-9a-f]{40}", candidate_commit):
+if not isinstance(candidate_commit, str) or not re.fullmatch(r"[0-9a-f]{40}", candidate_commit):
     sys.exit("error: missing or invalid source Git commit in build manifest")
 if candidate_commit != head:
     # A publish-script-only fix does not change the package payload.
