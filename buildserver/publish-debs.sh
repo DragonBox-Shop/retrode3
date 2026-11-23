@@ -50,8 +50,21 @@ if manifest.get("release_channel") != suite or lock.get("release_channel") != su
     sys.exit("error: manifest/source release channel differs from requested suite")
 head = subprocess.check_output(["git", "-C", str(root), "rev-parse", "HEAD"],
                                text=True).strip()
-if manifest.get("os_commit") != head:
-    sys.exit("error: candidate was not built from current branch commit")
+candidate_commit = manifest.get("os_commit", "")
+if not isinstance(candidate_commit, str) or not __import__("re").fullmatch(r"[0-9a-f]{40}", candidate_commit):
+    sys.exit("error: missing or invalid source Git commit in build manifest")
+if candidate_commit != head:
+    # A publish-script-only fix does not change the package payload.
+    if subprocess.call(["git", "-C", str(root), "merge-base", "--is-ancestor",
+                        candidate_commit, head]) != 0:
+        sys.exit("error: candidate source is not an ancestor of current branch")
+    changed = subprocess.check_output(
+        ["git", "-C", str(root), "diff", "--name-only",
+         candidate_commit, head, "--"], text=True).splitlines()
+    if set(changed) != {"buildserver/publish-debs.sh"}:
+        sys.exit("error: source changed since build; rebuild required: " +
+                 ", ".join(changed))
+    print("Validated publish-only change since candidate commit", candidate_commit)
 for key in ("oscr_commit", "sanni_commit", "native_version", "web_version"):
     if manifest.get(key) != lock.get(key):
         sys.exit("error: manifest/source lock mismatch: " + key)
@@ -65,9 +78,11 @@ if len(expected) != len(records) or set(expected) != {x.name for x in files}:
 for file in files:
     if hashlib.sha256(file.read_bytes()).hexdigest() != expected[file.name]["sha256"]:
         sys.exit("error: package hash differs from manifest: " + file.name)
-    info = subprocess.check_output(
-        ["dpkg-deb", "-f", str(file), "Package", "Version", "Architecture"],
-        text=True).splitlines()
+    info = [
+        subprocess.check_output(["dpkg-deb", "-f", str(file), field],
+                                text=True).strip()
+        for field in ("Package", "Version", "Architecture")
+    ]
     if len(info) != 3 or info[0] != expected[file.name]["package"]:
         sys.exit("error: package metadata mismatch: " + file.name)
     if info[1] != (lock["web_version"] if info[0] == "retrode3-web-control"
