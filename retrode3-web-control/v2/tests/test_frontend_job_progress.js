@@ -14,6 +14,7 @@ const elements = {
   "job-label": {textContent: ""},
   "job-percent": {textContent: ""},
   "job-fill": {style: {width: ""}},
+  "job-speed": {textContent: "", hidden: true},
   "job-detail": {textContent: ""},
   "job-result-details": {textContent: ""}
 };
@@ -39,15 +40,25 @@ assert.strictEqual(elements["job-label"].textContent, "progress_phase_erase");
 assert.strictEqual(elements["job-percent"].textContent, "25%");
 assert.strictEqual(elements["job-fill"].style.width, "25%");
 assert.strictEqual(elements["job-detail"].textContent, "2 / 8 progress_sectors");
+assert.strictEqual(elements["job-speed"].hidden, true);
 
 render("program", 50, {units: "bytes", bytes_done: 2048, bytes_total: 4096});
 assert.strictEqual(elements["job-label"].textContent, "progress_phase_program");
 assert.strictEqual(elements["job-detail"].textContent, "2048 B / 4096 B");
+assert.strictEqual(elements["job-speed"].hidden, true,
+  "older CLI progress without measured bytes/s must still render");
+
+render("program", 50, {units: "bytes", bytes_done: 2048,
+  bytes_total: 4096, bytes_per_second: 8192});
+assert.strictEqual(elements["job-speed"].textContent, "8.0 KiB/s");
+assert.strictEqual(elements["job-speed"].hidden, false);
 
 render("verify", 12, {units: "bytes", bytes_done: 512, bytes_total: 4096});
 assert.strictEqual(elements["job-label"].textContent, "progress_phase_verify");
 assert.strictEqual(elements["job-percent"].textContent, "12%");
 assert.strictEqual(elements["job-detail"].textContent, "512 B / 4096 B");
+assert.strictEqual(elements["job-speed"].hidden, true,
+  "speed from previous phase must not persist without a new value");
 
 // Each real phase has its own percentage. Starting verify does not mean
 // programming had failed or that the job already succeeded.
