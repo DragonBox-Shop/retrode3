@@ -96,14 +96,14 @@ jobs:
             --sd-preboot "$PWD/build/synthetic-sd-preboot.bin" \
             --ssh-authorized-key "$PWD/build/bringup.pub" \
             --output "$PWD/build/synthetic-boot-test.img.xz"
-          (cd build && sha256sum --check synthetic-boot-test.manifest.SHA256SUMS)
+          (cd build && sha256sum --check synthetic-boot-test.SHA256SUMS)
           xz -dc build/synthetic-boot-test.img.xz > build/synthetic-boot-test.img
           sfdisk -d build/synthetic-boot-test.img | tee build/image-layout.txt
           grep -E -q 'start= *2048, size= *262144' build/image-layout.txt
           grep -E -q 'start= *264192, size= *2097152' build/image-layout.txt
           # Never publish the synthetic image: it contains fake uImage and DTB.
           rm -f build/synthetic-boot-test.img build/synthetic-boot-test.img.xz \
-            build/synthetic-boot-test.manifest.json build/synthetic-boot-test.manifest.SHA256SUMS
+            build/synthetic-boot-test.manifest.json build/synthetic-boot-test.SHA256SUMS
       - name: Upload rootfs candidate (NOT BOOTABLE)
         uses: actions/upload-artifact@v4
         with:
