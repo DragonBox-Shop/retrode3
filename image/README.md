@@ -47,6 +47,81 @@ and only creates output archives in the supplied directory.
 The Debian package mirror is currently live; a truly bit-for-bit
 reproducible release requires a pinned, signed package snapshot.
 
+## First SD-card test image (kernel copied from development Retrode3)
+
+The separate image assembler **only writes an image file**. It never
+accesses /dev/sd*, /dev/mmcblk*, USB storage devices or the running SD
+card. It requires the reviewed Bookworm MIPSEL rootfs tarball and a
+snapshot of the current **working** kernel, board-specific DTB and its
+complete matching module tree.
+
+On the running development Retrode3, with its boot partition mounted:
+
+    KREL="$(uname -r)"
+    tar -C / \
+      --exclude="lib/modules/$KREL/build" \
+      --exclude="lib/modules/$KREL/source" \
+      -czf "/root/retrode3-kernel-$KREL.tar.gz" \
+      boot/uImage boot/bootargs.scr \
+      boot/ingenic/lx16-retrode-2.9.5.dtb \
+      "lib/modules/$KREL"
+    sha256sum "/root/retrode3-kernel-$KREL.tar.gz"
+
+The same checked procedure is available in capture-current-kernel.sh.
+Copy the resulting archive to the build host using SCP. No firmware
+flashing or changes to the existing boot partition are required.
+
+On a Linux builder with Python 3, GNU tar, util-linux fdisk/sfdisk,
+mtools, dosfstools, e2fsprogs, xz and coreutils:
+
+    python3 image/assemble-sd-image.py \
+      --rootfs /path/to/retrode3-bookworm-mipsel-rootfs.tar.xz \
+      --kernel-bundle /path/to/retrode3-kernel-7.3.0-rc5-letux-mips-retrode3+.tar.gz \
+      --kernel-release '7.3.0-rc5-letux-mips-retrode3+' \
+      --output /path/to/retrode3-bookworm-test.img.xz
+
+The tool verifies the U-Boot uImage magic and MIPS architecture, DTB
+header, matching modules.dep, SysV/MIPSEL rootfs and both filesystem
+images. It creates an MBR partitioned regular file with 128 MiB FAT32
+boot and 1 GiB ext4 root, aligned at 1 MiB. The image is deliberately
+labelled FIRST_BOOT_TEST_ONLY. It is **not** a complete consumer image.
+
+**The current boot sequence has not yet been confirmed on the new
+SD card.** The existing bootargs.scr is a generic Letux/Beagle-era
+script and may not be the script used to boot this specific board.
+Before claiming a successful boot, verify actual U-Boot search paths
+and device-tree choice on the physical device. The test image currently
+provides only a serial ttyS2 console, not network, Web or SSH: remote
+maintenance needs another reviewed integration stage.
+
+To write the candidate on a separate card, use a tool that makes you
+explicitly choose and verify the destination, such as a GUI image
+writer that understands .img.xz. The assembler intentionally offers no
+raw-device writing function and will not overwrite a previous image.
+
+## Kernel Debian packages and safe boot updates
+
+The later APT suite should include two distinct MIPSEL packages:
+
+- **retrode3-linux-image**: a versioned uImage, board DTB(s),
+  supported U-Boot scripts and signed/source-identified metadata.
+- **retrode3-linux-modules**: /lib/modules/<exact-kernel-release>
+  tied to the image package version, including depmod metadata.
+
+Regular package installation must never overwrite the only known-good
+boot files unconditionally. Package payloads should stage into a
+versioned path first. A separate kernel boot manager will atomically
+stage a candidate to FAT /boot, retain a recoverable previous kernel,
+check image/module/DTB version equality, and require an explicit test
+and confirmation before switching. An unexpected power loss during a
+kernel upgrade must not destroy the sole bootable slot.
+
+The current first-boot test deliberately uses a kernel copied from
+the development device. It is *not* yet a newly source-built kernel
+Debian package. Future release packages must be generated from a
+known revision in retrode3-kernel and verified against matching
+Module.symvers/config and a real Retrode3 board boot.
+
 ## Still missing before a bootable image
 
 1. Integrate tested matching kernel, modules, uImage and Retrode3 DTB
