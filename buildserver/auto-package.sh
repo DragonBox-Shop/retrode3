@@ -53,17 +53,28 @@ elif [[ "$phase" != updated ]]; then
   echo "ERROR: invalid automation stage" >&2; exit 2
 fi
 sha="$(git -C "$checkout" rev-parse HEAD)"
-echo "OS Git $branch: $sha; APT: $suite"
+# Resolve exactly one OSCR branch head for the entire build; no floating checkout.
+oscr_ref="refs/heads/$branch"
+oscr_url="https://github.com/DragonBox-Shop/retrode3-oscr.git"
+oscr_line="$(git ls-remote --exit-code "$oscr_url" "$oscr_ref")"
+oscr_sha="${oscr_line%%[[:space:]]*}"
+if [[ ! "$oscr_sha" =~ ^[a-f0-9]{40}$ ]]; then
+  echo "ERROR: unable to resolve $oscr_ref from OSCR origin" >&2; exit 1
+fi
+export RETRODE3_FOLLOW_OSCR_BRANCH=1
+export RETRODE3_OSCR_BRANCH="$branch"
+export RETRODE3_OSCR_COMMIT="$oscr_sha"
+echo "OS Git $branch: $sha; OSCR $branch: $oscr_sha; APT: $suite"
 state="$base/cache/last-published-$branch.json"
 repo_base="$base/repository"
-if [[ -f "$state" ]] && python3 - "$state" "$repo_base" "$suite" "$sha" "$checkout" <<'PY'
+if [[ -f "$state" ]] && python3 - "$state" "$repo_base" "$suite" "$sha" "$checkout" "$oscr_sha" <<'PY'
 import json
 import re
 import subprocess
 import sys
 from pathlib import Path
 
-manifest_path, base, suite, sha, checkout = sys.argv[1:]
+manifest_path, base, suite, sha, checkout, oscr_sha = sys.argv[1:]
 try:
     with open(manifest_path, encoding="utf-8") as f:
         manifest = json.load(f)
@@ -71,6 +82,8 @@ try:
     if (not isinstance(previous, str) or
         not re.fullmatch(r"[0-9a-f]{40}", previous) or
         manifest.get("release_channel") != suite or
+        manifest.get("oscr_commit") != oscr_sha or
+        manifest.get("oscr_branch") != ("master" if suite == "stable" else "develop") or
         not manifest.get("auto_versioned")):
         sys.exit(1)
     if previous != sha:
@@ -110,6 +123,7 @@ then
 fi
 
 export RETRODE3_AUTO_VERSION=1
+export RETRODE3_VERSION_STAMP="$(date -u +%Y%m%d%H%M%S%N)"
 export RETRODE3_BUILD_CPUS="${RETRODE3_BUILD_CPUS:-2}"
 export RETRODE3_BUILD_MEMORY="${RETRODE3_BUILD_MEMORY:-2g}"
 export RETRODE3_BUILD_PIDS="${RETRODE3_BUILD_PIDS:-256}"
@@ -126,7 +140,7 @@ save_published_manifest() {
 # were fixes to this publisher. The publisher revalidates every archive.
 for manifest in "$RETRODE3_OUTPUT_BASE"/run.*/build-manifest.json; do
   [[ -f "$manifest" ]] || continue
-  candidate_commit="$(python3 - "$manifest" "$suite" <<'PY'
+  candidate_commit="$(python3 - "$manifest" "$suite" "$oscr_sha" <<'PY'
 import json
 import re
 import sys
@@ -135,6 +149,8 @@ try:
         m = json.load(stream)
     sha = m.get("os_commit", "")
     if (m.get("release_channel") != sys.argv[2] or
+        m.get("oscr_commit") != sys.argv[3] or
+        m.get("oscr_branch") != ("master" if sys.argv[2] == "stable" else "develop") or
         not m.get("auto_versioned") or
         not isinstance(sha, str) or
         not re.fullmatch(r"[0-9a-f]{40}", sha)):
