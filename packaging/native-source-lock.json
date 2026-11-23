@@ -6,7 +6,7 @@
   "sanni_commit": "e5a08326dfc8fff67193f7fc5a7bc36b5282b28c",
   "core_discovery_abi": 1,
   "core_operations_abi": 1,
-  "native_version": "0.2.0~dev20261120+gited6e6e7-1",
-  "web_version": "2.0.0~dev20261120-3",
-  "release_channel": "develop-test-only"
+  "native_version": "0.2.0-1",
+  "web_version": "2.0.0-1",
+  "release_channel": "stable"
 }
