@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """No flash tooling: test SD archive validation and the boot-bundle gates."""
 import importlib.util
+import base64
+import struct
 from pathlib import Path
 import tarfile
 import tempfile
@@ -68,6 +70,29 @@ class ImageSafety(unittest.TestCase):
         (root / "lib/modules" / REL / "modules.dep").unlink()
         with self.assertRaisesRegex(ValueError, "modules.dep"):
             module.verify_boot_files(root, REL)
+
+    def test_explicit_ssh_key_installs_only_test_service(self):
+        root = self.base / "root"
+        root.mkdir()
+        (root / "etc/init.d").mkdir(parents=True)
+        (root / "etc/rc2.d").mkdir(parents=True)
+        blob = (struct.pack(">I", 11) + b"ssh-ed25519" +
+                struct.pack(">I", 32) + b"0" * 32)
+        key = self.base / "id_ed25519.pub"
+        key.write_text("ssh-ed25519 " + base64.b64encode(blob).decode() + " test\n")
+        module.provision_test_access(root, key)
+        self.assertEqual((root / "root/.ssh/authorized_keys").stat().st_mode & 0o777, 0o600)
+        self.assertTrue((root / "etc/rc2.d/S02retrode3-bringup-usb").is_symlink())
+        self.assertIn("dropbear -R -s",
+                      (root / "etc/init.d/retrode3-bringup-usb").read_text())
+
+    def test_invalid_test_ssh_key_rejected(self):
+        root = self.base / "root"
+        root.mkdir()
+        bad = self.base / "bad.pub"
+        bad.write_text("not-a-real-public-key\n")
+        with self.assertRaisesRegex(ValueError, "public key"):
+            module.provision_test_access(root, bad)
 
     def test_fixed_partition_layout(self):
         self.assertEqual(module.ROOT_START, 264192)
