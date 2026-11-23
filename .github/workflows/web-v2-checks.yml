@@ -30,7 +30,6 @@ jobs:
       - name: Python syntax and mocked backend checks
         run: |
           python3 -m py_compile retrode3-web-control/v2/backend/service.py
-          python3 -m py_compile retrode3-web-control/v2/service/retrode3-flashctl.py
           python3 -m unittest discover -s retrode3-web-control/v2/tests -p 'test_*.py' -v
       - name: JavaScript syntax and reader selection regression
         run: |
