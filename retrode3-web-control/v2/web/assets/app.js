@@ -386,8 +386,9 @@
       var previousSlots = slotData && slotData.slots || [];
       data.slots.forEach(function (slot) {
         var previous = previousSlots.filter(function (entry) { return entry.id === slot.id; })[0];
-        if (writerIdentified && writerIdentified.slot === slot.id &&
-            previous && previous.status === "occupied" && slot.status === "empty")
+        if (typeof writerIdentified !== "undefined" && writerIdentified &&
+            writerIdentified.slot === slot.id && previous &&
+            previous.status === "occupied" && slot.status === "empty")
           writerIdentified = null;
         if (!previous || previous.status !== slot.status || slot.status !== "occupied") {
           delete detectedBySlot[slot.id];
