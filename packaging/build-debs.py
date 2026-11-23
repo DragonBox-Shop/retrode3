@@ -71,7 +71,7 @@ DESCRIPTIONS = {
 def error(message):
     raise ValueError(message)
 
-def auto_version_lock(lock, os_commit, epoch):
+def auto_version_lock(lock, os_commit, epoch, oscr_commit=None, version_stamp=None):
     """Derive a unique Debian revision from the exact OS source commit.
 
     Retains the branch's pinned base versions, adding an ordered UTC commit
@@ -84,7 +84,15 @@ def auto_version_lock(lock, os_commit, epoch):
     stamp = datetime.datetime.fromtimestamp(
         int(epoch), datetime.timezone.utc
     ).strftime("%Y%m%d%H%M%S")
+    if version_stamp is not None:
+        if not re.fullmatch(r"[0-9]{14}", version_stamp):
+            error("invalid UTC package build version stamp")
+        stamp = version_stamp
     suffix = "+auto" + stamp + "." + os_commit[:12]
+    if oscr_commit is not None:
+        if not re.fullmatch(r"[0-9a-f]{40}", oscr_commit):
+            error("invalid OSCR source revision")
+        suffix += "." + oscr_commit[:12]
     effective = dict(lock)
     for field in ("native_version", "web_version"):
         version = lock[field]
@@ -332,6 +340,8 @@ def symbol_version_report(stage):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--source-lock", default=str(HERE / "native-source-lock.json"),
+                        help="JSON lock resolved for this build; defaults to static source lock")
     parser.add_argument("--oscr-source", required=True,
                         help="retrode3-oscr checkout at the exact pinned commit")
     parser.add_argument("--stage", required=True,
@@ -339,7 +349,7 @@ def main():
     parser.add_argument("--output", required=True,
                         help="offline output directory, never installed automatically")
     args = parser.parse_args()
-    lock = json.loads((HERE / "native-source-lock.json").read_text(encoding="utf-8"))
+    lock = json.loads(Path(args.source_lock).read_text(encoding="utf-8"))
     layout = json.loads((HERE / "retrode3-core-layout.json").read_text(encoding="utf-8"))
     auto_version = os.environ.get("RETRODE3_AUTO_VERSION", "0") == "1"
     if auto_version:
@@ -347,7 +357,12 @@ def main():
                          "rev-parse", "HEAD"], cwd=REPO)
         epoch_git = int(cmd(["git", "-c", "safe.directory=" + str(REPO),
                              "show", "-s", "--format=%ct", "HEAD"], cwd=REPO))
-        lock = auto_version_lock(lock, os_commit, epoch_git)
+        follow_oscr = os.environ.get("RETRODE3_FOLLOW_OSCR_BRANCH", "0") == "1"
+        stamp = os.environ.get("RETRODE3_VERSION_STAMP") or None
+        lock = auto_version_lock(
+            lock, os_commit, epoch_git,
+            oscr_commit=lock["oscr_commit"] if follow_oscr else None,
+            version_stamp=stamp)
     release_channel = validate_release_policy(lock)
     oscr = Path(args.oscr_source).resolve()
     stage = Path(args.stage).resolve()
@@ -372,6 +387,11 @@ def main():
             os.replace(str(work / record["filename"]), str(out / record["filename"]))
         manifest = {"release_channel": release_channel,
                     "auto_versioned": auto_version,
+                    "oscr_branch": (os.environ.get("RETRODE3_OSCR_BRANCH")
+                                    if os.environ.get("RETRODE3_FOLLOW_OSCR_BRANCH") == "1"
+                                    else None),
+                    "version_stamp": (os.environ.get("RETRODE3_VERSION_STAMP")
+                                      if auto_version else None),
                     "os_repository": "DragonBox-Shop/retrode3",
                     "os_commit": cmd(["git", "-c", "safe.directory=" + str(REPO),
                                       "rev-parse", "HEAD"], cwd=REPO),
