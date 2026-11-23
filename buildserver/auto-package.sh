@@ -133,7 +133,9 @@ PY
   git -C "$checkout" merge-base --is-ancestor "$candidate_commit" "$sha" ||
     continue
   changed="$(git -C "$checkout" diff --name-only "$candidate_commit" "$sha")"
-  if [[ -n "$changed" && "$changed" != "buildserver/publish-debs.sh" ]]; then
+  if [[ -n "$changed" && "$changed" != "buildserver/publish-debs.sh" &&
+        "$changed" != "buildserver/auto-package.sh" &&
+        "$changed" != "$(printf 'buildserver/auto-package.sh\nbuildserver/publish-debs.sh')" ]]; then
     continue
   fi
   run="${manifest%/build-manifest.json}"
