@@ -141,6 +141,7 @@ const vm = require("vm");
     "job-label": {textContent:""},
     "job-percent": {textContent:""},
     "job-fill": {style: {width: ""}},
+    "job-speed": {textContent:"", hidden:true},
     "job-detail": {textContent:""},
     "job-result-details": {textContent:""}
   };
@@ -158,23 +159,33 @@ const vm = require("vm");
     progress:{phase:"program", units:"bytes", bytes_done:32768,
       bytes_total:65536, percent:50, bytes_per_second:10240, elapsed_ms:3200}
   });
-  assert(detailNodes["job-detail"].textContent.indexOf("10.0 KiB/s") >= 0,
-    "Write rate should derive from measured CLI bytes per second");
+  assert(detailNodes["job-speed"].textContent.indexOf("10.0 KiB/s") >= 0 &&
+    !detailNodes["job-speed"].hidden,
+    "Write rate should be prominent and derived from CLI bytes per second");
   renderCtx.renderJob({
     command:"flash_operation", status:"running",
     progress:{phase:"verify", units:"bytes", bytes_done:8192,
       bytes_total:16384, percent:50, verify_pass:2, verify_passes:3,
       bytes_per_second:20480, elapsed_ms:400}
   });
-  assert(detailNodes["job-detail"].textContent.indexOf("20.0 KiB/s") >= 0,
+  assert(detailNodes["job-speed"].textContent.indexOf("20.0 KiB/s") >= 0 &&
+    !detailNodes["job-speed"].hidden,
     "Verify must show its own measured rate");
   renderCtx.renderJob({
     command:"flash_operation", status:"running",
     progress:{phase:"erase", units:"sectors", units_done:5,
       units_total:10, percent:50}
   });
-  assert(detailNodes["job-detail"].textContent.indexOf("KiB/s") === -1,
+  assert(detailNodes["job-speed"].hidden &&
+    detailNodes["job-speed"].textContent === "",
     "Erase sector progress should not invent a byte throughput");
+  renderCtx.renderJob({
+    command:"flash_operation", status:"running",
+    progress:{phase:"program", units:"bytes", bytes_done:0,
+      bytes_total:65536, percent:0}
+  });
+  assert(detailNodes["job-speed"].hidden,
+    "Rate is hidden when the CLI does not supply throughput");
 
   console.log("Flash stage selection, repeat count, probe and ROM upload passed");
 })().catch(err => {console.error(err); process.exitCode=1;});
