@@ -68,6 +68,31 @@ class TestReleasePolicy(unittest.TestCase):
             ["dpkg", "--compare-versions", auto["native_version"], "gt",
              lock["native_version"]]), 0)
 
+    def test_oscr_revision_changes_built_debian_version(self):
+        lock = self.example("testing", "0.3.0~dev20261122-2",
+                            "2.0.0+git20261122~dev-2")
+        os = "1" * 40
+        a = builder.auto_version_lock(
+            lock, os, 1795433699, oscr_commit="a" * 40,
+            version_stamp="20261123163000000000000")
+        b = builder.auto_version_lock(
+            lock, os, 1795433699, oscr_commit="b" * 40,
+            version_stamp="20261123163001000000000")
+        self.assertEqual(builder.validate_release_policy(a), "testing")
+        self.assertTrue(a["native_version"].endswith("." + "a" * 12))
+        self.assertEqual(subprocess.call(
+            ["dpkg", "--compare-versions", b["native_version"], "gt",
+             a["native_version"]]), 0)
+        self.assertNotEqual(a["web_version"], b["web_version"])
+        self.assertEqual(lock["native_version"], "0.3.0~dev20261122-2")
+        with self.assertRaises(ValueError):
+            builder.auto_version_lock(lock, os, 1795433699,
+                                      oscr_commit="invalid")
+        with self.assertRaises(ValueError):
+            builder.auto_version_lock(lock, os, 1795433699,
+                                      oscr_commit="a" * 40,
+                                      version_stamp="wrong")
+
     def test_auto_version_requires_commit_and_debian_revision(self):
         lock = self.example("stable", "0.2.0-1", "2.0.0-1")
         with self.assertRaises(ValueError):
