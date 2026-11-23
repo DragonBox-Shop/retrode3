@@ -19,17 +19,22 @@ LOCK = json.loads((ROOT / "packaging/native-source-lock.json").read_text())
 
 
 class TestPackaging(unittest.TestCase):
-    def fixture_stage(self, root):
+    def fixture_stage(self, root, cores=("snes", "md", "nes", "sms-md")):
         stage = root / "stage"
-        for rel, mode in pkg.MODES.items():
+        paths = dict(pkg.MODES)
+        for core in cores:
+            for extension in (".so", ".core"):
+                paths[pkg.CORE_DIRECTORY + "/" + core + extension] = 0o644
+        for rel, mode in paths.items():
             path = stage / rel
             path.parent.mkdir(parents=True, exist_ok=True)
             if rel.endswith(".core"):
                 core = path.stem
+                slot = "md" if core in ("sms-md", "sg-1000") else core
                 path.write_text("id={}\nname=Test {}\nversion=1\nslot={}\n".format(
-                    core, core, core))
+                    core, core, slot))
             else:
-                # Minimal ELF32 little-endian MIPS *fixture*, not runnable code.
+                # MIPS ELF fixture, not executable on the build host.
                 header = bytearray(52)
                 header[:6] = b"\x7fELF\x01\x01"
                 header[16:18] = (3 if rel.endswith(".so") else 2).to_bytes(
@@ -42,7 +47,11 @@ class TestPackaging(unittest.TestCase):
     def test_mock_stage_and_negative_checks(self):
         with tempfile.TemporaryDirectory() as tmp:
             stage = self.fixture_stage(Path(tmp))
-            pkg.verify_stage(stage, LAYOUT, check_symbols=False)
+            native = pkg.verify_stage(stage, LAYOUT, check_symbols=False)
+            self.assertEqual(set(native), {
+                "retrode3-core-runtime", "retrode3-core-snes",
+                "retrode3-core-md", "retrode3-core-nes",
+                "retrode3-core-sms-md"})
             changed = stage / "usr/bin/retrode3-cli"
             changed.write_bytes(b"ELF but wrong architecture")
             with self.assertRaises(ValueError):
@@ -52,10 +61,10 @@ class TestPackaging(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             stage = self.fixture_stage(root)
-            pkg.verify_stage(stage, LAYOUT, check_symbols=False)
-            for name in pkg.NATIVE + (pkg.WEB,):
+            native = pkg.verify_stage(stage, LAYOUT, check_symbols=False)
+            for name in tuple(native) + (pkg.WEB,):
                 filename, built = pkg.build_one(root, name, LAYOUT, LOCK,
-                                                stage, 1795132800)
+                                                stage, 1795132800, native)
                 self.assertTrue(filename.endswith(".deb"))
                 self.assertTrue(built.is_file())
                 contents = subprocess.check_output(
@@ -73,17 +82,50 @@ class TestPackaging(unittest.TestCase):
                     self.assertIn("Architecture: all", info)
                     self.assertIn("/etc/apache2/conf-available/retrode3-prefork.conf",
                                   pkg.CONFFILES[pkg.WEB])
-                elif name == pkg.NATIVE[0]:
+                elif name == pkg.RUNTIME:
                     self.assertIn("Provides: retrode3-core-abi-1", info)
                     self.assertIn("./etc/init.d/retrode3-core-runtime", contents)
                     self.assertIn("Architecture: mipsel", info)
                 else:
                     self.assertIn("retrode3-core-abi-1", info)
-                    core = name.rsplit("-", 1)[1]
+                    core = name[len(pkg.CORE_PREFIX):]
                     self.assertIn("./usr/lib/retrode3/cores-available/" +
                                   core + ".so", contents)
                     self.assertIn("./usr/lib/retrode3/cores-available/" +
                                   core + ".core", contents)
+
+    def test_future_core_is_discovered_without_builder_changes(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            stage = self.fixture_stage(Path(tmp),
+                                       cores=("snes", "md", "nes",
+                                              "sms-md", "sg-1000"))
+            native = pkg.verify_stage(stage, LAYOUT, check_symbols=False)
+            self.assertIn("retrode3-core-sms-md", native)
+            self.assertIn("retrode3-core-sg-1000", native)
+            name, built = pkg.build_one(Path(tmp), "retrode3-core-sg-1000",
+                                        LAYOUT, LOCK, stage, 1795132800, native)
+            self.assertIn("retrode3-core-sg-1000", name)
+            self.assertTrue(built.is_file())
+
+    def test_incomplete_or_unapproved_core_pair_is_rejected(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            stage = self.fixture_stage(Path(tmp))
+            (stage / pkg.CORE_DIRECTORY / "sms-md.core").unlink()
+            with self.assertRaises(ValueError):
+                pkg.verify_stage(stage, LAYOUT, check_symbols=False)
+
+        with tempfile.TemporaryDirectory() as tmp:
+            stage = self.fixture_stage(Path(tmp))
+            (stage / pkg.CORE_DIRECTORY / "unapproved.txt").write_text("wrong")
+            with self.assertRaises(ValueError):
+                pkg.verify_stage(stage, LAYOUT, check_symbols=False)
+
+        with tempfile.TemporaryDirectory() as tmp:
+            stage = self.fixture_stage(Path(tmp))
+            (stage / pkg.CORE_DIRECTORY / "sms-md.core").write_text(
+                "id=sms-md\nname=SMS\nversion=1\nslot=../md\n")
+            with self.assertRaises(ValueError):
+                pkg.verify_stage(stage, LAYOUT, check_symbols=False)
 
     def test_apache_prefork_profile_preserves_distribution_config(self):
         # Exact limits tested on a real 50-MiB Retrode3, and no upstream
@@ -115,7 +157,9 @@ class TestPackaging(unittest.TestCase):
         policy = (ROOT / "packaging/assets/retrode3-corectl.sudoers").read_text()
         self.assertNotIn("*", policy)
         self.assertNotIn(" ALL\n", policy)
-        self.assertEqual(policy.count("/usr/sbin/retrode3-corectl "), 6)
+        self.assertEqual(policy.count("/usr/sbin/retrode3-corectl "), 8)
+        self.assertIn("/usr/sbin/retrode3-corectl enable sms-md", policy)
+        self.assertIn("/usr/sbin/retrode3-corectl disable sms-md", policy)
         self.assertIn("RETRODE3_CORE_CONTROL_ENABLED=0",
                       (ROOT / "packaging/assets/retrode3-web-v2.default").read_text())
         init = (ROOT / "retrode3-web-control/v2/service/retrode3-web-v2.init").read_text()
