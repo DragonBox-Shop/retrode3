@@ -8,7 +8,7 @@ from pathlib import Path
 REQUIRED = (
     "base-files", "base-passwd", "libc6", "dpkg", "apt", "dash",
     "sysvinit-core", "sysv-rc", "initscripts", "udev", "kmod",
-    "ifupdown", "iproute2", "e2fsprogs",
+    "ifupdown", "iproute2", "e2fsprogs", "dropbear-bin",
 )
 FORBIDDEN = ("systemd-sysv", "openssh-server", "rsyslog", "retrode3-web-control")
 
