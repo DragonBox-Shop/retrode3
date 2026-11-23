@@ -131,5 +131,50 @@ const vm = require("vm");
   assert.strictEqual(ctx.writerSourcePath, "MD/uploaded.md");
   assert.strictEqual(el["writer-start"].disabled, true,
     "uploaded file must not bypass chip identification");
+
+  // The browser displays the monotonic-CLI throughput, rather than
+  // guessing from network or polling delays.
+  const renderStart = source.indexOf("  function renderJob(job) {");
+  const renderEnd = source.indexOf("  function schedulePoll() {", renderStart);
+  assert(renderStart >= 0 && renderEnd > renderStart);
+  const detailNodes = {
+    "job-label": {textContent:""},
+    "job-percent": {textContent:""},
+    "job-fill": {style: {width: ""}},
+    "job-detail": {textContent:""},
+    "job-result-details": {textContent:""}
+  };
+  const renderCtx = {
+    $: id => {assert(detailNodes[id], "unexpected job element " + id); return detailNodes[id];},
+    t: key => key,
+    text: (el, str) => {el.textContent = String(str);},
+    humanSize: n => n + " bytes",
+    console
+  };
+  vm.createContext(renderCtx);
+  vm.runInContext(source.slice(renderStart, renderEnd), renderCtx);
+  renderCtx.renderJob({
+    command:"flash_operation", status:"running",
+    progress:{phase:"program", units:"bytes", bytes_done:32768,
+      bytes_total:65536, percent:50, bytes_per_second:10240, elapsed_ms:3200}
+  });
+  assert(detailNodes["job-detail"].textContent.indexOf("10.0 KiB/s") >= 0,
+    "Write rate should derive from measured CLI bytes per second");
+  renderCtx.renderJob({
+    command:"flash_operation", status:"running",
+    progress:{phase:"verify", units:"bytes", bytes_done:8192,
+      bytes_total:16384, percent:50, verify_pass:2, verify_passes:3,
+      bytes_per_second:20480, elapsed_ms:400}
+  });
+  assert(detailNodes["job-detail"].textContent.indexOf("20.0 KiB/s") >= 0,
+    "Verify must show its own measured rate");
+  renderCtx.renderJob({
+    command:"flash_operation", status:"running",
+    progress:{phase:"erase", units:"sectors", units_done:5,
+      units_total:10, percent:50}
+  });
+  assert(detailNodes["job-detail"].textContent.indexOf("KiB/s") === -1,
+    "Erase sector progress should not invent a byte throughput");
+
   console.log("Flash stage selection, repeat count, probe and ROM upload passed");
 })().catch(err => {console.error(err); process.exitCode=1;});
