@@ -131,14 +131,27 @@ for file in files:
     if info[2] != ("all" if info[0] == "retrode3-web-control" else "mipsel"):
         sys.exit("error: architecture mismatch: " + file.name)
     old = previous.get(info[0])
-    if old is not None and subprocess.call(
+    if old == info[1]:
+        matches = list(pool.rglob(file.name))
+        if len(matches) != 1 or not matches[0].is_file() or (
+                hashlib.sha256(matches[0].read_bytes()).hexdigest() != digest):
+            sys.exit("error: suite package is already registered but its "
+                     "pool archive is missing or differs: " + file.name)
+    elif old is not None and subprocess.call(
             ["dpkg", "--compare-versions", info[1], "gt", old]) != 0:
         sys.exit("error: published " + suite + " version " + old +
-                 " of " + info[0] + " is not older than " + info[1] +
-                 "; refusing downgrade or same-version republish")
+                 " of " + info[0] + " is newer than " + info[1] +
+                 "; refusing downgrade")
 print("Preflight OK:", suite, len(files), "packages, OS", head)
 PY
 for deb in "$run"/*.deb; do
+  pkg="$(dpkg-deb -f "$deb" Package)"
+  version="$(dpkg-deb -f "$deb" Version)"
+  if reprepro --basedir "$base" list "$suite" |
+      grep -Fqx "$suite|main|mipsel: $pkg $version"; then
+    echo "Already published, verified in preflight: $pkg $version"
+    continue
+  fi
   reprepro --basedir "$base" --outdir "$public" includedeb "$suite" "$deb"
 done
 reprepro --basedir "$base" --outdir "$public" list "$suite"
