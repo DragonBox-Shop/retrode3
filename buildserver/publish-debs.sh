@@ -73,6 +73,20 @@ if candidate_commit != head:
 auto = os.environ.get("RETRODE3_AUTO_VERSION", "0") == "1"
 if bool(manifest.get("auto_versioned", False)) != auto:
     sys.exit("error: automatic-version mode differs from build manifest")
+live = os.environ.get("RETRODE3_FOLLOW_OSCR_BRANCH", "0") == "1"
+if live:
+    branch = "master" if suite == "stable" else "develop"
+    selected = os.environ.get("RETRODE3_OSCR_COMMIT", "")
+    if (manifest.get("oscr_branch") != branch or
+        not re.fullmatch(r"[0-9a-f]{40}", selected) or
+        manifest.get("oscr_commit") != selected or
+        not re.fullmatch(r"[0-9a-f]{40}", manifest.get("sanni_commit", ""))):
+        sys.exit("error: built OSCR branch commit does not match resolved source")
+    # The selected exact OSCR gitlink is checked by build-debs.sh.
+    lock = dict(lock, oscr_commit=selected,
+                sanni_commit=manifest["sanni_commit"])
+elif manifest.get("oscr_branch"):
+    sys.exit("error: live OSCR build requires explicit source branch validation")
 if auto:
     spec = importlib.util.spec_from_file_location(
         "retrode3_package_builder", str(root / "packaging/build-debs.py"))
@@ -81,7 +95,13 @@ if auto:
     commit_epoch = int(subprocess.check_output(
         ["git", "-C", str(root), "show", "-s", "--format=%ct",
          candidate_commit], text=True).strip())
-    lock = builder.auto_version_lock(lock, candidate_commit, commit_epoch)
+    stamp = manifest.get("version_stamp")
+    if live and not isinstance(stamp, str):
+        sys.exit("error: missing live-build UTC version stamp")
+    lock = builder.auto_version_lock(
+        lock, candidate_commit, commit_epoch,
+        oscr_commit=manifest["oscr_commit"] if live else None,
+        version_stamp=stamp)
 for key in ("oscr_commit", "sanni_commit", "native_version", "web_version"):
     if manifest.get(key) != lock.get(key):
         sys.exit("error: manifest/source lock mismatch: " + key)

@@ -11,6 +11,7 @@ on:
   pull_request:
     paths:
       - 'packaging/**'
+      - 'buildserver/**'
       - '.github/workflows/debian-mipsel-candidates.yml'
 
 permissions:
@@ -33,16 +34,27 @@ jobs:
             git ca-certificates make python3 gcc g++ dpkg-dev file binutils \
             gcc-mipsel-linux-gnu g++-mipsel-linux-gnu binutils-mipsel-linux-gnu
       - uses: actions/checkout@v4
-      - name: Checkout exact source and Sanni revision
+      - name: Resolve latest OSCR branch and its Sanni submodule
         run: |
           set -eu
+          OSCR_BRANCH="${{ github.base_ref || github.ref_name }}"
+          case "$OSCR_BRANCH" in master|develop) ;; *) exit 1 ;; esac
           git clone https://github.com/DragonBox-Shop/retrode3-oscr.git "$RUNNER_TEMP/retrode3-oscr"
-          OSCR_COMMIT="$(python3 -c 'import json; print(json.load(open("packaging/native-source-lock.json"))["oscr_commit"])')"
-          SANNI_COMMIT="$(python3 -c 'import json; print(json.load(open("packaging/native-source-lock.json"))["sanni_commit"])')"
-          git -C "$RUNNER_TEMP/retrode3-oscr" checkout "$OSCR_COMMIT"
+          OSCR_COMMIT="$(git ls-remote --exit-code             https://github.com/DragonBox-Shop/retrode3-oscr.git "refs/heads/$OSCR_BRANCH" | cut -f1)"
+          git -C "$RUNNER_TEMP/retrode3-oscr" checkout --detach "$OSCR_COMMIT"
           git -C "$RUNNER_TEMP/retrode3-oscr" submodule update --init third_party/oscr-firmware
-          test "$(git -C "$RUNNER_TEMP/retrode3-oscr" rev-parse HEAD:third_party/oscr-firmware)" = "$SANNI_COMMIT"
+          SANNI_COMMIT="$(git -C "$RUNNER_TEMP/retrode3-oscr" rev-parse HEAD:third_party/oscr-firmware)"
           test "$(git -C "$RUNNER_TEMP/retrode3-oscr/third_party/oscr-firmware" rev-parse HEAD)" = "$SANNI_COMMIT"
+          python3 - "$RUNNER_TEMP/source-lock.json" "$OSCR_COMMIT" "$SANNI_COMMIT" <<'PY'
+          import json,sys
+          with open("packaging/native-source-lock.json",encoding="utf-8") as f:
+              lock=json.load(f)
+          lock["oscr_commit"],lock["sanni_commit"]=sys.argv[2:]
+          with open(sys.argv[1],"w",encoding="utf-8") as f:
+              json.dump(lock,f)
+          PY
+          echo "RETRODE3_OSCR_BRANCH=$OSCR_BRANCH" >> "$GITHUB_ENV"
+          echo "RETRODE3_OSCR_COMMIT=$OSCR_COMMIT" >> "$GITHUB_ENV"
       - name: Shared-core native mocks (host only)
         run: |
           make -C "$RUNNER_TEMP/retrode3-oscr" -f Makefile.migration test-all-shared-cores
@@ -52,20 +64,24 @@ jobs:
           make -C "$RUNNER_TEMP/retrode3-oscr" -f Makefile.migration \
             CC=mipsel-linux-gnu-gcc CXX=mipsel-linux-gnu-g++ \
             AR=mipsel-linux-gnu-ar test-release-stage
-          # The release-stage contract covers the original three cores.
-          # SMS is staged explicitly, without installing or enabling anything.
-          make -C "$RUNNER_TEMP/retrode3-oscr" -f Makefile.migration \
-            CC=mipsel-linux-gnu-gcc CXX=mipsel-linux-gnu-g++ \
-            AR=mipsel-linux-gnu-ar stage-sms-md-module
+          if grep -Eq '^stage-sms-md-module:' "$RUNNER_TEMP/retrode3-oscr/Makefile.migration"; then
+            make -C "$RUNNER_TEMP/retrode3-oscr" -f Makefile.migration \
+              CC=mipsel-linux-gnu-gcc CXX=mipsel-linux-gnu-g++ \
+              AR=mipsel-linux-gnu-ar stage-sms-md-module
+          fi
           file "$RUNNER_TEMP/retrode3-oscr/build/migration/stage/usr/bin/retrode3-cli"
           file "$RUNNER_TEMP/retrode3-oscr/build/migration/stage/usr/lib/retrode3/cores-available/"*.so
-      - name: Build dynamically discovered offline Debian test candidates
+      - name: Build latest-OSCR MIPSEL Debian package candidates
         run: |
-          RETRODE3_AUTO_VERSION=1 SOURCE_DATE_EPOCH=1795132800 python3 packaging/build-debs.py \
+          RETRODE3_AUTO_VERSION=1 RETRODE3_FOLLOW_OSCR_BRANCH=1 \
+            RETRODE3_OSCR_BRANCH="$RETRODE3_OSCR_BRANCH" \
+            RETRODE3_VERSION_STAMP=20261123160000000000000 \
+            SOURCE_DATE_EPOCH=1795132800 python3 packaging/build-debs.py \
+            --source-lock "$RUNNER_TEMP/source-lock.json" \
             --oscr-source "$RUNNER_TEMP/retrode3-oscr" \
             --stage "$RUNNER_TEMP/retrode3-oscr/build/migration/stage" \
             --output build/debian-candidates
-          python3 -c 'import json; p=json.load(open("build/debian-candidates/build-manifest.json")); assert "sms-md" in p["core_ids"] and len(p["packages"]) == 6, p'
+          python3 -c 'import json; p=json.load(open("build/debian-candidates/build-manifest.json")); assert p["oscr_commit"] == __import__("os").environ["RETRODE3_OSCR_COMMIT"] and set(["snes","md","nes"]).issubset(p["core_ids"]), p'
           for deb in build/debian-candidates/*.deb; do
             dpkg-deb --info "$deb"
             dpkg-deb --contents "$deb"

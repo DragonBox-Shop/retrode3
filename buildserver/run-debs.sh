@@ -25,5 +25,9 @@ podman --runtime=crun --cgroup-manager=systemd run --rm \
     -v "$root:/src:ro" -v "$out:/out:rw" \
     -e "SOURCE_DATE_EPOCH=$epoch" \
     -e "RETRODE3_AUTO_VERSION=${RETRODE3_AUTO_VERSION:-0}" \
+    -e "RETRODE3_FOLLOW_OSCR_BRANCH=${RETRODE3_FOLLOW_OSCR_BRANCH:-0}" \
+    -e "RETRODE3_OSCR_BRANCH=${RETRODE3_OSCR_BRANCH:-}" \
+    -e "RETRODE3_OSCR_COMMIT=${RETRODE3_OSCR_COMMIT:-}" \
+    -e "RETRODE3_VERSION_STAMP=${RETRODE3_VERSION_STAMP:-}" \
     "$image" bash /src/buildserver/build-debs.sh
 echo "Unpublished packages: $out"

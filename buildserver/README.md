@@ -1,7 +1,14 @@
 # Retrode3 MIPSEL package build server
 
-Builds are driven by each `retrode3` Git branch's pinned
-`packaging/native-source-lock.json`. No rootfs or SD images are created.
+The manual `package_master.sh` and `package_develop.sh` launchers follow
+**both** the current OS branch and the matching current `retrode3-oscr`
+branch. No fixed OSCR commit must be edited before a routine release.
+Each run resolves and freezes one exact OSCR commit and the exact Sanni
+gitlink recorded in that commit; all are written to the build manifest.
+The tracked `packaging/native-source-lock.json` remains a deliberate
+fallback for offline, pinned/manual candidate builds and tests, **not**
+the source selector for automated APT releases.
+No rootfs or SD images are created.
 The source stays in Git; this directory is usable on any Linux host with
 Podman, crun and rootless user namespaces.
 
@@ -77,14 +84,18 @@ the pool/installed-suite versions, publishes explicitly with `reprepro`,
 and saves an idempotency marker. Build/publish logs are kept in
 `buildserver/artifacts/logs`.
 
-Automatic runs set `RETRODE3_AUTO_VERSION=1` and append a deterministic
-`+autoYYYYMMDDhhmmss.SHA12` suffix to the Debian *revision* in each package
-without changing the Git-tracked source lock. The timestamp comes from the
-Git commit date in UTC, not the current build time, so retries of the same
-commit receive the same versions. Publication refuses versions that do not
-sort newer than those already in the target suite. If a run is interrupted,
-a rerun may reuse exactly matching already published package files, but
-different bytes under an existing filename are never silently replaced.
+Automatic runs set `RETRODE3_AUTO_VERSION=1` and
+`RETRODE3_FOLLOW_OSCR_BRANCH=1`. Every package revision includes the
+UTC build timestamp (with nanoseconds) and the exact OS plus OSCR
+commit prefixes. This avoids reusing a version when only OSCR changes.
+The build manifest keeps the full Git revision IDs, exact Sanni submodule
+commit and immutable package hashes. A retry reuses already-built
+candidate packages instead of renumbering them; the publisher refuses
+downgrades and any conflicting binary at an existing version.
+The `release-changes.py` classifier also recognizes docs-only OSCR
+changes, using a cached bare Git history under
+`buildserver/cache/oscr-git-history.git`. Any source, generator, core
+metadata, makefile or Sanni gitlink change triggers a new build.
 
 This is a **manual trigger** (no cron or hook) with fully automatic steps
 after invocation. It does not update firmware, kernel modules, rootfs images
@@ -118,3 +129,12 @@ not contain the expected versions, the normal safe build path is used.
 To extend the non-package allowlist, add regression cases to
 `packaging/tests/test_release_changes.py` and verify the file never ships
 in a Debian package before doing so.
+
+## Upstream firmware handling
+
+Sanni's upstream is monitored separately by the source repository's
+`sanni-upstream-review.yml` workflow. It proposes a **review-only**
+submodule PR against `retrode3-oscr/develop`. No upstream changes are
+automatically merged into the stable hardware-tested branch. Once a new
+Sanni gitlink is reviewed and integrated into the relevant OSCR branch,
+the next `package_*.sh` invocation automatically builds it.
