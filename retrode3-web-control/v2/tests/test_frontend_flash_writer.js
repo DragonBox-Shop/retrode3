@@ -88,8 +88,8 @@ const vm = require("vm");
   ctx.slotData.slots[0].status = "empty";
   ctx.writerIdentified = {reader: "md", slot: "md", data: {}};
   ctx.renderWriterState();
-  assert.strictEqual(ctx.writerIdentified, null,
-    "removal must invalidate a previous Flash identification");
+  assert.ok(ctx.writerIdentified,
+    "passive empty sense alone must not discard a positive Flash probe");
   assert.strictEqual(elements["writer-detect"].disabled, false);
   // Upload via native file requester (not a list of files already on the device).
   ctx.activeJob = null;
