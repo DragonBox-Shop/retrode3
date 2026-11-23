@@ -35,7 +35,7 @@ const vm = require("vm");
       manufacturer_id: 127, device_id: 8953,
       capacity_bytes: 4194304, sector_count: 71
     }},
-    activeJob: null, writerSourcePath: "MD/game.md",
+    activeJob: null, csrf: "test-csrf", writerSourcePath: "MD/game.md",
     writerUploading: false, writerUploadSerial: 0,
     t: key => key, humanSize: n => n + " bytes",
     text: (el, val) => {el.textContent = String(val);},
@@ -102,10 +102,7 @@ const vm = require("vm");
     return Promise.resolve({ok:true, json:()=>Promise.resolve({ok:true,path:"MD/uploaded.md",size:1024})});
   };
   ctx.uploadWriterFile();
-  await Promise.resolve();
-  await Promise.resolve();
-  await Promise.resolve();
-  await Promise.resolve();
+  await new Promise(resolve => setImmediate(resolve));
   assert.strictEqual(upload.url, "rom-upload.php");
   assert.strictEqual(upload.options.method, "POST");
   assert.strictEqual(ctx.writerSourcePath, "MD/uploaded.md");
