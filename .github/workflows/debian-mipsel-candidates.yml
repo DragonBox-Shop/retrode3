@@ -3,9 +3,10 @@ name: Build actual mipsel Debian test candidates
 on:
   workflow_dispatch:
   push:
-    branches: [develop]
+    branches: [develop, master]
     paths:
       - 'packaging/**'
+      - 'buildserver/**'
       - '.github/workflows/debian-mipsel-candidates.yml'
   pull_request:
     paths:
@@ -60,7 +61,7 @@ jobs:
           file "$RUNNER_TEMP/retrode3-oscr/build/migration/stage/usr/lib/retrode3/cores-available/"*.so
       - name: Build dynamically discovered offline Debian test candidates
         run: |
-          SOURCE_DATE_EPOCH=1795132800 python3 packaging/build-debs.py \
+          RETRODE3_AUTO_VERSION=1 SOURCE_DATE_EPOCH=1795132800 python3 packaging/build-debs.py \
             --oscr-source "$RUNNER_TEMP/retrode3-oscr" \
             --stage "$RUNNER_TEMP/retrode3-oscr/build/migration/stage" \
             --output build/debian-candidates
