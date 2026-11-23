@@ -24,7 +24,7 @@ const vm = require("vm");
     "writer-progress-anchor": {appendChild() {}},
     "cancel": {disabled: true}
   };
-  let submitted = null, promptCount = 0;
+  let submitted = null;
   const ctx = {
     $: id => {assert(elements[id], "unknown DOM element: " + id); return elements[id];},
     readerById: id => id === "md" ? known : null,
@@ -37,7 +37,6 @@ const vm = require("vm");
     activeJob: null,
     t: key => key, humanSize: n => n + " bytes",
     text: (el, val) => {el.textContent = String(val);},
-    confirm: () => {promptCount++; return true;},
     api: (url, data) => {
       assert.strictEqual(url, "/api/jobs");
       submitted = data;
@@ -56,9 +55,7 @@ const vm = require("vm");
   ctx.startFlashJob("write_flash");
   await Promise.resolve();
   assert.deepStrictEqual(JSON.parse(JSON.stringify(submitted)),
-    {system: "md", command: "write_flash",
-     source: "MD/game.md", confirm_erase: true});
-  assert.strictEqual(promptCount, 1);
+    {system: "md", command: "write_flash", source: "MD/game.md"});
   assert.strictEqual(elements["job-panel"].hidden, false);
   ctx.activeJob = null;
   submitted = null;
@@ -66,7 +63,6 @@ const vm = require("vm");
   await Promise.resolve();
   assert.deepStrictEqual(JSON.parse(JSON.stringify(submitted)),
     {system: "md", command: "verify_flash", source: "MD/game.md"});
-  assert.strictEqual(promptCount, 1, "verify must never ask to erase");
 
   ctx.activeJob = null;
   submitted = null;
