@@ -43,7 +43,7 @@
   "writer_core": "Flash-capable core",
   "writer_detect": "Detect Flash",
   "writer_rom": "ROM file",
-  "writer_file": "Choose ROM from the game library",
+  "writer_file": "Choose ROM file from your computer",
   "writer_warning": "Write the selected ROM to the detected Flash cartridge and verify every byte.",
   "writer_write": "Erase + write + verify",
   "writer_verify": "Verify only",
@@ -53,7 +53,7 @@
   "writer_insert_cart": "Insert cartridge",
   "writer_cart_inserted": "Cartridge inserted",
   "writer_choose_file": "Choose a ROM file",
-  "writer_detect_first": "First identify the Flash and select a ROM.",
+  "writer_detect_first": "Identify the Flash and upload a ROM file.",
   "writer_verified": "Byte-for-byte verification successful",
   "writer_title": "Write a cartridge",
   "writer_unavailable": "Writing isn't available yet",
@@ -191,5 +191,9 @@
   "slot_system_unrecognized": "System not identified",
   "slot_manual_label": "Select system manually",
   "slot_manual_placeholder": "Choose system…",
-  "slot_manual_note": "Manual selection does not verify an adapter or change voltage."
+  "slot_manual_note": "Manual selection does not verify an adapter or change voltage.",
+  "writer_uploaded": "ROM uploaded",
+  "writer_uploading": "Uploading ROM…",
+  "writer_upload_failed": "ROM upload failed",
+  "writer_upload_bad_size": "ROM must be 512 bytes to 4 MiB and have an even byte count."
 }
