@@ -6,6 +6,7 @@ or uploads anything to an APT repository. Requires host dpkg-deb and readelf.
 The source stage is owned exclusively by retrode3-oscr.
 """
 import argparse
+import datetime
 import hashlib
 import json
 import os
@@ -69,6 +70,29 @@ DESCRIPTIONS = {
 
 def error(message):
     raise ValueError(message)
+
+def auto_version_lock(lock, os_commit, epoch):
+    """Derive a unique Debian revision from the exact OS source commit.
+
+    Retains the branch's pinned base versions, adding an ordered UTC commit
+    timestamp and Git hash to the Debian *revision* (after the last hyphen).
+    Never rewrites tracked source locks. The same commit yields the same
+    versions on retry.
+    """
+    if not re.fullmatch(r"[0-9a-f]{40}", os_commit):
+        error("invalid OS source commit for automatic Debian version")
+    stamp = datetime.datetime.fromtimestamp(
+        int(epoch), datetime.timezone.utc
+    ).strftime("%Y%m%d%H%M%S")
+    suffix = "+auto" + stamp + "." + os_commit[:12]
+    effective = dict(lock)
+    for field in ("native_version", "web_version"):
+        version = lock[field]
+        if "-" not in version:
+            error("automatic Debian version requires an explicit -revision")
+        effective[field] = version + suffix
+    return effective
+
 
 def validate_release_policy(lock):
     """Validate package versioning and channel without weakening the ABI gate."""
@@ -317,6 +341,13 @@ def main():
     args = parser.parse_args()
     lock = json.loads((HERE / "native-source-lock.json").read_text(encoding="utf-8"))
     layout = json.loads((HERE / "retrode3-core-layout.json").read_text(encoding="utf-8"))
+    auto_version = os.environ.get("RETRODE3_AUTO_VERSION", "0") == "1"
+    if auto_version:
+        os_commit = cmd(["git", "-c", "safe.directory=" + str(REPO),
+                         "rev-parse", "HEAD"], cwd=REPO)
+        epoch_git = int(cmd(["git", "-c", "safe.directory=" + str(REPO),
+                             "show", "-s", "--format=%ct", "HEAD"], cwd=REPO))
+        lock = auto_version_lock(lock, os_commit, epoch_git)
     release_channel = validate_release_policy(lock)
     oscr = Path(args.oscr_source).resolve()
     stage = Path(args.stage).resolve()
@@ -340,6 +371,7 @@ def main():
         for record in records:
             os.replace(str(work / record["filename"]), str(out / record["filename"]))
         manifest = {"release_channel": release_channel,
+                    "auto_versioned": auto_version,
                     "os_repository": "DragonBox-Shop/retrode3",
                     "os_commit": cmd(["git", "-c", "safe.directory=" + str(REPO),
                                       "rev-parse", "HEAD"], cwd=REPO),
