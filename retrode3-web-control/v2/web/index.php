@@ -12,9 +12,9 @@ header("Content-Security-Policy: default-src 'self'; img-src 'self'; style-src '
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="csrf-token" content="<?php echo htmlspecialchars($csrf, ENT_QUOTES, 'UTF-8'); ?>">
 <title>Retrode3 Control</title>
-<link rel="stylesheet" href="assets/style.css">
-<script src="assets/selection-ui.js" defer></script>
-<script src="assets/app.js" defer></script>
+<link rel="stylesheet" href="assets/style.css?v=<?php echo (int) filemtime(__DIR__ . '/assets/style.css'); ?>">
+<script src="assets/selection-ui.js?v=<?php echo (int) filemtime(__DIR__ . '/assets/selection-ui.js'); ?>" defer></script>
+<script src="assets/app.js?v=<?php echo (int) filemtime(__DIR__ . '/assets/app.js'); ?>" defer></script>
 </head>
 <body>
 <header class="topbar"><div class="brand"><span class="brand-icon">R3</span><div><strong>Retrode3</strong><small data-i18n="subtitle">Cartridge Control</small></div></div><div class="top-right"><span id="connection" class="pill" data-i18n="connecting">Connecting…</span><select id="locale" aria-label="Language"><option value="en">English</option><option value="de">Deutsch</option></select></div></header>
