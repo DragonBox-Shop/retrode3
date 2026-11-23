@@ -28,6 +28,7 @@ jobs:
         run: |
           set -eu
           bash -n image/build-bookworm-rootfs.sh
+          sh -n image/capture-current-kernel.sh image/assets/retrode3-bringup-usb.init
           python3 -m py_compile image/verify-rootfs.py image/manifest-rootfs.py image/assemble-sd-image.py
           python3 -m unittest discover -s image/tests -p 'test_*.py' -v
 
@@ -79,10 +80,16 @@ jobs:
           (root/"lib/modules/7.3.0-rc5-letux-mips-retrode3+/modules.dep").write_bytes(b"")
           PY
           tar -C build/fixture -czf build/fixture-kernel.tar.gz boot lib
+          python3 - <<'PY'
+          import base64, pathlib, struct
+          payload = struct.pack(">I",11)+b"ssh-ed25519"+struct.pack(">I",32)+b"0"*32
+          pathlib.Path("build/bringup.pub").write_text("ssh-ed25519 "+base64.b64encode(payload).decode()+" test-card-only\n")
+          PY
           sudo python3 image/assemble-sd-image.py \
             --rootfs "$PWD/build/bookworm-rootfs/retrode3-bookworm-mipsel-rootfs.tar.xz" \
             --kernel-bundle "$PWD/build/fixture-kernel.tar.gz" \
             --kernel-release '7.3.0-rc5-letux-mips-retrode3+' \
+            --ssh-authorized-key "$PWD/build/bringup.pub" \
             --output "$PWD/build/synthetic-boot-test.img.xz"
           (cd build && sha256sum --check synthetic-boot-test.manifest.SHA256SUMS)
           xz -dc build/synthetic-boot-test.img.xz > build/synthetic-boot-test.img
