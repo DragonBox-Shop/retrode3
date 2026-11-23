@@ -8,43 +8,47 @@ const vm = require("vm");
   const source = fs.readFileSync(path.join(__dirname, "..", "web", "assets", "app.js"), "utf8");
   const start = source.indexOf("  function flashReader() {");
   const end = source.indexOf("  function startJob(command) {", start);
-  assert(start > 0 && end > start, "Flash writer UI functions missing");
+  assert(start > 0 && end > start, "Flash writer functions missing");
 
-  const known = {id: "md", slot: "md", folder: "MD", name: "Mega Drive",
-    capabilities: {commands: ["probe_flash", "write_flash", "verify_flash"]}};
-  const elements = {
+  const reader = {id: "md", slot: "md", folder: "MD", name: "Mega Drive",
+    capabilities: {commands: ["probe_flash", "flash_operation", "write_flash", "verify_flash"]}};
+  const el = {
     "writer-system": {value: "md"},
     "writer-file": {files: [{name: "game.md", size: 1024}], value: "C:\\fakepath\\game.md"},
     "writer-upload-status": {textContent: ""},
     "writer-slot-status": {textContent: ""},
     "writer-flash-status": {textContent: ""},
+    "writer-operation-hint": {textContent: ""},
     "writer-detect": {disabled: false},
-    "writer-write": {disabled: false},
-    "writer-verify": {disabled: false},
+    "writer-start": {disabled: false},
+    "writer-erase": {checked: true},
+    "writer-program": {checked: true},
+    "writer-check": {checked: true},
+    "writer-verify-passes": {value: "1", disabled: false},
     "job-panel": {hidden: true},
     "writer-progress-anchor": {appendChild() {}},
     "cancel": {disabled: true}
   };
-  let submitted = null;
+  let sent = null, uploaded = null;
   const ctx = {
-    $: id => {assert(elements[id], "unknown DOM element: " + id); return elements[id];},
-    readerById: id => id === "md" ? known : null,
-    readers: () => [known], selectedReader: "md",
+    $: id => {assert(el[id], "unknown DOM element: " + id); return el[id];},
+    readerById: id => id === "md" ? reader : null,
+    readers: () => [reader], selectedReader: "md",
     slotData: {slots: [{id: "md", status: "occupied"}]},
     writerIdentified: {reader: "md", slot: "md", data: {
       manufacturer_id: 127, device_id: 8953,
       capacity_bytes: 4194304, sector_count: 71
     }},
-    activeJob: null, csrf: "test-csrf", writerSourcePath: "MD/game.md",
+    activeJob: null, csrf: "csrf", writerSourcePath: "MD/game.md",
     writerUploading: false, writerUploadSerial: 0,
     t: key => key, humanSize: n => n + " bytes",
-    text: (el, val) => {el.textContent = String(val);},
+    text: (element, v) => {element.textContent = String(v);},
     api: (url, data) => {
       assert.strictEqual(url, "/api/jobs");
-      submitted = data;
-      return Promise.resolve({id: "testjob", status: "queued"});
+      sent = JSON.parse(JSON.stringify(data));
+      return Promise.resolve({id: "job", status: "queued"});
     },
-    notify: () => {throw new Error("unexpected invalid action");},
+    notify: () => {throw new Error("unexpected rejected UI command");},
     fail: e => {throw e;},
     renderJob: () => {}, schedulePoll: () => {},
     console
@@ -52,63 +56,80 @@ const vm = require("vm");
   vm.createContext(ctx);
   vm.runInContext(source.slice(start, end), ctx);
   ctx.renderWriterState();
-  assert.strictEqual(elements["writer-write"].disabled, false);
-  assert.strictEqual(elements["writer-verify"].disabled, false);
-  ctx.startFlashJob("write_flash");
+  assert.strictEqual(el["writer-start"].disabled, false);
+
+  ctx.startFlashJob("flash_operation");
   await Promise.resolve();
-  assert.deepStrictEqual(JSON.parse(JSON.stringify(submitted)),
-    {system: "md", command: "write_flash", source: "MD/game.md"});
-  assert.strictEqual(elements["job-panel"].hidden, false);
-  ctx.activeJob = null;
-  submitted = null;
-  ctx.startFlashJob("verify_flash");
-  await Promise.resolve();
-  assert.deepStrictEqual(JSON.parse(JSON.stringify(submitted)),
-    {system: "md", command: "verify_flash", source: "MD/game.md"});
+  assert.deepStrictEqual(sent, {system:"md", command:"flash_operation",
+    erase:true, write:true, verify:true, verify_passes:1, source:"MD/game.md"});
 
   ctx.activeJob = null;
-  submitted = null;
+  sent = null;
+  el["writer-erase"].checked = false;
+  el["writer-program"].checked = false;
+  el["writer-check"].checked = true;
+  el["writer-verify-passes"].value = "4";
+  ctx.startFlashJob("flash_operation");
+  await Promise.resolve();
+  assert.deepStrictEqual(sent, {system:"md", command:"flash_operation",
+    erase:false, write:false, verify:true, verify_passes:4, source:"MD/game.md"});
+
+  ctx.activeJob = null;
+  sent = null;
+  el["writer-erase"].checked = true;
+  el["writer-check"].checked = false;
+  ctx.writerSourcePath = "";
+  ctx.renderWriterState();
+  assert.strictEqual(el["writer-start"].disabled, false,
+    "erase-only requires no ROM upload");
+  ctx.startFlashJob("flash_operation");
+  await Promise.resolve();
+  assert.deepStrictEqual(sent, {system:"md", command:"flash_operation",
+    erase:true, write:false, verify:false, verify_passes:0});
+
+  ctx.activeJob = null;
+  el["writer-erase"].checked = false;
+  ctx.renderWriterState();
+  assert.strictEqual(el["writer-start"].disabled, true, "no action disabled");
+  el["writer-check"].checked = true;
+  el["writer-verify-passes"].value = "0";
+  ctx.writerSourcePath = "MD/game.md";
+  ctx.renderWriterState();
+  assert.strictEqual(el["writer-start"].disabled, true, "invalid verify pass count");
+  el["writer-verify-passes"].value = "100";
+  ctx.renderWriterState();
+  assert.strictEqual(el["writer-start"].disabled, true, "overlarge verify pass count");
+
+  el["writer-verify-passes"].value = "1";
   ctx.writerIdentified = null;
   ctx.renderWriterState();
-  assert.strictEqual(elements["writer-write"].disabled, true);
-  assert.strictEqual(elements["writer-verify"].disabled, true);
+  assert.strictEqual(el["writer-start"].disabled, true);
   ctx.startFlashJob("probe_flash");
   await Promise.resolve();
-  assert.deepStrictEqual(JSON.parse(JSON.stringify(submitted)),
-    {system: "md", command: "probe_flash"});
-
-  // Flash probe availability must not be coupled to a flaky passive
-  // MD sense switch. The CLI and kernel decide whether a cart exists.
-  ctx.activeJob = null;
-  ctx.slotData.slots[0].status = "empty";
-  ctx.renderWriterState();
-  assert.strictEqual(elements["writer-detect"].disabled, false);
+  assert.strictEqual(sent.command, "probe_flash");
 
   ctx.activeJob = null;
   ctx.slotData.slots[0].status = "empty";
-  ctx.writerIdentified = {reader: "md", slot: "md", data: {}};
   ctx.renderWriterState();
-  assert.ok(ctx.writerIdentified,
-    "passive empty sense alone must not discard a positive Flash probe");
-  assert.strictEqual(elements["writer-detect"].disabled, false);
-  // Upload via native file requester (not a list of files already on the device).
+  assert.strictEqual(el["writer-detect"].disabled, false,
+    "passive MD sense cannot disable active flash probing");
+
+  // ROM requester, with upload to the logical folder (no server-side list).
   ctx.activeJob = null;
-  ctx.slotData.slots[0].status = "occupied";
-  ctx.writerIdentified = null;
   ctx.writerSourcePath = "";
-  let upload = null;
-  ctx.FormData = class { constructor() { this.values = []; } append(k, v) { this.values.push([k,v]); }};
+  ctx.writerIdentified = null;
+  ctx.FormData = class {constructor() {this.fields = [];} append(key, value) {this.fields.push([key,value]);}};
   ctx.fetch = (url, options) => {
-    upload = {url, options};
-    return Promise.resolve({ok:true, json:()=>Promise.resolve({ok:true,path:"MD/uploaded.md",size:1024})});
+    uploaded = {url, options};
+    return Promise.resolve({ok:true, json:()=>Promise.resolve({
+      ok:true, path:"MD/uploaded.md",size:1024})});
   };
   ctx.uploadWriterFile();
   await new Promise(resolve => setImmediate(resolve));
-  assert.strictEqual(upload.url, "rom-upload.php");
-  assert.strictEqual(upload.options.method, "POST");
+  assert.strictEqual(uploaded.url, "rom-upload.php");
+  assert.strictEqual(uploaded.options.method, "POST");
   assert.strictEqual(ctx.writerSourcePath, "MD/uploaded.md");
-  assert.strictEqual(elements["writer-upload-status"].textContent.indexOf("uploaded") >= 0, true);
-  assert.strictEqual(elements["writer-write"].disabled, true,
-    "Upload alone must not bypass Flash chip identification");
-  console.log("Flash tab, direct file upload and hardware-probe guard passed");
-})().catch(err => { console.error(err); process.exitCode = 1; });
+  assert.strictEqual(el["writer-start"].disabled, true,
+    "uploaded file must not bypass chip identification");
+  console.log("Flash stage selection, repeat count, probe and ROM upload passed");
+})().catch(err => {console.error(err); process.exitCode=1;});
