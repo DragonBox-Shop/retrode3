@@ -91,3 +91,30 @@ after invocation. It does not update firmware, kernel modules, rootfs images
 or customer devices. The build is deliberately cross-compiled against
 Debian Bookworm, not a verified legacy-device sysroot.
 
+## Avoiding empty package updates
+
+The launchers compare the last successfully published build-manifest commit
+with the freshly fetched Git HEAD, but **only after confirming** every package
+listed in that manifest is still present in the APT suite. The conservative
+`buildserver/release-changes.py` classifier then ignores changes solely in:
+
+- Markdown documentation, `docs/`, `AGENTS.md`, GitHub workflows
+- local unit tests, and publisher/launcher implementation files
+- `tools/preflight-ci.sh` (a host-only test runner)
+
+For these changes the scripts print **"Nothing to build or publish"**;
+no Podman run, no new package version, and no APT publication occur.
+
+The source lock, `packaging/` recipes and maintainer scripts, Web
+source/assets, SysV runtime init files, `buildserver/build-debs.sh`,
+`buildserver/run-debs.sh`, `buildserver/Containerfile` and all unknown
+new files remain **build-affecting**. Multiple documentation-only commits
+are compared against the original published commit: a later genuine source
+change cannot be hidden by an intervening docs-only update.
+
+The classifier also gates resume/publication of already built candidates.
+If the cache manifest is missing, incomplete or the published suite does
+not contain the expected versions, the normal safe build path is used.
+To extend the non-package allowlist, add regression cases to
+`packaging/tests/test_release_changes.py` and verify the file never ships
+in a Debian package before doing so.
