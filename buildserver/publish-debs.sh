@@ -38,7 +38,9 @@ test -d "$public"
 # Verify the complete set before the FIRST reprepro import.
 python3 - "$run" "$suite" "$root" "$public" <<'PY'
 import hashlib
+import importlib.util
 import json
+import os
 import pathlib
 import re
 import subprocess
@@ -67,6 +69,18 @@ if candidate_commit != head:
         sys.exit("error: source changed since build; rebuild required: " +
                  ", ".join(changed))
     print("Validated publish-only change since candidate commit", candidate_commit)
+auto = os.environ.get("RETRODE3_AUTO_VERSION", "0") == "1"
+if bool(manifest.get("auto_versioned", False)) != auto:
+    sys.exit("error: automatic-version mode differs from build manifest")
+if auto:
+    spec = importlib.util.spec_from_file_location(
+        "retrode3_package_builder", str(root / "packaging/build-debs.py"))
+    builder = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(builder)
+    commit_epoch = int(subprocess.check_output(
+        ["git", "-C", str(root), "show", "-s", "--format=%ct",
+         candidate_commit], text=True).strip())
+    lock = builder.auto_version_lock(lock, candidate_commit, commit_epoch)
 for key in ("oscr_commit", "sanni_commit", "native_version", "web_version"):
     if manifest.get(key) != lock.get(key):
         sys.exit("error: manifest/source lock mismatch: " + key)
