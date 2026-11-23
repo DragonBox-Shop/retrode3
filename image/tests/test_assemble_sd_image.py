@@ -94,6 +94,23 @@ class ImageSafety(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "public key"):
             module.provision_test_access(root, bad)
 
+    def test_sd_bootloader_mbr_snapshot(self):
+        raw = self.base / "sd-preboot.bin"
+        data = bytearray(1024 * 1024)
+        data[:4] = b"SPL!"
+        data[510:512] = bytes.fromhex("55aa")
+        raw.write_bytes(data)
+        self.assertEqual(module.check_preboot(raw)[:4], b"SPL!")
+        data[510:512] = b"NO"
+        raw.write_bytes(data)
+        with self.assertRaisesRegex(ValueError, "partition-table signature"):
+            module.check_preboot(raw)
+        data[510:512] = bytes.fromhex("55aa")
+        data[512:520] = b"EFI PART"
+        raw.write_bytes(data)
+        with self.assertRaisesRegex(ValueError, "GPT"):
+            module.check_preboot(raw)
+
     def test_fixed_partition_layout(self):
         self.assertEqual(module.ROOT_START, 264192)
         self.assertEqual(module.BOOT_SECTORS * 512, 128 * 1024**2)
