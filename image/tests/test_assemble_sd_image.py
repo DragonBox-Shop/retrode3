@@ -6,8 +6,10 @@ import struct
 from pathlib import Path
 import tarfile
 import tempfile
+import sys
 import unittest
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 script = Path(__file__).resolve().parents[1] / "assemble-sd-image.py"
 spec = importlib.util.spec_from_file_location("retrode3_image_assembler", script)
 module = importlib.util.module_from_spec(spec)
