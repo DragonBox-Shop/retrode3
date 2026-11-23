@@ -32,7 +32,8 @@ jobs:
           python3 -m unittest discover -s image/tests -p 'test_*.py' -v
 
   build-mipsel-base:
-    runs-on: ubuntu-latest
+    # Ubuntu 26.04 replaced qemu-user-static with virtual package providers.
+    runs-on: ubuntu-24.04
     needs: static-tests
     timeout-minutes: 50
     steps:
