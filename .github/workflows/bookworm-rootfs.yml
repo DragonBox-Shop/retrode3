@@ -84,11 +84,16 @@ jobs:
           import base64, pathlib, struct
           payload = struct.pack(">I",11)+b"ssh-ed25519"+struct.pack(">I",32)+b"0"*32
           pathlib.Path("build/bringup.pub").write_text("ssh-ed25519 "+base64.b64encode(payload).decode()+" test-card-only\n")
+          preboot = bytearray(1024 * 1024)
+          preboot[:4] = b"TEST"
+          preboot[510:512] = bytes.fromhex("55aa")
+          pathlib.Path("build/synthetic-sd-preboot.bin").write_bytes(preboot)
           PY
           sudo python3 image/assemble-sd-image.py \
             --rootfs "$PWD/build/bookworm-rootfs/retrode3-bookworm-mipsel-rootfs.tar.xz" \
             --kernel-bundle "$PWD/build/fixture-kernel.tar.gz" \
             --kernel-release '7.3.0-rc5-letux-mips-retrode3+' \
+            --sd-preboot "$PWD/build/synthetic-sd-preboot.bin" \
             --ssh-authorized-key "$PWD/build/bringup.pub" \
             --output "$PWD/build/synthetic-boot-test.img.xz"
           (cd build && sha256sum --check synthetic-boot-test.manifest.SHA256SUMS)
