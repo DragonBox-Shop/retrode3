@@ -14,7 +14,8 @@ const vm = require("vm");
     capabilities: {commands: ["probe_flash", "write_flash", "verify_flash"]}};
   const elements = {
     "writer-system": {value: "md"},
-    "writer-file": {value: "MD/game.md"},
+    "writer-file": {files: [{name: "game.md", size: 1024}], value: "C:\\fakepath\\game.md"},
+    "writer-upload-status": {textContent: ""},
     "writer-slot-status": {textContent: ""},
     "writer-flash-status": {textContent: ""},
     "writer-detect": {disabled: false},
@@ -34,7 +35,8 @@ const vm = require("vm");
       manufacturer_id: 127, device_id: 8953,
       capacity_bytes: 4194304, sector_count: 71
     }},
-    activeJob: null,
+    activeJob: null, writerSourcePath: "MD/game.md",
+    writerUploading: false, writerUploadSerial: 0,
     t: key => key, humanSize: n => n + " bytes",
     text: (el, val) => {el.textContent = String(val);},
     api: (url, data) => {
@@ -75,12 +77,40 @@ const vm = require("vm");
   assert.deepStrictEqual(JSON.parse(JSON.stringify(submitted)),
     {system: "md", command: "probe_flash"});
 
+  // Flash probe availability must not be coupled to a flaky passive
+  // MD sense switch. The CLI and kernel decide whether a cart exists.
+  ctx.activeJob = null;
+  ctx.slotData.slots[0].status = "empty";
+  ctx.renderWriterState();
+  assert.strictEqual(elements["writer-detect"].disabled, false);
+
   ctx.activeJob = null;
   ctx.slotData.slots[0].status = "empty";
   ctx.writerIdentified = {reader: "md", slot: "md", data: {}};
   ctx.renderWriterState();
   assert.strictEqual(ctx.writerIdentified, null,
     "removal must invalidate a previous Flash identification");
-  assert.strictEqual(elements["writer-detect"].disabled, true);
-  console.log("Flash tab command wiring and write/verify guard passed");
+  assert.strictEqual(elements["writer-detect"].disabled, false);
+  // Upload via native file requester (not a list of files already on the device).
+  ctx.activeJob = null;
+  ctx.slotData.slots[0].status = "occupied";
+  ctx.writerSourcePath = "";
+  let upload = null;
+  ctx.FormData = class { constructor() { this.values = []; } append(k, v) { this.values.push([k,v]); }};
+  ctx.fetch = (url, options) => {
+    upload = {url, options};
+    return Promise.resolve({ok:true, json:()=>Promise.resolve({ok:true,path:"MD/uploaded.md",size:1024})});
+  };
+  ctx.uploadWriterFile();
+  await Promise.resolve();
+  await Promise.resolve();
+  await Promise.resolve();
+  await Promise.resolve();
+  assert.strictEqual(upload.url, "rom-upload.php");
+  assert.strictEqual(upload.options.method, "POST");
+  assert.strictEqual(ctx.writerSourcePath, "MD/uploaded.md");
+  assert.strictEqual(elements["writer-upload-status"].textContent.indexOf("uploaded") >= 0, true);
+  assert.strictEqual(elements["writer-write"].disabled, true,
+    "Upload alone must not bypass Flash chip identification");
+  console.log("Flash tab, direct file upload and hardware-probe guard passed");
 })().catch(err => { console.error(err); process.exitCode = 1; });
