@@ -28,6 +28,10 @@ FILES_ROOT = os.path.join(ROOT, "ROMs")
 SENSE_ROOT = os.environ.get("RETRODE3_SYSFS_ROOT", "/sys/class/retrode3")
 
 CLI_BIN = "/usr/bin/retrode3-cli"
+# The root-owned bridge permits only the three Flash actions, not arbitrary
+# CLI access. Merely installing it enables the experimental Web test route.
+FLASH_HELPER = "/usr/sbin/retrode3-flashctl"
+FLASH_ACTIONS = ("probe_flash", "write_flash", "verify_flash")
 CORECTL_BIN = "/usr/sbin/retrode3-corectl"
 CORE_CONTROL_ENABLED = os.environ.get("RETRODE3_CORE_CONTROL_ENABLED", "0") == "1"
 CORECTL_SUDO = os.environ.get("RETRODE3_CORECTL_SUDO", "1") == "1"
@@ -443,7 +447,9 @@ def reader_capability(core_id, registry=None):
             core["status"] == "ready" and core["usable"]):
         result["reason"] = "core_not_ready"
         return result
-    commands = [action for action in ("probe", "read_rom")
+    flash_available = os.path.isfile(FLASH_HELPER) and os.access(FLASH_HELPER, os.X_OK)
+    commands = [action for action in ("probe", "read_rom") + (
+                FLASH_ACTIONS if flash_available else ())
                 if action in core["actions"]]
     if not commands:
         result["reason"] = "core_operation_unavailable"
@@ -451,7 +457,7 @@ def reader_capability(core_id, registry=None):
     result.update({"available": True,
                    "capabilities": {"system": core["id"], "core": core["id"],
                                     "slot": core["slot"], "commands": commands,
-                                    "write_operations": False}})
+                                    "write_operations": "write_flash" in commands}})
     return result
 
 
@@ -577,11 +583,14 @@ def capability_probe():
 
 class Job(object):
     def __init__(self, manager, reader_id, action, label,
-                 reader, automatic=False, selection=None):
+                 reader, automatic=False, selection=None,
+                 source=None, confirm_erase=False):
         self.manager = manager
         self.reader_id = reader_id
         self.reader = reader
         self.selection = selection
+        self.source = source
+        self.confirm_erase = confirm_erase
         self.automatic = automatic
         self.id = uuid.uuid4().hex
         self.action = action
@@ -637,13 +646,14 @@ class Job(object):
                         os.mkdir(system_folder)
                     filename = "%s-%s.%s" % (self.label, self.id[:8], self.reader["extension"])
                     self.output = os.path.join(system_folder, filename)
-                argv = [CLI_BIN, "--protocol", "ndjson-v1", "--interactive"]
+                argv = (["sudo", "-n", FLASH_HELPER] if self.action in FLASH_ACTIONS
+                        else [CLI_BIN, "--protocol", "ndjson-v1", "--interactive"])
                 process = subprocess.Popen(argv, stdin=subprocess.PIPE,
                                            stdout=subprocess.PIPE,
                                            stderr=subprocess.DEVNULL, bufsize=0)
                 with self.lock:
                     self.process = process
-                deadline = time.time() + 900
+                deadline = time.time() + (3600 if self.action == "write_flash" else 900)
                 sent = False
                 while time.time() < deadline:
                     if process.poll() is not None and not select.select([process.stdout], [], [], 0)[0]:
@@ -673,12 +683,17 @@ class Job(object):
                             if self.action == "read_rom":
                                 command["output"] = self.output
                                 command["selection"] = self.selection
+                            elif self.action in ("write_flash", "verify_flash"):
+                                command["source"] = self.source
+                                if self.action == "write_flash":
+                                    command["confirm_erase"] = self.confirm_erase
                             self._send(command)
                             sent = True
                         continue
                     if not sent:
                         continue
-                    if kind not in ("error", "progress", "probe_result", "slot_probe_result", "result"):
+                    if kind not in ("error", "progress", "probe_result", "slot_probe_result",
+                                    "flash_probe_result", "result"):
                         continue
                     # Some parser errors have no request_id; do not associate
                     # unrelated valid IDs with our running operation.
@@ -696,6 +711,21 @@ class Job(object):
                             self.result = event
                             self.status = "done"
                         elif kind == "probe_result" and self.action == "probe":
+                            self.result = event
+                            self.status = "done"
+                        elif kind == "flash_probe_result" and self.action == "probe_flash":
+                            if (event.get("system") != self.reader_id or
+                                    not event.get("write_supported")):
+                                raise ApiError(502, "invalid_result", "Unexpected Flash identity")
+                            self.result = event
+                            self.status = "done"
+                        elif kind == "result" and self.action in ("write_flash", "verify_flash"):
+                            verification = event.get("flash_verification") or {}
+                            if (event.get("ok") is not True or
+                                    event.get("command") != self.action or
+                                    verification.get("status") != "verified" or
+                                    verification.get("verified") is not True):
+                                raise ApiError(502, "invalid_result", "Flash verification not confirmed")
                             self.result = event
                             self.status = "done"
                         elif kind == "result" and self.action == "read_rom":
@@ -747,21 +777,35 @@ class JobManager(object):
 
     def submit(self, data, automatic=False):
         reader_id = data.get("system")
+        action = data.get("command")
         if (not isinstance(reader_id, str) or not CORE_ID.match(reader_id) or
-                data.get("command") not in ("probe", "read_rom")):
+                action not in ("probe", "read_rom") + FLASH_ACTIONS):
             raise ApiError(400, "unsupported", "Unknown reader or unsupported command")
-        # The web API is v3-only: do not infer layout or silently forward
-        # legacy NES-v2/SNES/MD parameters to an older installed reader.
-        action = data["command"]
+        if automatic and action in FLASH_ACTIONS:
+            raise ApiError(400, "unsupported", "Flash operations are never automatic")
+        selection = None
+        source = None
+        confirm_erase = False
         if action == "read_rom":
             if set(data) != {"system", "command", "filename", "selection"}:
                 raise ApiError(400, "invalid_selection",
                                "ROM reads require the generic v3 selection envelope")
             selection = validate_generic_selection(data["selection"], action)
-        else:
+        elif action in ("probe", "probe_flash"):
             if set(data) != {"system", "command"}:
-                raise ApiError(400, "invalid_command", "Probe takes no read options")
-            selection = None
+                raise ApiError(400, "invalid_command", "Probe takes no extra options")
+        else:
+            fields = {"system", "command", "source"}
+            if action == "write_flash":
+                fields.add("confirm_erase")
+            if set(data) != fields:
+                raise ApiError(400, "invalid_command", "Invalid Flash job fields")
+            if action == "write_flash" and data.get("confirm_erase") is not True:
+                raise ApiError(400, "erase_unconfirmed", "Flash erasure must be confirmed")
+            confirm_erase = action == "write_flash"
+            source = data.get("source")
+            if not isinstance(source, str) or not source:
+                raise ApiError(400, "invalid_path", "Select a ROM from shared storage")
         cap = reader_capability(reader_id)
         if cap is None:
             raise ApiError(400, "unsupported", "Core not registered by CLI")
@@ -769,11 +813,20 @@ class JobManager(object):
             raise ApiError(503, "native_protocol_unavailable",
                            "The requested shared CLI core is not available")
         features = cap["capabilities"]
-        if data["command"] not in features["commands"]:
+        if action not in features["commands"]:
             raise ApiError(400, "unsupported", "Command unavailable for this reader")
+        if action in ("write_flash", "verify_flash"):
+            # A Flash source must be a regular ROM in this *logical* system
+            # directory, not a user-supplied /dev path or a different core's ROM.
+            if not source.startswith(cap["folder"] + "/"):
+                raise ApiError(400, "invalid_path", "ROM belongs to a different system folder")
+            source = safe_path(source)
+            if not os.path.isfile(source):
+                raise ApiError(400, "invalid_path", "Flash source is not a regular ROM")
+            length = os.path.getsize(source)
+            if length < 512 or length > 4194304 or length % 2:
+                raise ApiError(400, "invalid_size", "Unsupported Flash ROM size")
         if selection is not None:
-            # Metadata query is cartridge-I/O free. The native v3 core
-            # remains the final authority for schema, parameters and safety.
             opts = native_reader_options(reader_id)
             schema = opts.get("selection_schema")
             if (schema is None or selection["schema_id"] != schema["schema_id"] or
@@ -782,7 +835,8 @@ class JobManager(object):
                                "Reader selection capabilities changed; reload options")
         job = Job(self, reader_id, action,
                   sanitized_filename(data.get("filename")),
-                  cap, automatic=automatic, selection=selection)
+                  cap, automatic=automatic, selection=selection,
+                  source=source, confirm_erase=confirm_erase)
         with self.lock:
             if self.active is not None:
                 raise ApiError(409, "busy", "Cartridge reader already busy")
