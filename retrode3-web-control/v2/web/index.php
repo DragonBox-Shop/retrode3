@@ -70,7 +70,7 @@ header("Content-Security-Policy: default-src 'self'; img-src 'self'; style-src '
 <div class="panel"><div class="file-head"><div id="breadcrumb" class="breadcrumb"></div><div class="actions"><button id="new-folder" class="btn secondary" data-i18n="new_folder">New folder</button><button id="refresh-files" class="btn secondary" data-i18n="refresh">Refresh</button></div></div>
 <div class="file-table-wrap"><table class="file-table"><thead><tr><th data-i18n="name">Name</th><th data-i18n="size">Size</th><th data-i18n="modified">Modified</th><th data-i18n="actions">Actions</th></tr></thead><tbody id="file-rows"></tbody></table></div></div></section>
 <section id="writer" class="page">
-<p class="eyebrow" data-i18n="writer_lab">EXPERIMENTAL FLASH TOOL</p>
+<p class="eyebrow" data-i18n="writer_lab">FLASH CARTRIDGE</p>
 <h1 data-i18n="writer_title">Write a cartridge</h1>
 <p class="muted" data-i18n="writer_desc_live">Explicit Flash detection, sector erasure, programming and complete byte-for-byte verification.</p>
 <div class="two-col">
