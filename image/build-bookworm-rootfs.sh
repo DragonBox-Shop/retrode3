@@ -59,7 +59,8 @@ chmod 0755 "$root/usr/sbin/policy-rc.d"
 chroot "$root" /usr/bin/apt-get update
 chroot "$root" /usr/bin/apt-get install -y --no-install-recommends \
   sysvinit-core sysv-rc initscripts udev kmod \
-  ifupdown iproute2 isc-dhcp-client e2fsprogs dosfstools ca-certificates
+  ifupdown iproute2 isc-dhcp-client e2fsprogs dosfstools ca-certificates \
+  dropbear-bin
 cat > "$root/etc/fstab" <<'EOF'
 # Planned Retrode3 SD partition layout, validated later with a test card.
 /dev/mmcblk0p2 / ext4 defaults,noatime,errors=remount-ro 0 1
