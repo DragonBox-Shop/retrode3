@@ -1,4 +1,9 @@
-# Retrode3 Debian packages: offline development candidates
+# Retrode3 Debian packages: pinned offline builds
+
+Release channel for this Git line: **master -> stable**. The build phase
+is offline with respect to the Retrode3 hardware and does not publish into
+APT. Explicit publication is handled by `buildserver/publish-debs.sh`,
+which checks the branch, source revision, manifest, package hashes and suite.
 
 This directory is the **package implementation**, not an APT publication or
 a verified customer image. Work only on OS `develop`, never promote to
