@@ -18,9 +18,14 @@ The customer workflow:
 
 1. Insert a Flash cartridge and select the supported core in Write Cart
 2. Detect Flash to determine manufacturer/device ID and CFI geometry
-3. Select a ROM from that system's logical ROM directory
+3. Select a ROM on your computer with the native **Choose File** dialog.
+   The Web upload stores it in the logical `ROMs/<SYSTEM>/` directory
+   (max 4 MiB for the current EN29LV320CB, even number of bytes),
+   then passes only the uploaded file's library path to the shared CLI.
+   Existing files are not overwritten.
 4. Click Write (erase + program + automatic full byte-for-byte verify),
-   or click Verify only for a read-only comparison
+   or click Verify only for a read-only comparison. The selected cartridge
+   must first pass the chip ID/CFI compatibility probe.
 
 An **unrecognized or unsupported** chip will not be writable. The
 kernel/core check actual chip identity, power/slot and geometry on every
@@ -234,3 +239,17 @@ a replacement for device tests. See `docs/cli-integration.md` and
 
   Do this only while no cartridge operation is active and no local source edits
   need preservation. The updater never silently switches branches.
+
+### GBx-0011 and GBA adapter note
+
+The GBA-MD core is a **separate dynamic** `gba-md.so` even though its
+physical connector is the MD slot. Its earlier working source was on
+`feature/gba-md-v3-plugin` and was merged into the Flash CLI branch.
+Rebuild/install and enable this core as well as the normal `md.so`.
+The currently tested GBx kernel adapter still uses `gbx_md_test` mode;
+the mode resets on module replacement, requires 3.3V and the initial
+GBx arm cycle before insertion. Passive physical MD `sense` may remain
+`empty` with this adapter, so auto-detection on insertion alone is not
+yet reliable. That hardware transport mode must be made cleanly
+switchable before customer release. Do not mistake this limitation for
+a generic browser/plugin identification bug.
