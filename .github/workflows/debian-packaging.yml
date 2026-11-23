@@ -2,9 +2,10 @@ name: Retrode3 Debian packaging (offline mocks)
 
 on:
   push:
-    branches: [develop]
+    branches: [develop, master]
     paths:
       - 'packaging/**'
+      - 'buildserver/**'
       - 'retrode3.qcodeproj'
       - 'retrode3-tools/retrode3-tools.qcodeproj'
       - 'retrode3-tools/etc/sudoers.d/retrode3'
@@ -47,6 +48,8 @@ jobs:
           ! grep -Fq 'DEBIAN_RECOMMENDS="oscr"' retrode3.qcodeproj
           ! grep -Fq 'PACKAGES+=" oscr"' make-all
           ! grep -Fq 'SOURCES="oscr.qcodeproj"' retrode3-tools/retrode3-tools.qcodeproj
+      - name: Validate buildserver Bash scripts
+        run: bash -n buildserver/*.sh
       - name: Offline mock MIPS package smoke test
         run: python3 -m unittest discover -s packaging/tests -p 'test_*.py' -v
       - name: Check version and source lock syntax
