@@ -29,6 +29,20 @@ The customer workflow:
    - When Verify is unchecked, completion is explicitly `not_checked`,
      never reported as `verified`.
 
+The shared CLI reports actual `bytes_per_second` and `elapsed_ms` in
+Write/Verify progress events using a monotonic phase clock. The
+Web page displays a measured `KiB/s` rate alongside the bytes
+completed. No browser-refresh-based speed estimates are used.
+The write rate is reset at Write start, and the Verify rate starts
+from zero when Verify begins. Erase reports sector count, not a
+made-up byte transfer speed.
+
+The Flash CLI/Core now uses one open device FD throughout a job;
+the matching updated kernel must be installed with the updated
+`md.so` and shared CLI. Old and new session behaviors must **not**
+be mixed, because the kernel now requires an Identify on the same
+open FD before Erase/Write.
+
 The kernel does *not* scan every word after each sector erase. It only
 polls the Flash's command-completion status. Full byte comparison takes
 place in the optional Verify phase **after all Write chunks**, repeating
