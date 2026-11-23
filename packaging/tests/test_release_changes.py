@@ -43,6 +43,22 @@ class TestReleaseChanges(unittest.TestCase):
             with self.subTest(path=path):
                 self.assertTrue(changes.affects_packages(path))
 
+    def test_oscr_docs_ci_and_tests_do_not_affect_packages(self):
+        ignored = ("README.md", "docs/core-overview.md", "AGENTS.md",
+                   ".github/workflows/ci.yml", "tests/mock_slot.py",
+                   "tools/preflight-ci.sh")
+        for path in ignored:
+            with self.subTest(path=path):
+                self.assertFalse(changes.affects_oscr_packages(path))
+        inputs = ("src/retrode3/retrode3_cli.cpp",
+                  "third_party/oscr-firmware",
+                  "packaging/cores/md.core",
+                  "Makefile.migration", "tools/build-linux-md-core.py",
+                  "new-core/setup.json")
+        for path in inputs:
+            with self.subTest(path=path):
+                self.assertTrue(changes.affects_oscr_packages(path))
+
     def test_git_changes_and_ancestry(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -61,10 +77,14 @@ class TestReleaseChanges(unittest.TestCase):
             old = commit("retrode3-web-control/v2/web/assets/app.js", "initial")
             docs = commit("docs/new-note.md", "note")
             self.assertTrue(changes.only_nonpackage_changes(root, old, docs))
+            self.assertTrue(changes.only_nonpackage_changes(
+                root, old, docs, scope="oscr"))
             ci = commit(".github/workflows/ci.yml", "workflow")
             self.assertTrue(changes.only_nonpackage_changes(root, old, ci))
             code = commit("retrode3-web-control/v2/web/assets/app.js", "changed")
             self.assertFalse(changes.only_nonpackage_changes(root, old, code))
+            self.assertFalse(changes.only_nonpackage_changes(
+                root, old, code, scope="oscr"))
             self.assertFalse(changes.only_nonpackage_changes(root, docs, code))
             with self.assertRaises(subprocess.CalledProcessError):
                 changes.changed_paths(root, code, old)
