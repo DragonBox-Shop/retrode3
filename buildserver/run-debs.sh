@@ -24,5 +24,6 @@ podman --runtime=crun --cgroup-manager=systemd run --rm \
     --pids-limit "${RETRODE3_BUILD_PIDS:-256}" \
     -v "$root:/src:ro" -v "$out:/out:rw" \
     -e "SOURCE_DATE_EPOCH=$epoch" \
+    -e "RETRODE3_AUTO_VERSION=${RETRODE3_AUTO_VERSION:-0}" \
     "$image" bash /src/buildserver/build-debs.sh
 echo "Unpublished packages: $out"
