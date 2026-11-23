@@ -11,7 +11,9 @@ the production Retrode3. No block-device access or SD writing is implemented.
 - SysV-Init (sysvinit-core), runlevel 2 and serial ttyS2 at 115200 baud.
 - udev, minimal network tools, ext4 utilities and APT.
 - Planned ext4 root with noatime; FAT boot partition.
-- No SSH server, Web UI, cartridge cores, developer tools or rsyslog in base.
+- No running SSH server, Web UI, cartridge cores, developer tools or rsyslog in base.
+  The small dropbear-bin package is present but never starts without an
+  explicitly provisioned SSH public key in a test image.
 - No SD swapfile. zram and RAM-only diagnostics follow after RAM measurements.
 
 The normal Web UI will be optionally password-free. Developer settings
@@ -74,10 +76,11 @@ flashing or changes to the existing boot partition are required.
 On a Linux builder with Python 3, GNU tar, util-linux fdisk/sfdisk,
 mtools, dosfstools, e2fsprogs, xz and coreutils:
 
-    python3 image/assemble-sd-image.py \
+    sudo python3 image/assemble-sd-image.py \
       --rootfs /path/to/retrode3-bookworm-mipsel-rootfs.tar.xz \
       --kernel-bundle /path/to/retrode3-kernel-7.3.0-rc5-letux-mips-retrode3+.tar.gz \
       --kernel-release '7.3.0-rc5-letux-mips-retrode3+' \
+      --ssh-authorized-key /home/user/.ssh/id_ed25519.pub \
       --output /path/to/retrode3-bookworm-test.img.xz
 
 The tool verifies the U-Boot uImage magic and MIPS architecture, DTB
@@ -90,9 +93,21 @@ labelled FIRST_BOOT_TEST_ONLY. It is **not** a complete consumer image.
 SD card.** The existing bootargs.scr is a generic Letux/Beagle-era
 script and may not be the script used to boot this specific board.
 Before claiming a successful boot, verify actual U-Boot search paths
-and device-tree choice on the physical device. The test image currently
-provides only a serial ttyS2 console, not network, Web or SSH: remote
-maintenance needs another reviewed integration stage.
+and device-tree choice on the physical device. Without the optional --ssh-authorized-key argument, the test image
+provides only a serial ttyS2 console. With a valid public SSH key, it
+also installs a **test-only** SysV service that creates a simple USB-NCM
+interface on 172.31.255.1/30 and starts Dropbear with password
+authentication disabled. No private keys or static SSH host keys are
+included in the image: host keys are generated on first startup.
+The normal device Web interface and permanent customer SSH settings
+are **not** included.
+
+On the Arch Linux host, select the newly created USB-NCM network
+interface and assign the static host address 172.31.255.2/30.
+Connect using the corresponding private key to root@172.31.255.1.
+The first boot must be verified on hardware; USB-NCM and SSH are
+not yet physically accepted. This temporary test access must not be
+copied into a customer release.
 
 To write the candidate on a separate card, use a tool that makes you
 explicitly choose and verify the destination, such as a GUI image
