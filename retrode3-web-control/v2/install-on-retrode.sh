@@ -208,6 +208,22 @@ if command -v update-rc.d >/dev/null 2>&1; then
     update-rc.d retrode3-web-v2 defaults >/dev/null || true
 fi
 
+# PHP buffers multipart uploads before executing rom-upload.php. The
+# stock PHP limit is often 2 MiB, too small for a 4 MiB MegaDrive ROM.
+# Configure the Apache SAPI (not just the CLI php.ini) and reload Apache.
+PHP_LIMIT_UPDATED=0
+for PHP_CONF in /etc/php/*/apache2/conf.d /etc/php5/apache2/conf.d; do
+    [ -d "$PHP_CONF" ] || continue
+    cat > "$PHP_CONF/99-retrode3-rom-upload.ini" <<'EOF'
+upload_max_filesize = 8M
+post_max_size = 9M
+EOF
+    PHP_LIMIT_UPDATED=1
+done
+if [ "$PHP_LIMIT_UPDATED" -eq 1 ] && [ -x /etc/init.d/apache2 ]; then
+    service apache2 restart || fail "Apache restart after PHP upload limit update failed"
+fi
+
 # Keep the stock Apache MPM config package-owned. Install a separate
 # site-specific override only once; preserve future local admin edits.
 APACHE_SOURCE="$BASE/../../packaging/assets/retrode3-prefork.conf"
