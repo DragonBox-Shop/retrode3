@@ -101,6 +101,48 @@ export RETRODE3_BUILD_MEMORY="${RETRODE3_BUILD_MEMORY:-2g}"
 export RETRODE3_BUILD_PIDS="${RETRODE3_BUILD_PIDS:-256}"
 export RETRODE3_OUTPUT_BASE="$base/artifacts/candidates/$suite"
 export GNUPGHOME="$base/repository/gnupg"
+save_published_manifest() {
+  local source_manifest="$1" tmp
+  tmp="$(mktemp "$base/cache/.last-published-XXXXXXXX")"
+  cp "$source_manifest" "$tmp"
+  chmod 640 "$tmp"
+  mv -f "$tmp" "$state"
+}
+# Resume a fully built candidate if the only source changes since building
+# were fixes to this publisher. The publisher revalidates every archive.
+for manifest in "$RETRODE3_OUTPUT_BASE"/run.*/build-manifest.json; do
+  [[ -f "$manifest" ]] || continue
+  candidate_commit="$(python3 - "$manifest" "$suite" <<'PY'
+import json
+import re
+import sys
+try:
+    with open(sys.argv[1], encoding="utf-8") as stream:
+        m = json.load(stream)
+    sha = m.get("os_commit", "")
+    if (m.get("release_channel") != sys.argv[2] or
+        not m.get("auto_versioned") or
+        not isinstance(sha, str) or
+        not re.fullmatch(r"[0-9a-f]{40}", sha)):
+        sys.exit(1)
+    print(sha)
+except (OSError, ValueError):
+    sys.exit(1)
+PY
+  )" || continue
+  git -C "$checkout" merge-base --is-ancestor "$candidate_commit" "$sha" ||
+    continue
+  changed="$(git -C "$checkout" diff --name-only "$candidate_commit" "$sha")"
+  if [[ -n "$changed" && "$changed" != "buildserver/publish-debs.sh" ]]; then
+    continue
+  fi
+  run="${manifest%/build-manifest.json}"
+  echo "Resuming already built candidate: $run"
+  bash "$checkout/buildserver/publish-debs.sh" "$branch" "$run"
+  save_published_manifest "$manifest"
+  echo "DONE: resumed $branch -> $suite from candidate $candidate_commit"
+  exit 0
+done
 log="$base/artifacts/logs/$branch-$(date -u +%Y%m%dT%H%M%SZ)-${sha:0:12}.log"
 echo "Building packages. Log: $log"
 # Keep a durable log of both stages. Pipefail preserves the build's exit code.
@@ -113,8 +155,5 @@ fi
 echo "Publishing $branch -> $suite ..."
 bash "$checkout/buildserver/publish-debs.sh" "$branch" "$run" 2>&1 | tee -a "$log"
 # Save a state cache only after the publisher has returned success.
-tmp="$(mktemp "$base/cache/.last-published-XXXXXXXX")"
-cp "$run/build-manifest.json" "$tmp"
-chmod 640 "$tmp"
-mv -f "$tmp" "$state"
+save_published_manifest "$run/build-manifest.json"
 echo "DONE: $branch -> $suite (Git $sha); log: $log"
