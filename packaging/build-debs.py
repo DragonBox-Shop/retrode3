@@ -287,7 +287,8 @@ def control_text(package, lock):
         "X-Retrode3-Core-Operations-ABI: " + str(lock["core_operations_abi"]),
         "Description: " + DESCRIPTIONS.get(
             package, "Retrode3 cartridge core " + package[len(CORE_PREFIX):]),
-        " Built from pinned source for offline development-device acceptance."
+        (" Built from pinned source for the Retrode3 " +
+         lock["release_channel"] + " package channel.")
     ]
     if package == "retrode3-core-runtime":
         lines.insert(6, "Provides: retrode3-core-abi-1")
