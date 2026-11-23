@@ -70,8 +70,16 @@ On the running development Retrode3, with its boot partition mounted:
     sha256sum "/root/retrode3-kernel-$KREL.tar.gz"
 
 The same checked procedure is available in capture-current-kernel.sh.
-Copy the resulting archive to the build host using SCP. No firmware
-flashing or changes to the existing boot partition are required.
+The Ingenic X1600 may load its SPL directly from raw sectors of the SD card,
+before the FAT partition. Also capture the first 1 MiB of the working card:
+
+    dd if=/dev/mmcblk0 of=/root/retrode3-sd-preboot-1MiB.bin bs=512 count=2048
+    sha256sum /root/retrode3-sd-preboot-1MiB.bin
+
+The same read-only procedure is in capture-sd-preboot.sh. Copy **both**
+files to the build host using SCP. Do not commit the raw preboot dump to
+Git or upload it as a public CI artifact, as it may include board-specific
+bootloader data. No firmware flashing or writes to the existing SD occur.
 
 On a Linux builder with Python 3, GNU tar, util-linux fdisk/sfdisk,
 mtools, dosfstools, e2fsprogs, xz and coreutils:
@@ -80,18 +88,24 @@ mtools, dosfstools, e2fsprogs, xz and coreutils:
       --rootfs /path/to/retrode3-bookworm-mipsel-rootfs.tar.xz \
       --kernel-bundle /path/to/retrode3-kernel-7.3.0-rc5-letux-mips-retrode3+.tar.gz \
       --kernel-release '7.3.0-rc5-letux-mips-retrode3+' \
+      --sd-preboot /path/to/retrode3-sd-preboot-1MiB.bin \
       --ssh-authorized-key /home/user/.ssh/id_ed25519.pub \
       --output /path/to/retrode3-bookworm-test.img.xz
 
 The tool verifies the U-Boot uImage magic and MIPS architecture, DTB
-header, matching modules.dep, SysV/MIPSEL rootfs and both filesystem
-images. It creates an MBR partitioned regular file with 128 MiB FAT32
-boot and 1 GiB ext4 root, aligned at 1 MiB. The image is deliberately
-labelled FIRST_BOOT_TEST_ONLY. It is **not** a complete consumer image.
+header, matching modules.dep, SysV/MIPSEL rootfs, original MBR
+signature and both filesystem images. It preserves raw SD bootstrap
+bytes 0..445 and sectors 1..2047, changing only the four MBR partition
+entries. It creates a regular-file MBR image with 128 MiB FAT32 boot
+and 1 GiB ext4 root, aligned at 1 MiB. The image is labelled
+FIRST_BOOT_TEST_ONLY. It is **not** a complete consumer image.
 
 **The current boot sequence has not yet been confirmed on the new
 SD card.** The existing bootargs.scr is a generic Letux/Beagle-era
 script and may not be the script used to boot this specific board.
+The raw preboot backup covers the first 1 MiB only; if the original
+loader uses additional raw sectors, the source image must be inspected
+before claiming the candidate can boot.
 Before claiming a successful boot, verify actual U-Boot search paths
 and device-tree choice on the physical device. Without the optional --ssh-authorized-key argument, the test image
 provides only a serial ttyS2 console. With a valid public SSH key, it
