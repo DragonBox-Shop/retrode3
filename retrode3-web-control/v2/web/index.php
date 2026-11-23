@@ -63,13 +63,39 @@ header("Content-Security-Policy: default-src 'self'; img-src 'self'; style-src '
   </div>
 </div>
 <button id="read" class="btn primary" data-i18n="start_read">Read ROM</button>
-<div id="job-panel" class="job-panel" hidden><div class="progress-line"><strong id="job-label"></strong><span id="job-percent"></span></div><div class="progress"><div id="job-fill"></div></div><p id="job-detail" class="muted small"></p><p id="job-result-details" class="muted small" aria-live="polite"></p><button id="cancel" class="btn danger" data-i18n="cancel">Cancel</button></div>
+<div id="reader-progress-anchor"><div id="job-panel" class="job-panel" hidden><div class="progress-line"><strong id="job-label"></strong><span id="job-percent"></span></div><div class="progress"><div id="job-fill"></div></div><p id="job-detail" class="muted small"></p><p id="job-result-details" class="muted small" aria-live="polite"></p><button id="cancel" class="btn danger" data-i18n="cancel">Cancel</button></div></div>
 </div></div>
 </section>
 <section id="files" class="page"><p class="eyebrow" data-i18n="shared_storage">SHARED STORAGE</p><h1 data-i18n="files_title">Your game library</h1><p class="muted" data-i18n="files_desc">Browse, rename, move, download or delete ROM files in shared storage.</p>
 <div class="panel"><div class="file-head"><div id="breadcrumb" class="breadcrumb"></div><div class="actions"><button id="new-folder" class="btn secondary" data-i18n="new_folder">New folder</button><button id="refresh-files" class="btn secondary" data-i18n="refresh">Refresh</button></div></div>
 <div class="file-table-wrap"><table class="file-table"><thead><tr><th data-i18n="name">Name</th><th data-i18n="size">Size</th><th data-i18n="modified">Modified</th><th data-i18n="actions">Actions</th></tr></thead><tbody id="file-rows"></tbody></table></div></div></section>
-<section id="writer" class="page"><p class="eyebrow" data-i18n="future">FUTURE FEATURE</p><h1 data-i18n="writer_title">Write a cartridge</h1><div class="panel empty"><span class="big-icon">↗</span><h2 data-i18n="writer_unavailable">Writing isn't available yet</h2><p class="muted" data-i18n="writer_desc">This area is reserved for future flash and save operations, with explicit safety checks.</p></div></section>
+<section id="writer" class="page">
+<p class="eyebrow" data-i18n="writer_lab">EXPERIMENTAL FLASH TOOL</p>
+<h1 data-i18n="writer_title">Write a cartridge</h1>
+<p class="muted" data-i18n="writer_desc_live">Explicit Flash detection, sector erasure, programming and complete byte-for-byte verification.</p>
+<div class="two-col">
+<div class="panel">
+<h2 data-i18n="writer_target">Flash cartridge</h2>
+<label for="writer-system" data-i18n="writer_core">Flash-capable reader</label>
+<select id="writer-system"><option value="">—</option></select>
+<p class="muted small" id="writer-slot-status" role="status"></p>
+<button id="writer-detect" type="button" class="btn secondary" data-i18n="writer_detect">Detect Flash</button>
+<p id="writer-flash-status" class="muted small" role="status"></p>
+</div>
+<div class="panel">
+<h2 data-i18n="writer_rom">ROM file</h2>
+<label for="writer-file" data-i18n="writer_file">Select file from shared ROMs</label>
+<select id="writer-file"><option value="">—</option></select>
+<button id="writer-refresh-files" type="button" class="btn secondary" data-i18n="refresh">Refresh</button>
+<p class="muted small" data-i18n="writer_warning">Writing erases existing sectors on the cartridge. Use a backed-up test cartridge.</p>
+<div class="actions">
+<button id="writer-write" type="button" class="btn danger" data-i18n="writer_write">Erase + write + verify</button>
+<button id="writer-verify" type="button" class="btn secondary" data-i18n="writer_verify">Verify only</button>
+</div>
+</div>
+</div>
+<div id="writer-progress-anchor"></div>
+</section>
 <section id="settings" class="page"><p class="eyebrow" data-i18n="device">DEVICE</p><h1 data-i18n="settings_title">General settings</h1><div class="two-col"><div class="panel"><h2 data-i18n="wifi">Wi-Fi connection</h2><div class="keyval"><span data-i18n="wifi_status">Status</span><strong id="wifi-status">…</strong></div><div class="keyval"><span data-i18n="ip_address">IP address</span><strong id="wifi-ip">…</strong></div>
 <div class="keyval"><span data-i18n="wifi_interface">Wireless interface</span><strong id="wifi-interface">…</strong></div><p id="wifi-diagnostic" class="muted small" role="status"></p>
 <div class="actions"><button id="scan-wifi" class="btn secondary" data-i18n="scan">Scan networks</button><button id="disconnect-wifi" class="btn danger" data-i18n="disconnect">Disconnect</button></div><div id="wifi-networks"></div>
