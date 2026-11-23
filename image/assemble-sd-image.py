@@ -205,10 +205,9 @@ def compose(args):
              "-d", str(root), str(rootfs))
         call("e2fsck", "-fn", str(rootfs))
         call("truncate", "-s", str(TOTAL_SECTORS * SECTOR_SIZE), str(disk))
-        # X1600 may boot its SPL from the raw SD sectors, not the FAT files.
-        # Preserve those bytes before writing the new MBR partition table.
-        with disk.open("r+b") as stream:
-            stream.write(preboot)
+        # X1600 may boot its SPL from raw SD sectors, not FAT files.
+        # First generate a valid MBR on a blank image; then overlay the
+        # known-working raw bootstrap without reusing its old partition sizes.
         layout = (
             "label: dos\nunit: sectors\n"
             "start={}, size={}, type=c\n"
@@ -220,10 +219,10 @@ def compose(args):
             # Keep the original SPL/boot code and disk signature (bytes 0..445).
             # Only the four DOS partition entries and 0x55aa are replaced.
             stream.seek(0)
-            stream.write(preboot[:446] + new_mbr[446:512])
+            stream.write(preboot[:446] + new_mbr[446:512] + preboot[512:])
             stream.seek(SECTOR_SIZE)
             if stream.read(BOOT_START * SECTOR_SIZE - SECTOR_SIZE) != preboot[512:]:
-                fail("partition tool modified raw SD loader sectors")
+                fail("raw SD bootstrap copy verification failed")
         # seek is in 1 MiB blocks, and both partitions are aligned.
         call("dd", "if=" + str(bootfs), "of=" + str(disk),
              "bs=1M", "seek=1", "conv=notrunc", "status=none")
