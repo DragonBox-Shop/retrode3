@@ -560,13 +560,26 @@
       " · " + humanSize(info.capacity_bytes) +
       " · " + info.sector_count + " " + t("progress_sectors") :
       t("writer_not_detected"));
-    var readyFile = Boolean(writerSourcePath) && !writerUploading;
+    var erase = $("writer-erase").checked;
+    var write = $("writer-program").checked;
+    var verify = $("writer-check").checked;
+    var passes = Number($("writer-verify-passes").value);
+    var validPasses = !verify || (Number.isInteger(passes) && passes >= 1 &&
+                                  passes <= 99);
+    var selected = erase || write || verify;
+    var sourceReady = Boolean(writerSourcePath) && !writerUploading;
+    var sourceRequired = write || verify;
+    $("writer-verify-passes").disabled = !verify || Boolean(activeJob);
     $("writer-detect").disabled = !flashSupports(reader, "probe_flash") ||
       Boolean(activeJob);
-    $("writer-write").disabled = !writerIdentified || !readyFile ||
-      !flashSupports(reader, "write_flash") || Boolean(activeJob);
-    $("writer-verify").disabled = !writerIdentified || !readyFile ||
-      !flashSupports(reader, "verify_flash") || Boolean(activeJob);
+    $("writer-start").disabled = !writerIdentified || !selected || !validPasses ||
+      (sourceRequired && !sourceReady) || writerUploading || Boolean(activeJob) ||
+      !flashSupports(reader, "flash_operation");
+    text($("writer-operation-hint"), !selected ? t("writer_choose_operation") :
+      !validPasses ? t("writer_bad_passes") :
+      sourceRequired && !sourceReady ? t("writer_upload_required") :
+      erase && !writerSourcePath ? t("writer_erase_all_hint") :
+      !verify ? t("writer_not_verified_hint") : "");
   }
   function uploadWriterFile() {
     var reader = flashReader();
@@ -615,12 +628,28 @@
   function startFlashJob(action) {
     var reader = flashReader();
     if (!reader || !flashSupports(reader, action) || activeJob) return;
-    if (action !== "probe_flash" &&
-        (!writerIdentified || !writerSourcePath || writerUploading))
-      return notify(t("writer_detect_first"));
     var payload = {system: reader.id, command: action};
-    if (action !== "probe_flash") payload.source = writerSourcePath;
-    if (action === "probe_flash") writerIdentified = null;
+    if (action === "probe_flash") {
+      writerIdentified = null;
+    } else if (action === "flash_operation") {
+      var erase = Boolean($("writer-erase").checked);
+      var write = Boolean($("writer-program").checked);
+      var verify = Boolean($("writer-check").checked);
+      var passes = verify ? Number($("writer-verify-passes").value) : 0;
+      if (!writerIdentified || !(erase || write || verify) ||
+          (verify && (!Number.isInteger(passes) || passes < 1 || passes > 99)) ||
+          ((write || verify) && !writerSourcePath) || writerUploading) {
+        renderWriterState();
+        return;
+      }
+      payload.erase = erase;
+      payload.write = write;
+      payload.verify = verify;
+      payload.verify_passes = passes;
+      // Erase alone with no ROM erases the entire chip. If a ROM was
+      // uploaded, erase just the sectors covering its length.
+      if (writerSourcePath) payload.source = writerSourcePath;
+    } else return;
     renderWriterState();
     api("/api/jobs", payload).then(function (job) {
       activeJob = job.id;
@@ -704,6 +733,12 @@
       detail = humanSize(progress.bytes_done) + " / " +
         humanSize(progress.bytes_total);
     }
+    if (progress.phase === "verify" &&
+        Number.isInteger(progress.verify_pass) &&
+        Number.isInteger(progress.verify_passes) &&
+        progress.verify_passes > 1)
+      detail += " · " + t("writer_verify_pass") + " " +
+        progress.verify_pass + "/" + progress.verify_passes;
     text($("job-detail"), detail);
     var result = job.command === "read_rom" && job.status === "done" && job.result || null;
     var identity = result && result.identity || {};
@@ -716,10 +751,15 @@
       }).join(" · ") : "";
     var verifyText = verification.status ?
       t("verification_" + verification.status) : "";
-    if ((job.command === "write_flash" || job.command === "verify_flash") &&
+    if ((job.command === "write_flash" || job.command === "verify_flash" ||
+         job.command === "flash_operation") &&
         job.status === "done" && job.result && job.result.flash_verification) {
-      text($("job-result-details"), t("writer_verified") + ": " +
-        humanSize(job.result.flash_verification.bytes_compared));
+      var flashResult = job.result.flash_verification;
+      text($("job-result-details"), flashResult.verified ?
+        t("writer_verified") + ": " +
+          humanSize(flashResult.bytes_compared) + " (" +
+          flashResult.passes_completed + " " + t("writer_verify_passes_label") + ")" :
+        t("writer_finished_unverified"));
     } else text($("job-result-details"), result ?
       (title ? title + " · " : "") +
       (result.layout_id ? result.layout_id + " · " : "") +
@@ -744,8 +784,12 @@
           data: job.result || {}};
         renderWriterState();
         notify(t("writer_detected"));
-      } else if (job.command === "write_flash" || job.command === "verify_flash") {
-        notify(t("writer_verified"));
+      } else if (job.command === "write_flash" ||
+                 job.command === "verify_flash" ||
+                 job.command === "flash_operation") {
+        notify(job.result && job.result.flash_verification &&
+          job.result.flash_verification.verified ?
+          t("writer_verified") : t("writer_finished_unverified"));
       } else {
         var verify = job.result && job.result.verification;
         notify(t("read_finished") + (verify && verify.status ?
@@ -967,8 +1011,11 @@
     });
     $("writer-file").addEventListener("change", uploadWriterFile);
     $("writer-detect").addEventListener("click", function () { startFlashJob("probe_flash"); });
-    $("writer-write").addEventListener("click", function () { startFlashJob("write_flash"); });
-    $("writer-verify").addEventListener("click", function () { startFlashJob("verify_flash"); });
+    $("writer-start").addEventListener("click", function () { startFlashJob("flash_operation"); });
+    ["writer-erase", "writer-program", "writer-check", "writer-verify-passes"].forEach(function (id) {
+      $(id).addEventListener("change", renderWriterState);
+      $(id).addEventListener("input", renderWriterState);
+    });
     $("cancel").addEventListener("click", function () {
       if (activeJob) api("/api/jobs/" + activeJob + "/cancel", {}).catch(fail);
     });
@@ -1008,7 +1055,7 @@
   function resumeJob() {
     api("/api/jobs/active").then(function (job) {
       if (!job.id || job.automatic) return;
-      if (["probe_flash", "write_flash", "verify_flash"].indexOf(job.command) !== -1) {
+      if (["probe_flash", "write_flash", "verify_flash", "flash_operation"].indexOf(job.command) !== -1) {
         showTab("writer");
         $("writer-system").value = job.system;
       }
