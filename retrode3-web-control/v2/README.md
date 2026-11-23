@@ -17,15 +17,23 @@ and the core's scoped hardware-voltage profiles.
 The customer workflow:
 
 1. Insert a Flash cartridge and select the supported core in Write Cart
-2. Detect Flash to determine manufacturer/device ID and CFI geometry
-3. Select a ROM on your computer with the native **Choose File** dialog.
-   The Web upload stores it in the logical `ROMs/<SYSTEM>/` directory
-   (max 4 MiB for the current EN29LV320CB, even number of bytes),
-   then passes only the uploaded file's library path to the shared CLI.
-   Existing files are not overwritten.
-4. Click Write (erase + program + automatic full byte-for-byte verify),
-   or click Verify only for a read-only comparison. The selected cartridge
-   must first pass the chip ID/CFI compatibility probe.
+2. Detect Flash to identify the manufacturer/device ID and CFI geometry
+3. Select and upload a ROM from the browser's native file requester
+4. Independently check **Erase**, **Write** and/or **Verify** (all three
+   are checked by default). Select 1..99 complete Verify passes and
+   press the **single Start button**.
+   - Erase alone with no uploaded image erases the entire chip.
+   - Erase with an uploaded image only erases overlapping sectors.
+   - Write alone programs an already erased chip.
+   - Verify alone reads and compares the existing chip contents.
+   - When Verify is unchecked, completion is explicitly `not_checked`,
+     never reported as `verified`.
+
+The kernel does *not* scan every word after each sector erase. It only
+polls the Flash's command-completion status. Full byte comparison takes
+place in the optional Verify phase **after all Write chunks**, repeating
+the entire image on each requested pass. Progress counts real sector
+erasures, programmed bytes and compared bytes, with a pass number.
 
 An **unrecognized or unsupported** chip will not be writable. The
 kernel/core check actual chip identity, power/slot and geometry on every
