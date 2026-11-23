@@ -1,0 +1,6 @@
+FROM debian:bookworm
+ENV DEBIAN_FRONTEND=noninteractive
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    git ca-certificates make python3 gcc g++ dpkg-dev file binutils \
+    gcc-mipsel-linux-gnu g++-mipsel-linux-gnu binutils-mipsel-linux-gnu \
+ && rm -rf /var/lib/apt/lists/*
