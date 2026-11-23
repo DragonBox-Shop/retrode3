@@ -36,7 +36,7 @@ test -r "$base/conf/distributions"
 test -d "$public"
 (cd "$run" && sha256sum --check --strict SHA256SUMS)
 # Verify the complete set before the FIRST reprepro import.
-python3 - "$run" "$suite" "$root" <<'PY'
+python3 - "$run" "$suite" "$root" "$public" <<'PY'
 import hashlib
 import json
 import pathlib
@@ -45,6 +45,7 @@ import subprocess
 import sys
 
 run, suite, root = pathlib.Path(sys.argv[1]), sys.argv[2], pathlib.Path(sys.argv[3])
+pool = pathlib.Path(sys.argv[4]) / "pool"
 manifest = json.loads((run / "build-manifest.json").read_text())
 lock = json.loads((root / "packaging/native-source-lock.json").read_text())
 if manifest.get("release_channel") != suite or lock.get("release_channel") != suite:
@@ -77,8 +78,18 @@ expected = {x["filename"]: x for x in records}
 if len(expected) != len(records) or set(expected) != {x.name for x in files}:
     sys.exit("error: manifest package file set differs from build output")
 for file in files:
-    if hashlib.sha256(file.read_bytes()).hexdigest() != expected[file.name]["sha256"]:
+    digest = hashlib.sha256(file.read_bytes()).hexdigest()
+    if digest != expected[file.name]["sha256"]:
         sys.exit("error: package hash differs from manifest: " + file.name)
+    # All suites share one pool: reject same-name/different-bytes conflicts
+    # for the WHOLE candidate set before importing its first package.
+    for existing in pool.rglob(file.name):
+        if existing.is_symlink() or not existing.is_file():
+            sys.exit("error: unsafe APT pool entry: " + str(existing))
+        if hashlib.sha256(existing.read_bytes()).hexdigest() != digest:
+            sys.exit("error: same package filename with different contents "
+                     "already exists in APT pool: " + str(existing) +
+                     "; bump Debian revision and rebuild")
     info = [
         subprocess.check_output(["dpkg-deb", "-f", str(file), field],
                                 text=True).strip()
