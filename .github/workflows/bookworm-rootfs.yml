@@ -29,7 +29,8 @@ jobs:
           set -eu
           bash -n image/build-bookworm-rootfs.sh
           sh -n image/capture-current-kernel.sh image/capture-sd-preboot.sh image/assets/retrode3-bringup-usb.init
-          python3 -m py_compile image/verify-rootfs.py image/manifest-rootfs.py image/assemble-sd-image.py
+          python3 -m py_compile image/verify-rootfs.py image/manifest-rootfs.py image/assemble-sd-image.py image/configure-apt-source.py
+          command -v gpg
           python3 -m unittest discover -s image/tests -p 'test_*.py' -v
 
   build-mipsel-base:
