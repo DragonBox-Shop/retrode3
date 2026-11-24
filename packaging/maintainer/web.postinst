@@ -42,17 +42,22 @@ case "${1:-}" in
             [ -e /etc/apache2/conf-enabled/retrode3-prefork.conf ] &&
                 enabled_before=1
             a2enconf retrode3-prefork
-            if ! apache2ctl configtest; then
-                if [ "$enabled_before" -eq 0 ]; then
-                    a2disconf retrode3-prefork || true
-                fi
-                echo "Apache configuration invalid; verify the prefork snippet" >&2
-                exit 1
-            fi
+            # A foreign-architecture image chroot deliberately has no
+            # running Apache. Validate/reload only on a live installation;
+            # runtime boot checks and CI verify required modules separately.
             if [ -x /etc/init.d/apache2 ] &&
                /etc/init.d/apache2 status >/dev/null 2>&1; then
+                if ! apache2ctl configtest; then
+                    if [ "$enabled_before" -eq 0 ]; then
+                        a2disconf retrode3-prefork || true
+                    fi
+                    echo "Apache configuration invalid; verify the prefork snippet" >&2
+                    exit 1
+                fi
                 # Do not interrupt ongoing connections with a hard restart.
                 invoke-rc.d apache2 reload || true
+            else
+                echo "Apache stopped (offline image): configtest deferred until start" >&2
             fi
         fi
         update-rc.d retrode3-web-v2 defaults
