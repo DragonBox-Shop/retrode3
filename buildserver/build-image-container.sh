@@ -68,7 +68,7 @@ kernel_make olddefconfig
 grep -qx 'CONFIG_MODVERSIONS=y' /work/kernel-build/.config || {
   echo "FULLCONFIG lost CONFIG_MODVERSIONS" >&2; exit 1;
 }
-krel="$(kernel_make -s kernelrelease | tail -n 1)"
+krel="$(kernel_make -s --no-print-directory kernelrelease | tail -n 1)"
 [[ "$krel" =~ ^[a-zA-Z0-9.+_-]+$ ]] || exit 1
 printf '%s\n' "$krel" > /work/kernel.release
 echo "Compiling full MIPS kernel, modules and Retrode3 2.9.5 DTB: $krel"
@@ -173,7 +173,9 @@ files=["kernel-bundle.tar.gz","retrode3-rootfs.tar.xz",
 manifest={
  "schema":1,"branch":branch,"apt_suite":suite,
  "os_commit":ossha,"kernel_commit":ksha,"kernel_release":krel,
+ "image_build_os_commit":open("/work/image-os-commit").read().strip(),
  "kernel_config_sha256":sha("/private/FULLCONFIG"),
+ "kernel_effective_config_sha256":sha("/work/kernel-build/.config"),
  "kernel_cross_compiler_sha256":sha("/toolchain/bin/mipsel-linux-gcc"),
  "apt_public_key_sha256":sha("/private/retrode3-archive.gpg"),
  "apt_public_fingerprint":open("/private/apt-fingerprint").read().strip(),
