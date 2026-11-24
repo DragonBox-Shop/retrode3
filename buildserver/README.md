@@ -102,6 +102,12 @@ To receive an optional email **via an already configured local
 build log is included in the alert. The script reports unavailable or
 failing mail delivery on stderr; the failure marker is still written.
 
+The publisher now runs an unattended signing preflight with the suite's
+configured `SignWith` fingerprint **before importing the first package**.
+If the GPG agent has no cached authorization, it fails quickly instead of
+starting a partial import. This check reduces the risk of a partial
+publication but cannot make multiple `reprepro includedeb` calls atomic.
+
 **Important:** A signing error such as `gpgme: Pinentry Timeout` during
 `reprepro includedeb` can leave some newly imported packages in the
 repository database while the signed index still represents an older
