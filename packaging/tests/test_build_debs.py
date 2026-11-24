@@ -62,7 +62,7 @@ class TestPackaging(unittest.TestCase):
             root = Path(tmp)
             stage = self.fixture_stage(root)
             native = pkg.verify_stage(stage, LAYOUT, check_symbols=False)
-            for name in tuple(native) + (pkg.WEB,):
+            for name in tuple(native) + pkg.BOOKWORM_ALL:
                 filename, built = pkg.build_one(root, name, LAYOUT, LOCK,
                                                 stage, 1795132800, native)
                 self.assertTrue(filename.endswith(".deb"))
@@ -82,6 +82,16 @@ class TestPackaging(unittest.TestCase):
                     self.assertIn("Architecture: all", info)
                     self.assertIn("/etc/apache2/conf-available/retrode3-prefork.conf",
                                   pkg.CONFFILES[pkg.WEB])
+                elif name == pkg.TOOLS:
+                    self.assertIn("./usr/local/bin/retrode3-admin", contents)
+                    self.assertIn("./usr/local/bin/retrode3-wlan", contents)
+                    self.assertIn("./etc/sudoers.d/retrode3", contents)
+                    self.assertIn("Architecture: all", info)
+                    self.assertNotIn("letux-config-etc", info)
+                    self.assertNotIn("ucon64", info)
+                elif name == pkg.UDEV:
+                    self.assertIn("./etc/udev/rules.d/70-retrode3-cartridge.rules", contents)
+                    self.assertIn("Architecture: all", info)
                 elif name == pkg.RUNTIME:
                     self.assertIn("Provides: retrode3-core-abi-1", info)
                     self.assertIn("./etc/init.d/retrode3-core-runtime", contents)
@@ -93,6 +103,24 @@ class TestPackaging(unittest.TestCase):
                                   core + ".so", contents)
                     self.assertIn("./usr/lib/retrode3/cores-available/" +
                                   core + ".core", contents)
+
+    def test_bookworm_dependencies_are_native_and_complete(self):
+        web = pkg.control_text(pkg.WEB, LOCK)
+        self.assertIn("apache2, libapache2-mod-php8.2", web)
+        self.assertIn("retrode3-tools (>= ", web)
+        self.assertIn("retrode3-udev-rules (>= ", web)
+        for obsolete in ("letux-httpd", "php5", "letux-config-etc"):
+            self.assertNotIn(obsolete, web)
+        self.assertEqual(pkg.package_arch(pkg.TOOLS), "all")
+        self.assertEqual(pkg.package_arch(pkg.UDEV), "all")
+        self.assertEqual(pkg.package_version(pkg.TOOLS, LOCK), LOCK["web_version"])
+        rules = (ROOT / "packaging/assets/70-retrode3-cartridge.rules").read_text()
+        self.assertIn("retrode3-reader", rules)
+        self.assertNotIn("systemctl", rules.replace("# Do not invoke systemctl", ""))
+        sudoers = (ROOT / "packaging/assets/retrode3-tools.sudoers").read_text()
+        self.assertNotIn("retrode3-admin", sudoers)
+        self.assertNotIn(" connect", sudoers)
+        self.assertNotIn(" disconnect", sudoers)
 
     def test_future_core_is_discovered_without_builder_changes(self):
         with tempfile.TemporaryDirectory() as tmp:
