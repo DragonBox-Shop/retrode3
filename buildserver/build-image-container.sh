@@ -40,7 +40,8 @@ records=d.get("packages")
 if not isinstance(records,list) or not records:
     sys.exit("No published packages")
 names={x["package"] for x in records}
-if len(names)!=len(records) or not {"retrode3-core-runtime","retrode3-web-control"}.issubset(names):
+if len(names)!=len(records) or not {"retrode3-core-runtime","retrode3-web-control",
+                                 "retrode3-tools","retrode3-udev-rules"}.issubset(names):
     sys.exit("Required Retrode3 packages missing from snapshot")
 for x in records:
     if not re.fullmatch(r"retrode3-[a-z0-9-]+", x["package"]):
@@ -118,7 +119,8 @@ import json
 d=json.load(open("/work/published-packages.json"))
 for rec in sorted(d["packages"],key=lambda x:x["package"]):
     name=rec["package"]
-    version=d["web_version"] if name=="retrode3-web-control" else d["native_version"]
+    version=d["web_version"] if name in ("retrode3-web-control", "retrode3-tools",
+                                     "retrode3-udev-rules") else d["native_version"]
     print(name+"="+version)
 PY
 )
