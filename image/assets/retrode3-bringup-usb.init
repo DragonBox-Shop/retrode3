@@ -5,28 +5,48 @@
 # Required-Stop:     $local_fs
 # Default-Start:     2
 # Default-Stop:      0 1 6
-# Short-Description: Test-card-only USB NCM and SSH-key access
+# Short-Description: Test-card-only USB NCM, ACM, DHCP and SSH-key access
 ### END INIT INFO
-# NOT FOR CUSTOMER IMAGES. Provisioned only with an explicit SSH public key.
+# NOT FOR CUSTOMER IMAGES. Enabled only with an explicit SSH public key.
 set -u
 
 G=/sys/kernel/config/usb_gadget/retrode3-bringup
-PID=/run/retrode3-bringup-ssh.pid
-ADDR=172.31.255.1/30
+SSH_PID=/run/retrode3-bringup-ssh.pid
+DHCP_PID=/run/retrode3-bringup-dhcp.pid
+DHCP_LEASES=/run/retrode3-bringup-dhcp.leases
+ADDR=172.31.255.1/29
+
+stop_pid() {
+    pidfile=$1
+    if [ -r "$pidfile" ]; then
+        read -r pid < "$pidfile"
+        case "$pid" in
+            *[!0-9]*|'') : ;;
+            *) kill "$pid" 2>/dev/null || : ;;
+        esac
+    fi
+    rm -f "$pidfile"
+}
 
 do_start() {
     [ -s /root/.ssh/authorized_keys ] || {
         echo "No SSH key provisioned; refusing test USB-SSH setup" >&2
         return 1
     }
+    [ ! -d "$G" ] || {
+        echo "Test gadget already initialized; refusing to replace it" >&2
+        return 1
+    }
+    [ -x /usr/sbin/dnsmasq ] || {
+        echo "Missing dnsmasq-base, cannot provide USB DHCP" >&2
+        return 1
+    }
     modprobe libcomposite 2>/dev/null || :
+    modprobe usb_f_ncm 2>/dev/null || :
+    modprobe usb_f_acm 2>/dev/null || :
     mkdir -p /sys/kernel/config /etc/dropbear || return 1
     grep -q ' /sys/kernel/config configfs ' /proc/mounts ||
         mount -t configfs configfs /sys/kernel/config || return 1
-    [ ! -d "$G" ] || {
-        echo "Test gadget already initialized" >&2
-        return 1
-    }
     mkdir "$G" || return 1
     echo 0x1d6b > "$G/idVendor"
     echo 0x0104 > "$G/idProduct"
@@ -38,12 +58,14 @@ do_start() {
     echo Retrode3 > "$G/strings/0x409/manufacturer"
     echo "Bookworm test card" > "$G/strings/0x409/product"
     echo "RETRODE3-TEST-ONLY" > "$G/strings/0x409/serialnumber"
-    echo "USB NCM test" > "$G/configs/c.1/strings/0x409/configuration"
+    echo "USB NCM + ACM test" > "$G/configs/c.1/strings/0x409/configuration"
     echo 250 > "$G/configs/c.1/MaxPower"
     mkdir "$G/functions/ncm.usb0" || return 1
     echo 46:10:3a:b3:af:d9 > "$G/functions/ncm.usb0/dev_addr"
     echo 32:70:05:18:ff:78 > "$G/functions/ncm.usb0/host_addr"
-    ln -s "$G/functions/ncm.usb0" "$G/configs/c.1/ncm.usb0"
+    mkdir "$G/functions/acm.GS0" || return 1
+    ln -s "$G/functions/ncm.usb0" "$G/configs/c.1/ncm.usb0" || return 1
+    ln -s "$G/functions/acm.GS0" "$G/configs/c.1/acm.GS0" || return 1
     set -- /sys/class/udc/*
     [ -e "$1" ] || { echo "No USB device controller" >&2; return 1; }
     printf '%s\n' "${1##*/}" > "$G/UDC" || return 1
@@ -55,28 +77,37 @@ do_start() {
     [ -d /sys/class/net/usb0 ] || { echo "No usb0 interface" >&2; return 1; }
     ip -4 addr replace "$ADDR" dev usb0 || return 1
     ip link set usb0 up || return 1
-    # No password authentication. Only the explicitly provisioned public key.
-    /usr/sbin/dropbear -R -s -p 172.31.255.1:22 -P "$PID" || return 1
-    echo "Test access: SSH key only, 172.31.255.1"
+
+    # No DNS service, router or DNS option. Never hand out an internet default
+    # route through the Retrode; DHCP is restricted to the USB gadget link.
+    /usr/sbin/dnsmasq --conf-file=/dev/null --port=0 --interface=usb0 \
+        --bind-interfaces --dhcp-authoritative \
+        --dhcp-range=172.31.255.2,172.31.255.6,255.255.255.248,12h \
+        --dhcp-option=3 --dhcp-option=6 \
+        --dhcp-leasefile="$DHCP_LEASES" --pid-file="$DHCP_PID" || return 1
+    [ -s "$DHCP_PID" ] || { echo "DHCP daemon did not start" >&2; return 1; }
+    # Password login is disabled. SSH host keys are generated at first boot.
+    /usr/sbin/dropbear -R -s -p 172.31.255.1:22 -P "$SSH_PID" || return 1
+    echo "Test access: USB DHCP, SSH key-only at 172.31.255.1, USB ACM ttyGS0"
 }
 
 do_stop() {
-    if [ -r "$PID" ]; then
-        read -r pid < "$PID"
-        case "$pid" in
-            *[!0-9]*|'') : ;;
-            *) kill "$pid" 2>/dev/null || : ;;
-        esac
-    fi
-    rm -f "$PID"
+    stop_pid "$SSH_PID"
+    stop_pid "$DHCP_PID"
+    rm -f "$DHCP_LEASES"
     if [ -w "$G/UDC" ]; then
         printf '\n' > "$G/UDC"
     fi
+    rm -f "$G/configs/c.1/ncm.usb0" "$G/configs/c.1/acm.GS0"
+    rmdir "$G/functions/acm.GS0" "$G/functions/ncm.usb0" 2>/dev/null || :
+    rmdir "$G/configs/c.1/strings/0x409" "$G/configs/c.1" 2>/dev/null || :
+    rmdir "$G/strings/0x409" "$G" 2>/dev/null || :
 }
+
 case "${1:-}" in
-    start) do_start ;;
+    start) do_start || { do_stop; exit 1; } ;;
     stop) do_stop ;;
-    restart|force-reload) do_stop; do_start ;;
-    status) [ -r "$PID" ] && kill -0 "$(cat "$PID")" 2>/dev/null ;;
+    restart|force-reload) do_stop; do_start || { do_stop; exit 1; } ;;
+    status) [ -r "$SSH_PID" ] && kill -0 "$(cat "$SSH_PID")" 2>/dev/null ;;
     *) echo "Usage: $0 start|stop|restart|status" >&2; exit 2 ;;
 esac
