@@ -6,8 +6,10 @@ import struct
 from pathlib import Path
 import tarfile
 import tempfile
+import sys
 import unittest
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 script = Path(__file__).resolve().parents[1] / "assemble-sd-image.py"
 spec = importlib.util.spec_from_file_location("retrode3_image_assembler", script)
 module = importlib.util.module_from_spec(spec)
@@ -99,6 +101,10 @@ class ImageSafety(unittest.TestCase):
         data = bytearray(1024 * 1024)
         data[:4] = b"SPL!"
         data[510:512] = bytes.fromhex("55aa")
+        data[450] = 0x0c
+        struct.pack_into("<II", data, 454, 6144, 209408)
+        data[466] = 0x83
+        struct.pack_into("<II", data, 470, 215552, 59190751)
         raw.write_bytes(data)
         self.assertEqual(module.check_preboot(raw)[:4], b"SPL!")
         data[510:512] = b"NO"
