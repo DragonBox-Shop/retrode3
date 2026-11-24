@@ -42,7 +42,8 @@ case "$1" in
         # hardware profile. Grant ONLY these root-owned, kernel-validated
         # control attributes to the same cartridge reader group as /dev.
         # The browser never receives raw paths or write operations.
-        for CONTROL in /sys/module/retrode3/parameters/legacy_bridge_hiz_test \
+        for CONTROL in /sys/module/retrode3/parameters/gbx_md_test \
+                       /sys/module/retrode3/parameters/legacy_bridge_hiz_test \
                        /sys/module/retrode3/parameters/sms_mapper_write_test \
                        /sys/class/retrode3/slot-*/vcc; do
             [ -e "$CONTROL" ] || continue

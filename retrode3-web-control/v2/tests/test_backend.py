@@ -429,6 +429,25 @@ for line in sys.stdin:
         self.assertIsNone(MODULE.reader_capability("snes", {
             "available": True, "cores": [custom]}))
 
+
+    def test_rom_storage_uses_console_not_adapter_route(self):
+        for core_id, slot, expected_folder, expected_extension in (
+                ("gba-md", "md", "GBA", "gba"),
+                ("gba-snes", "snes", "GBA", "gba"),
+                ("md", "md", "MD", "md"),
+                ("sms-md", "md", "SMS", "bin"),
+                ("supergb-adapter", "snes", "SUPERGB-ADAPTER", "bin")):
+            core = {"id": core_id, "name": "Test core",
+                    "version": "1.0", "slot": slot, "installed": True,
+                    "enabled": True, "status": "ready", "usable": True,
+                    "actions": ["probe", "read_rom"]}
+            result = MODULE.reader_capability(core_id, {
+                "available": True, "cores": [core]})
+            self.assertEqual(result["folder"], expected_folder)
+            self.assertEqual(result["extension"], expected_extension)
+            self.assertEqual(result["id"], core_id)
+            self.assertEqual(result["slot"], slot)
+
     def test_autodetect_matches_core_slot_not_core_id(self):
         old_snapshot, old_capabilities = MODULE.slot_snapshot, MODULE.capability_probe
         slot = {"id": "md", "name": "Mega Drive", "status": "occupied"}
@@ -651,6 +670,57 @@ for line in sys.stdin:
             watcher.tick(now=5.5)
             self.assertEqual(watcher.snapshot()["slots"][0]["detection"]["state"],
                              "choose_reader")
+        finally:
+            MODULE.slot_snapshot = old_snapshot
+            MODULE.capability_probe = old_capabilities
+
+    def test_sense_independent_probe_detects_and_rechecks_header(self):
+        old_snapshot, old_capabilities = MODULE.slot_snapshot, MODULE.capability_probe
+        class FakeJob(object):
+            result = {"event": "slot_probe_result", "slot": "md",
+                      "detection": "detected", "core": "adapter",
+                      "probe_result": {"event": "probe_result", "slot": "md",
+                                       "system": "adapter", "title": "TEST CART"}}
+            def snapshot(self):
+                return {"status": "done", "result": self.result}
+        class FakeManager(object):
+            def __init__(self):
+                self.lock = MODULE.threading.RLock()
+                self.active = None
+                self.calls = []
+                self.job = FakeJob()
+            def submit_slot_probe(self, slot_id):
+                self.calls.append(slot_id)
+                return {"id": "job"}
+            def get(self, job_id):
+                return self.job
+        manager = FakeManager()
+        watcher = MODULE.AutomaticDetection(manager)
+        try:
+            MODULE.slot_snapshot = lambda: {"slots": [{
+                "id": "md", "name": "Mega Drive", "status": "empty"}]}
+            MODULE.capability_probe = lambda: {"systems": [{
+                "id": "adapter", "slot": "md", "available": True,
+                "probe_without_sense": True,
+                "capabilities": {"commands": ["probe"]}}]}
+            watcher.tick(now=1.0)
+            watcher.tick(now=3.0)
+            self.assertEqual(manager.calls, [])
+            watcher.tick(now=4.0)
+            watcher.tick(now=4.1)
+            self.assertEqual(manager.calls, ["md"])
+            slot = watcher.snapshot()["slots"][0]
+            self.assertEqual(slot["status"], "occupied")
+            self.assertEqual(slot["sense_status"], "empty")
+            self.assertEqual(slot["detection"]["core_id"], "adapter")
+            manager.job.result = {"event": "slot_probe_result", "slot": "md",
+                                  "detection": "empty", "core": None}
+            watcher.tick(now=8.0)
+            self.assertEqual(manager.calls, ["md"])
+            watcher.tick(now=9.2)
+            watcher.tick(now=9.3)
+            self.assertEqual(manager.calls, ["md", "md"])
+            self.assertEqual(watcher.snapshot()["slots"][0]["status"], "empty")
         finally:
             MODULE.slot_snapshot = old_snapshot
             MODULE.capability_probe = old_capabilities
