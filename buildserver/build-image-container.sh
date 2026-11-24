@@ -135,6 +135,13 @@ for spec in "${packages[@]}"; do
     echo "Wrong installed package version for $pkg" >&2; exit 1;
   }
 done
+# Core packages intentionally never auto-enable on upgrade. For an entirely
+# fresh SD image, explicitly choose the three native safe default readers via
+# the approved privileged offline helper. Adapter cores remain disabled.
+for core in snes md nes; do
+  chroot /work/rootfs /usr/sbin/retrode3-corectl enable "$core"
+  test -L "/work/rootfs/etc/retrode3/cores-enabled/$core.so"
+done
 # Final image contains neither QEMU, build-only service policy nor DNS leak.
 rm -f /work/rootfs/usr/bin/qemu-mipsel-static \
       /work/rootfs/usr/sbin/policy-rc.d /work/rootfs/etc/resolv.conf
@@ -183,6 +190,7 @@ manifest={
  "donor_preboot_source":"private, SHA256-pinned temporary bootloader dump",
  "bootloader_source_built":False,
  "hardware_accepted":False,"customer_releasable":False,
+ "enabled_cores_initial":["snes","md","nes"],
  "package_snapshot":json.load(open("/work/published-packages.json")),
  "files":{name:sha(work/name) for name in files},
 }
