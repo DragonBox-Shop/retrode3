@@ -203,15 +203,27 @@ fi
 rm -rf "$sign_dir"
 trap - EXIT
 echo "Signing preflight OK for $suite; importing verified packages."
+# Stage every verified .deb in the reprepro database without exporting a
+# public index after each package. Preserve pool files referenced by the
+# still-public older index until the final export has succeeded.
 for deb in "$run"/*.deb; do
   pkg="$(dpkg-deb -f "$deb" Package)"
   version="$(dpkg-deb -f "$deb" Version)"
   if reprepro --basedir "$base" list "$suite" |
       grep -Fqx "$suite|main|mipsel: $pkg $version"; then
-    echo "Already published, verified in preflight: $pkg $version"
+    echo "Already indexed in APT database: $pkg $version"
     continue
   fi
-  reprepro --basedir "$base" --outdir "$public" includedeb "$suite" "$deb"
+  reprepro --basedir "$base" --outdir "$public" \
+    --export=never --keepunreferencedfiles \
+    includedeb "$suite" "$deb"
 done
+
+# A previous run may have staged some or all of the same packages but
+# failed to export. ALWAYS export, even when no includedeb was necessary.
+# The GPG preflight above ensures that a missing cached passphrase is
+# caught before any mutation. The final export is still not fully atomic.
+echo "Exporting and signing the complete $suite package index once..."
+reprepro --basedir "$base" --outdir "$public" export "$suite"
 reprepro --basedir "$base" --outdir "$public" list "$suite"
 echo "Published to APT $suite. Run: $run"
