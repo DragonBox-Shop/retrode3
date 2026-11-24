@@ -11,7 +11,7 @@ esac
 base=/srv/www/vhosts/retrode.com/buildserver
 vhost=/srv/www/vhosts/retrode.com
 checkout="$base/src/$checkout_name"
-private="$base/private/image"
+private="$base/private/image/$branch"
 images="$base/artifacts/images/$branch"
 [[ "$(id -un)" == retrode ]] || {
   echo "Run as the unprivileged retrode user" >&2; exit 1;
