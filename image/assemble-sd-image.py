@@ -14,6 +14,8 @@ import sys
 import tarfile
 import tempfile
 
+from preboot_layout import prepare_preboot
+
 SECTOR_SIZE = 512
 BOOT_START = 2048
 BOOT_SECTORS = 262144        # 128 MiB
@@ -77,16 +79,11 @@ def check_archive(path, bundle=False, release=""):
                 fail("boot bundle missing files: " + ", ".join(sorted(required - names)))
 
 
-def check_preboot(path):
+def check_preboot(path, migrate_stale_gpt=False):
     """Retain the board's raw SD loader, but not its old partition table."""
     if not path.is_file() or path.stat().st_size != BOOT_START * SECTOR_SIZE:
         fail("expected exactly the first 1 MiB of the working Retrode3 SD")
-    data = path.read_bytes()
-    if data[510:512] != b"\x55\xaa":
-        fail("working SD does not have a DOS partition-table signature")
-    if data[512:520] == b"EFI PART":
-        fail("working SD uses GPT; safe loader migration requires another layout")
-    return data
+    return prepare_preboot(path.read_bytes(), migrate_stale_gpt=migrate_stale_gpt)[0]
 
 
 def verify_boot_files(bundle, release):
@@ -147,7 +144,7 @@ def compose(args):
         fail("run inside a disposable build container/runner as root to preserve filesystem ownership")
     source = args.rootfs.resolve(strict=True)
     kernel = args.kernel_bundle.resolve(strict=True)
-    preboot = check_preboot(args.sd_preboot.resolve(strict=True))
+    preboot = check_preboot(args.sd_preboot.resolve(strict=True), args.migrate_stale_gpt)
     output = args.output.absolute()
     if output.suffix != ".xz" or not output.name.endswith(".img.xz"):
         fail("output must have .img.xz extension")
@@ -174,7 +171,12 @@ def compose(args):
         boot.mkdir()
         call("tar", "--numeric-owner", "-xJf", str(source), "-C", str(root))
         # Verify the stage *before* injecting a specific kernel.
-        call(sys.executable, str(Path(__file__).with_name("verify-rootfs.py")), str(root))
+        verify_args = ([sys.executable, str(Path(__file__).with_name("verify-rootfs.py"))] +
+                       (["--with-retrode3"] if args.with_retrode3 else []) + [str(root)])
+        call(*verify_args)
+        # The proven SysV numeric ordering must also apply when the base
+        # archive predates the first successful Debian 12 hardware boot.
+        (root / "etc/init.d/.legacy-bootordering").touch(exist_ok=True)
         call("tar", "--numeric-owner", "-xzf", str(kernel), "-C", str(boot))
         verify_boot_files(boot, args.kernel_release)
         rootmodules = root / "lib/modules"
@@ -197,6 +199,7 @@ def compose(args):
             ("boot/uImage", "::/uImage"),
             ("boot/bootargs.scr", "::/bootargs.scr"),
             ("boot/ingenic/" + DTB_NAME, "::/ingenic/" + DTB_NAME),
+            ("boot/ingenic/" + DTB_NAME, "::/ingenic/lx16.dtb"),
         ):
             call("mcopy", "-i", str(bootfs), str(boot / src), dest)
         call("fsck.fat", "-n", str(bootfs))
@@ -234,7 +237,8 @@ def compose(args):
                            stdout=stream, check=True)
         manifest = {
             "schema": 1,
-            "status": "FIRST_BOOT_TEST_ONLY",
+            "status": ("FULL_IMAGE_HARDWARE_UNTESTED" if args.with_retrode3
+                       else "FIRST_BOOT_TEST_ONLY"),
             "hardware_accepted": False,
             "customer_releasable": False,
             "architecture": "mipsel",
@@ -247,7 +251,8 @@ def compose(args):
             "rootfs_archive_sha256": digest(source),
             "kernel_bundle_sha256": digest(kernel),
             "sd_preboot_sha256": digest(args.sd_preboot),
-            "raw_loader_source": "first 1 MiB of working development SD; MBR partitions replaced",
+            "legacy_gpt_migrated": bool(args.migrate_stale_gpt),
+            "raw_loader_source": "temporary reviewed 1 MiB donor; no source-built U-Boot yet",
             "image_sha256": digest(compressed),
             "partition_table": "dos",
             "sector_size": SECTOR_SIZE,
@@ -282,6 +287,10 @@ def main():
     parser.add_argument("--sd-preboot", type=Path, required=True,
                         help="read-only 1MiB snapshot of original boot SD, required to preserve X1600 SPL")
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--with-retrode3", action="store_true",
+                        help="assemble a rootfs with Retrode3 packages already installed")
+    parser.add_argument("--migrate-stale-gpt", action="store_true",
+                        help="remove validated obsolete primary GPT header/table from copied preboot area")
     parser.add_argument("--ssh-authorized-key", type=Path,
                         help="public key to enable SSH over USB NCM in FIRST-BOOT TEST IMAGE ONLY")
     args = parser.parse_args()

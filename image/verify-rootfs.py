@@ -31,7 +31,7 @@ def package_db(root):
     return packages
 
 
-def verify(root):
+def verify(root, with_retrode3=False):
     if not root.is_dir():
         raise ValueError("missing rootfs")
     version = (root / "etc/debian_version").read_text(encoding="utf-8").strip()
@@ -42,8 +42,12 @@ def verify(root):
         if name not in packages:
             raise ValueError("missing essential package: " + name)
     for name in FORBIDDEN:
-        if name in packages:
+        if name in packages and (name != "retrode3-web-control" or not with_retrode3):
             raise ValueError("forbidden base package: " + name)
+    if with_retrode3:
+        for name in ("retrode3-core-runtime", "retrode3-web-control"):
+            if name not in packages:
+                raise ValueError("missing Retrode3 image package: " + name)
     for name, record in packages.items():
         if record.get("Architecture") not in ("mipsel", "all"):
             raise ValueError("unexpected package architecture: " + name)
@@ -79,8 +83,10 @@ def verify(root):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("root", type=Path)
+    parser.add_argument("--with-retrode3", action="store_true",
+                        help="accept a fully populated Retrode3 release rootfs")
     args = parser.parse_args()
-    packages = verify(args.root)
+    packages = verify(args.root, with_retrode3=args.with_retrode3)
     print("Verified Bookworm MIPSEL SysV base: {} installed packages".format(len(packages)))
 
 

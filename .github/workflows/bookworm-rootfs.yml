@@ -28,8 +28,12 @@ jobs:
         run: |
           set -eu
           bash -n image/build-bookworm-rootfs.sh
+          bash -n buildserver/run-image.sh buildserver/build-image-container.sh buildserver/install-launchers.sh
+          test -f buildserver/Containerfile.image
+          test -f image/assets/retrode3-bootargs.txt
           sh -n image/capture-current-kernel.sh image/capture-sd-preboot.sh image/assets/retrode3-bringup-usb.init
-          python3 -m py_compile image/verify-rootfs.py image/manifest-rootfs.py image/assemble-sd-image.py
+          python3 -m py_compile image/verify-rootfs.py image/manifest-rootfs.py image/assemble-sd-image.py image/configure-apt-source.py
+          command -v gpg
           python3 -m unittest discover -s image/tests -p 'test_*.py' -v
 
   build-mipsel-base:
@@ -87,6 +91,10 @@ jobs:
           preboot = bytearray(1024 * 1024)
           preboot[:4] = b"TEST"
           preboot[510:512] = bytes.fromhex("55aa")
+          preboot[450]=0x0c
+          struct.pack_into("<II",preboot,454,6144,209408)
+          preboot[466]=0x83
+          struct.pack_into("<II",preboot,470,215552,59190751)
           pathlib.Path("build/synthetic-sd-preboot.bin").write_bytes(preboot)
           PY
           sudo python3 image/assemble-sd-image.py \

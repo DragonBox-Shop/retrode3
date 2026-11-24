@@ -49,6 +49,19 @@ cat > "$root/etc/apt/apt.conf.d/99retrode3-minimal" <<'EOF'
 APT::Install-Recommends "false";
 APT::Install-Suggests "false";
 EOF
+# Signed Retrode3 APT source is opt-in for the image pipeline, never a
+# trustworthy-on-first-use download. All three inputs must be provided.
+if [[ -n "${RETRODE3_APT_PUBLIC_KEY:-}" || -n "${RETRODE3_APT_FINGERPRINT:-}" ||
+      -n "${RETRODE3_APT_SUITE:-}" ]]; then
+  [[ -f "${RETRODE3_APT_PUBLIC_KEY:-}" && -n "${RETRODE3_APT_FINGERPRINT:-}" &&
+      "${RETRODE3_APT_SUITE:-}" =~ ^(testing|stable)$ ]] || {
+    echo "Require RETRODE3_APT_PUBLIC_KEY, RETRODE3_APT_FINGERPRINT and testing|stable suite" >&2
+    exit 1
+  }
+  python3 "$(dirname "$0")/configure-apt-source.py" \
+    --rootfs "$root" --public-key "$RETRODE3_APT_PUBLIC_KEY" \
+    --fingerprint "$RETRODE3_APT_FINGERPRINT" --suite "$RETRODE3_APT_SUITE"
+fi
 # Never start services inside the foreign chroot.
 cat > "$root/usr/sbin/policy-rc.d" <<'EOF'
 #!/bin/sh
