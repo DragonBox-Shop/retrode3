@@ -25,6 +25,9 @@ CORE_DIRECTORY = "usr/lib/retrode3/cores-available"
 CORE_PREFIX = "retrode3-core-"
 CORE_ID = re.compile(r"^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$")
 WEB = "retrode3-web-control"
+TOOLS = "retrode3-tools"
+UDEV = "retrode3-udev-rules"
+BOOKWORM_ALL = (WEB, TOOLS, UDEV)
 # Fixed executable modes; every complete staged core pair is discovered at build time.
 MODES = {"usr/bin/retrode3-cli": 0o755,
          "usr/sbin/retrode3-corectl": 0o755}
@@ -42,6 +45,19 @@ WEB_FILES = (
     ("service/retrode3-web-v2.init", "etc/init.d/retrode3-web-v2", 0o755),
     ("manage-auth-on-retrode.sh", "usr/sbin/retrode3-web-v2-auth", 0o755),
 )
+TOOL_FILES = (
+    ("retrode3-tools/usr/local/bin/retrode3-admin",
+     "usr/local/bin/retrode3-admin", 0o755),
+    ("retrode3-tools/usr/local/bin/retrode3-wlan",
+     "usr/local/bin/retrode3-wlan", 0o755),
+    ("retrode3-tools/etc/sudoers.d/retrode3",
+     "etc/sudoers.d/retrode3", 0o440),
+)
+UDEV_FILES = (
+    ("packaging/assets/70-retrode3-cartridge.rules",
+     "etc/udev/rules.d/70-retrode3-cartridge.rules", 0o644),
+)
+
 WEB_EXTRA = (
     ("packaging/assets/retrode3-web-v2.start",
      "opt/retrode3-web-v2/start.sh", 0o755),
@@ -56,7 +72,9 @@ CONFFILES = {
     "retrode3-core-runtime": ("/etc/init.d/retrode3-core-runtime",),
     WEB: ("/etc/init.d/retrode3-web-v2", "/etc/default/retrode3-web-v2",
           "/etc/sudoers.d/retrode3-corectl",
-          "/etc/apache2/conf-available/retrode3-prefork.conf")
+          "/etc/apache2/conf-available/retrode3-prefork.conf"),
+    TOOLS: ("/etc/sudoers.d/retrode3",),
+    UDEV: ("/etc/udev/rules.d/70-retrode3-cartridge.rules",)
 }
 DESCRIPTIONS = {
     "retrode3-core-runtime":
@@ -64,7 +82,9 @@ DESCRIPTIONS = {
     "retrode3-core-snes": "Read-only SNES cartridge module for Retrode3",
     "retrode3-core-md": "Read-only Mega Drive cartridge module for Retrode3",
     "retrode3-core-nes": "NES NROM and MMC1 ROM reader module for Retrode3",
-    WEB: "Retrode3 Web Control v2 with Python backend and SysV service"
+    WEB: "Retrode3 Web Control v2 with Python backend and SysV service",
+    TOOLS: "Retrode3 legacy administrative and WLAN helper scripts",
+    UDEV: "Retrode3 cartridge node permissions for udev and SysV init"
 }
 
 
@@ -294,17 +314,32 @@ def maintainer_scripts(root, package):
         put(root, HERE / "maintainer" / name, "DEBIAN/" + target, 0o755)
 
 
+def package_version(package, lock):
+    return lock["web_version"] if package in BOOKWORM_ALL else lock["native_version"]
+
+
+def package_arch(package):
+    return "all" if package in BOOKWORM_ALL else "mipsel"
+
+
 def control_text(package, lock):
     native_version = lock["native_version"]
-    version = lock["web_version"] if package == WEB else native_version
-    arch = "all" if package == WEB else "mipsel"
+    web_version = lock["web_version"]
+    version = package_version(package, lock)
+    arch = package_arch(package)
     if package == "retrode3-core-runtime":
         deps = "libc6, libstdc++6, passwd, adduser, init-system-helpers"
     elif package == WEB:
         deps = ("retrode3-core-runtime (>= " + native_version + "), "
-                "retrode3-tools, retrode3-udev-rules, python3 (>= 3.4), "
-                "php5-cli | php-cli, php5 | php, letux-httpd, "
+                "retrode3-tools (>= " + web_version + "), "
+                "retrode3-udev-rules (>= " + web_version + "), "
+                "python3, php8.2-cli, apache2, libapache2-mod-php8.2, "
                 "sudo, passwd, adduser, init-system-helpers")
+    elif package == TOOLS:
+        deps = ("bash, sudo, iw, wireless-tools, net-tools, "
+                "wget, unzip")
+    elif package == UDEV:
+        deps = ("udev, retrode3-core-runtime (>= " + native_version + ")")
     else:
         deps = ("retrode3-core-runtime (>= " + native_version +
                 "), retrode3-core-abi-1, libc6, libstdc++6")
@@ -330,7 +365,7 @@ def control_text(package, lock):
 def build_one(work, package, layout, lock, stage, epoch, native=None):
     if native is None:
         native = discover_native_packages(stage, layout)
-    if package not in native and package != WEB:
+    if package not in native and package not in BOOKWORM_ALL:
         error("unapproved package: " + package)
     root = work / package
     (root / "DEBIAN").mkdir(parents=True)
@@ -340,7 +375,7 @@ def build_one(work, package, layout, lock, stage, epoch, native=None):
         if package == RUNTIME:
             put(root, REPO / "retrode3-core-runtime/etc/init.d/retrode3-core-runtime",
                 "etc/init.d/retrode3-core-runtime", 0o755)
-    else:
+    elif package == WEB:
         source = REPO / "retrode3-web-control/v2"
         for rel, target, mode in WEB_FILES:
             put(root, source / rel, target, mode)
@@ -350,6 +385,12 @@ def build_one(work, package, layout, lock, stage, epoch, native=None):
                  '<!doctype html><html><meta charset="utf-8">'
                  '<meta http-equiv="refresh" content="0;url=index.php">'
                  '<a href="index.php">Retrode3</a></html>\n')
+    elif package == TOOLS:
+        for rel, target, mode in TOOL_FILES:
+            put(root, REPO / rel, target, mode)
+    elif package == UDEV:
+        for rel, target, mode in UDEV_FILES:
+            put(root, REPO / rel, target, mode)
     put_text(root, "DEBIAN/control", control_text(package, lock))
     if package in CONFFILES:
         put_text(root, "DEBIAN/conffiles", "\n".join(CONFFILES[package]) + "\n")
@@ -359,8 +400,8 @@ def build_one(work, package, layout, lock, stage, epoch, native=None):
             p = os.path.join(parent, name)
             os.utime(p, (epoch, epoch), follow_symlinks=False)
     os.utime(str(root), (epoch, epoch))
-    version = lock["web_version"] if package == WEB else lock["native_version"]
-    filename = "{}_{}_{}.deb".format(package, version, "all" if package == WEB else "mipsel")
+    version = package_version(package, lock)
+    filename = "{}_{}_{}.deb".format(package, version, package_arch(package))
     destination = work / filename
     environment = os.environ.copy()
     environment["SOURCE_DATE_EPOCH"] = str(epoch)
@@ -370,9 +411,13 @@ def build_one(work, package, layout, lock, stage, epoch, native=None):
     if package not in info:
         error("dpkg-deb metadata validation failed: " + filename)
     names = cmd(["dpkg-deb", "--contents", str(destination)])
-    for required in (native[package] if package in native
-                     else ["opt/retrode3-web-v2/backend/service.py",
-                           "var/www/html/index.php", "etc/init.d/retrode3-web-v2"]):
+    required_files = {
+        WEB: ("opt/retrode3-web-v2/backend/service.py",
+              "var/www/html/index.php", "etc/init.d/retrode3-web-v2"),
+        TOOLS: ("usr/local/bin/retrode3-admin", "usr/local/bin/retrode3-wlan"),
+        UDEV: ("etc/udev/rules.d/70-retrode3-cartridge.rules",),
+    }
+    for required in native[package] if package in native else required_files[package]:
         if "./" + required not in names:
             error("missing installed payload from deb: " + required)
     return filename, destination
@@ -441,7 +486,7 @@ def main():
     with tempfile.TemporaryDirectory(prefix=".retrode3-debs-", dir=str(out)) as temp:
         work = Path(temp)
         records = []
-        for package in tuple(native) + (WEB,):
+        for package in tuple(native) + BOOKWORM_ALL:
             filename, archive = build_one(work, package, layout, lock,
                                           stage, epoch, native)
             digest = hashlib.sha256(archive.read_bytes()).hexdigest()
