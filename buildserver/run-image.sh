@@ -85,6 +85,7 @@ kernel_sha="${kernel_line%%[[:space:]]*}"
 
 run="$(mktemp -d "$images/run.XXXXXXXX")"
 cp "$published" "$run/published-packages.json"
+printf '%s\n' "$os_sha" > "$run/image-os-commit"
 echo "Image $branch ($suite); OS $os_sha; packages $published_sha; kernel $kernel_sha"
 echo "Workspace: $run"
 # All source and private inputs are read-only; only /work is writable.
