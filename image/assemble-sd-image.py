@@ -106,8 +106,16 @@ def verify_boot_files(bundle, release):
         fail("missing modules.dep for selected running kernel")
 
 
+def ensure_legacy_sysv_order(root):
+    """Preserve the boot ordering verified on the physical 2.9.5 test board."""
+    marker = root / "etc/init.d/.legacy-bootordering"
+    if marker.is_symlink() or (marker.exists() and not marker.is_file()):
+        fail("unsafe SysV legacy boot-order marker")
+    marker.touch(exist_ok=True)
+
+
 def provision_test_access(root, key_file):
-    """One test-only USB-NCM/Dropbear service, never enabled by default."""
+    """Test-only USB NCM + ACM, DHCP and SSH; never enabled by default."""
     line = key_file.read_text(encoding="utf-8").strip()
     tokens = line.split()
     if len(tokens) < 2 or tokens[0] not in (
@@ -121,6 +129,14 @@ def provision_test_access(root, key_file):
         fail("invalid SSH public key length or whitespace")
     if (root / "etc/init.d/retrode3-bringup-usb").exists():
         fail("unexpected existing test USB service")
+    if not (root / "usr/sbin/dnsmasq").is_file():
+        fail("USB DHCP requires dnsmasq-base in the Bookworm rootfs; rebuild the rootfs")
+    inittab = root / "etc/inittab"
+    if not inittab.is_file():
+        fail("missing SysV inittab for USB ACM")
+    table = inittab.read_text(encoding="utf-8")
+    if "ttyGS0" in table or re.search(r"^g0:", table, flags=re.MULTILINE):
+        fail("USB ACM getty already configured")
     key_dir = root / "root/.ssh"
     key_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
     os.chmod(key_dir, 0o700)
@@ -138,6 +154,11 @@ def provision_test_access(root, key_file):
     if link.exists() or link.is_symlink():
         fail("test USB init symlink already exists")
     link.symlink_to("../init.d/retrode3-bringup-usb")
+    # Getty is started after the runlevel-2 init scripts create /dev/ttyGS0.
+    # A normal root login still requires explicitly provisioned credentials.
+    inittab.write_text(table.rstrip("\\n") +
+                       "\\ng0:2:respawn:/sbin/getty -L 115200 ttyGS0 vt102\\n",
+                       encoding="utf-8")
 
 
 def compose(args):
@@ -175,6 +196,7 @@ def compose(args):
         call("tar", "--numeric-owner", "-xJf", str(source), "-C", str(root))
         # Verify the stage *before* injecting a specific kernel.
         call(sys.executable, str(Path(__file__).with_name("verify-rootfs.py")), str(root))
+        ensure_legacy_sysv_order(root)
         call("tar", "--numeric-owner", "-xzf", str(kernel), "-C", str(boot))
         verify_boot_files(boot, args.kernel_release)
         rootmodules = root / "lib/modules"
@@ -253,8 +275,10 @@ def compose(args):
             "sector_size": SECTOR_SIZE,
             "boot": {"start_sector": BOOT_START, "sectors": BOOT_SECTORS, "filesystem": "FAT32"},
             "root": {"start_sector": ROOT_START, "sectors": ROOT_SECTORS, "filesystem": "ext4"},
-            "userland_access": ("serial and USB NCM 172.31.255.1/30 with SSH-key-only Dropbear"
-                                if args.ssh_authorized_key else "serial console only"),
+            "userland_access": ("ttyS2, USB NCM DHCP 172.31.255.1/29, USB ACM ttyGS0 "
+                                "and SSH-key-only Dropbear"
+                                if args.ssh_authorized_key else "ttyS2 serial console only"),
+            "sysv_boot_order": "legacy numeric runlevel order (physical bring-up workaround)",
             "test_ssh_enabled": bool(args.ssh_authorized_key),
             "bootloader_note": "Existing board U-Boot is assumed; boot path not yet physically validated",
         }
