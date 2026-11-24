@@ -122,6 +122,15 @@ class TestPackaging(unittest.TestCase):
         self.assertNotIn(" connect", sudoers)
         self.assertNotIn(" disconnect", sudoers)
 
+    def test_postinst_respects_chroot_service_policy(self):
+        runtime = (ROOT / "packaging/maintainer/runtime.postinst").read_text()
+        web = (ROOT / "packaging/maintainer/web.postinst").read_text()
+        self.assertIn("invoke-rc.d retrode3-core-runtime start", runtime)
+        self.assertIn("invoke-rc.d retrode3-core-runtime start", web)
+        self.assertIn("invoke-rc.d retrode3-web-v2", web)
+        self.assertNotIn("/etc/init.d/retrode3-core-runtime start", runtime)
+        self.assertNotIn("/etc/init.d/retrode3-core-runtime start", web)
+
     def test_future_core_is_discovered_without_builder_changes(self):
         with tempfile.TemporaryDirectory() as tmp:
             stage = self.fixture_stage(Path(tmp),
