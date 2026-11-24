@@ -156,8 +156,8 @@ def provision_test_access(root, key_file):
     link.symlink_to("../init.d/retrode3-bringup-usb")
     # Getty is started after the runlevel-2 init scripts create /dev/ttyGS0.
     # A normal root login still requires explicitly provisioned credentials.
-    inittab.write_text(table.rstrip("\\n") +
-                       "\\ng0:2:respawn:/sbin/getty -L 115200 ttyGS0 vt102\\n",
+    inittab.write_text(table.rstrip("\n") +
+                       "\ng0:2:respawn:/sbin/getty -L 115200 ttyGS0 vt102\n",
                        encoding="utf-8")
 
 
