@@ -56,6 +56,10 @@ python3 "$checkout/buildserver/release-changes.py" \
   echo "Published packages don't correspond to current OS checkout" >&2; exit 1;
 }
 
+[[ -r /proc/sys/fs/binfmt_misc/qemu-mipsel ]] &&
+  grep -qx enabled /proc/sys/fs/binfmt_misc/qemu-mipsel || {
+    echo "Host QEMU MIPSEL binfmt_misc registration is missing" >&2; exit 1;
+  }
 [[ -d "$private" && ! -L "$private" ]] || {
   echo "Missing private image inputs: $private" >&2; exit 1;
 }
@@ -104,6 +108,7 @@ podman --runtime=crun --cgroup-manager=systemd run --rm \
     --memory "${RETRODE3_IMAGE_MEMORY:-3g}" \
     --pids-limit "${RETRODE3_IMAGE_PIDS:-512}" \
     -v "$checkout:/src:ro" -v "$run:/work:rw" \
+    -v /proc/sys/fs/binfmt_misc:/proc/sys/fs/binfmt_misc:ro \
     -v "$private:/private:ro" \
     -v "$private/toolchain:/toolchain:ro" \
     -e "RETRODE3_IMAGE_BRANCH=$branch" \
