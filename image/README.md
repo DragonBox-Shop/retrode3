@@ -107,21 +107,27 @@ The raw preboot backup covers the first 1 MiB only; if the original
 loader uses additional raw sectors, the source image must be inspected
 before claiming the candidate can boot.
 Before claiming a successful boot, verify actual U-Boot search paths
-and device-tree choice on the physical device. Without the optional --ssh-authorized-key argument, the test image
-provides only a serial ttyS2 console. With a valid public SSH key, it
-also installs a **test-only** SysV service that creates a simple USB-NCM
-interface on 172.31.255.1/30 and starts Dropbear with password
-authentication disabled. No private keys or static SSH host keys are
-included in the image: host keys are generated on first startup.
-The normal device Web interface and permanent customer SSH settings
-are **not** included.
+and device-tree choice on the physical device.
 
-On the Arch Linux host, select the newly created USB-NCM network
-interface and assign the static host address 172.31.255.2/30.
-Connect using the corresponding private key to root@172.31.255.1.
-The first boot must be verified on hardware; USB-NCM and SSH are
-not yet physically accepted. This temporary test access must not be
-copied into a customer release.
+**Test-only USB console and networking (not customer configuration):**
+Without `--ssh-authorized-key` the test image has only the ttyS2 serial
+console. When an SSH public key is explicitly supplied, the assembler
+installs a SysV service that enables the following composite gadget:
+
+- USB NCM on `172.31.255.1/29` with a DHCP pool
+  `172.31.255.2` to `172.31.255.6` (no DNS service or default gateway).
+- USB CDC ACM as `/dev/ttyGS0` on Retrode3 and usually `/dev/ttyACM*`
+  on the Linux host. Login still requires valid credentials.
+- Dropbear SSH with key-only authentication on `172.31.255.1:22`.
+  SSH host keys are generated on first boot, not included in the image.
+
+The host may obtain its USB NCM address with DHCP. For a manual fallback,
+assign `172.31.255.2/29` and connect to `root@172.31.255.1` with the
+matching private SSH key. The numeric SysV boot ordering marker is retained
+as an experimental workaround from a successful first-boot test; the full
+NCM+ACM+DHCP combination still requires its own physical cold-boot test.
+The normal Retrode3 Web interface and final USB gadget configuration are
+separate work. Never ship this test service in customer images.
 
 To write the candidate on a separate card, use a tool that makes you
 explicitly choose and verify the destination, such as a GUI image
