@@ -1,6 +1,10 @@
 # Retrode3: autonomous SD image build contract
 
-Status: foundation, **not yet a complete unattended image builder**.
+Status: one-command candidate builder implemented in buildserver/run-image.sh and
+buildserver/build-image-container.sh, **not yet run or hardware-accepted on
+Amaterasu**. See buildserver/README.md for private inputs and launchers.
+The temporary donor-SPL path is deliberate and must not be described as a
+source-built U-Boot release.
 
 ## Target: one command on Amaterasu
 
@@ -96,3 +100,19 @@ without these settings remains a plain Debian rootfs.
 Until all these gates pass, builds must fail explicitly rather than
 fall back to floating sources, missing libraries, unsigned repos or
 non-reproducible bootloader snapshots.
+
+
+## Current implementation boundary
+
+The server scripts now launch the existing package pipeline first and
+produce a kernel build, staged rootfs and image candidate for a selected
+channel. They reject unverified donor checksums and unsigned/unavailable
+APT packages. The donor has a guarded legacy-GPT migration identical to
+the first successful SD experiment. The U-Boot code is still NOT compiled
+from source; see the required private-input documentation in README.md.
+
+No run of the complete new pipeline on Amaterasu has been verified yet.
+Physical checks of newly built modules and the combined image must be
+completed before approving master or customer publication. Until then,
+the scripts fail closed on missing input or package dependencies rather
+than claiming a completed image.
