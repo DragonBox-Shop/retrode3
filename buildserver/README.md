@@ -84,6 +84,33 @@ the pool/installed-suite versions, publishes explicitly with `reprepro`,
 and saves an idempotency marker. Build/publish logs are kept in
 `buildserver/artifacts/logs`.
 
+### Build first, sign later (recommended for long MIPS builds)
+
+The normal `package_develop.sh` builds and publishes in one invocation. For
+long crossbuilds, the GPG-agent passphrase cache can expire before publication.
+To avoid unlocking the signing key before building, split the two phases:
+
+```sh
+# As retrode on Amaterasu. No APT import or signing occurs.
+RETRODE3_BUILD_ONLY=1 /srv/www/vhosts/retrode.com/package_develop.sh
+
+# Later, unlock the APT signing key interactively in the same user's agent.
+# Once unlocked, publish the matching completed candidate with:
+unset RETRODE3_BUILD_ONLY
+/srv/www/vhosts/retrode.com/package_develop.sh
+```
+
+The first invocation follows `develop` and `retrode3-oscr/develop`,
+compiles only if package-affecting changes exist, and retains the exact
+candidate and manifest. A valid existing candidate is reused even in
+build-only mode. The second invocation uses the ordinary
+`candidate-resume` path: it verifies exact source commits and checksums,
+then imports the candidate and makes one signed `reprepro export`.
+If a source changed in between, the new build must pass again; an old
+candidate is never silently published against unrelated source changes.
+The GPG passphrase must **not** be stored in Git, shell scripts, or public
+images. Build-only does not modify APT or the last-published marker.
+
 ### Package failure reporting
 
 If a `package_develop.sh` or `package_master.sh` run exits nonzero,
