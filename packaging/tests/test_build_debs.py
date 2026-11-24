@@ -128,6 +128,9 @@ class TestPackaging(unittest.TestCase):
         self.assertIn("invoke-rc.d retrode3-core-runtime start", runtime)
         self.assertIn("invoke-rc.d retrode3-core-runtime start", web)
         self.assertIn("invoke-rc.d retrode3-web-v2", web)
+        self.assertIn("Apache stopped (offline image)", web)
+        self.assertIn("apache2ctl configtest", web)
+        self.assertLess(web.index("/etc/init.d/apache2 status"), web.index("apache2ctl configtest"))
         self.assertNotIn("/etc/init.d/retrode3-core-runtime start", runtime)
         self.assertNotIn("/etc/init.d/retrode3-core-runtime start", web)
 
