@@ -41,5 +41,41 @@ class StagedPublicationContractTests(unittest.TestCase):
         self.assertIn('set -euo pipefail', self.script)
 
 
+AUTOMATION = (
+    Path(__file__).resolve().parents[2] / "buildserver/auto-package.sh"
+)
+
+
+class BuildOnlyContractTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.script = AUTOMATION.read_text()
+
+    def test_build_only_defers_publication_for_new_candidates(self):
+        built = self.script.index('run="$(sed -n')
+        build_only = self.script.index('if [[ "$build_only" == 1 ]]', built)
+        publish = self.script.index('failure_stage="apt-publication"', built)
+        self.assertLess(build_only, publish)
+        self.assertIn('exit 0', self.script[build_only:publish])
+        self.assertIn('BUILD ONLY: candidate ready', self.script[build_only:publish])
+
+    def test_build_only_reuses_existing_candidate_without_publishing(self):
+        match = self.script.index('echo "Resuming already built candidate: $run"')
+        build_only = self.script.index('if [[ "$build_only" == 1 ]]', match)
+        publish = self.script.index(
+            'bash "$checkout/buildserver/publish-debs.sh" "$branch" "$run"',
+            match,
+        )
+        self.assertLess(build_only, publish)
+        self.assertIn('exit 0', self.script[build_only:publish])
+
+    def test_build_only_default_is_normal_auto_publication(self):
+        self.assertIn('build_only="${RETRODE3_BUILD_ONLY:-0}"', self.script)
+        self.assertIn('case "$build_only" in', self.script)
+        self.assertIn('0|1)', self.script)
+        self.assertIn('save_published_manifest "$run/build-manifest.json"',
+                      self.script)
+
+
 if __name__ == "__main__":
     unittest.main()

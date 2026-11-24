@@ -5,6 +5,13 @@ set -euo pipefail
 umask 027
 branch="${1:-}"
 phase="${2:-update}"
+# Build candidate packages first, without touching public APT. Set this to 1
+# for a long MIPS build; unlock GPG only for the later publish invocation.
+build_only="${RETRODE3_BUILD_ONLY:-0}"
+case "$build_only" in
+  0|1) ;;
+  *) echo "ERROR: RETRODE3_BUILD_ONLY must be 0 or 1" >&2; exit 2 ;;
+esac
 base=/srv/www/vhosts/retrode.com/buildserver
 case "$branch" in
   develop) suite=testing; checkout="$base/src/retrode3-testing-pr" ;;
@@ -211,6 +218,11 @@ PY
   fi
   run="${manifest%/build-manifest.json}"
   echo "Resuming already built candidate: $run"
+  if [[ "$build_only" == 1 ]]; then
+    echo "BUILD ONLY: verified candidate already exists at $run"
+    echo "No APT packages were published by this invocation."
+    exit 0
+  fi
   bash "$checkout/buildserver/publish-debs.sh" "$branch" "$run"
   save_published_manifest "$manifest"
   echo "DONE: resumed $branch -> $suite from candidate $candidate_commit"
@@ -225,6 +237,12 @@ run="$(sed -n 's/^Unpublished packages: //p' "$log" | tail -n 1)"
 if [[ -z "$run" || ! -f "$run/build-manifest.json" ]]; then
   echo "ERROR: build did not produce a valid run directory" >&2
   exit 1
+fi
+if [[ "$build_only" == 1 ]]; then
+  echo "BUILD ONLY: candidate ready at $run"
+  echo "No APT packages were published by this invocation."
+  echo "To publish later, unlock the GPG key and run package_$branch.sh again."
+  exit 0
 fi
 failure_stage="apt-publication"
 echo "Publishing $branch -> $suite ..."
