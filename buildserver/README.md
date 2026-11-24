@@ -102,6 +102,14 @@ To receive an optional email **via an already configured local
 build log is included in the alert. The script reports unavailable or
 failing mail delivery on stderr; the failure marker is still written.
 
+The publisher stages all verified packages using
+`reprepro --export=never --keepunreferencedfiles includedeb`, then
+performs exactly one `reprepro export <suite>` to sign and publish the
+complete index. Old pool files referenced by the currently public index
+are preserved during staging. On a retry, previously staged versions
+are skipped but the final export is still run. This minimizes the
+partial-publication window; index export itself is not atomic.
+
 The publisher now runs an unattended signing preflight with the suite's
 configured `SignWith` fingerprint **before importing the first package**.
 If the GPG agent has no cached authorization, it fails quickly instead of
