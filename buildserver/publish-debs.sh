@@ -146,10 +146,13 @@ for file in files:
     ]
     if len(info) != 3 or info[0] != expected[file.name]["package"]:
         sys.exit("error: package metadata mismatch: " + file.name)
-    if info[1] != (lock["web_version"] if info[0] == "retrode3-web-control"
+    if info[1] != (lock["web_version"] if info[0] in
+                   ("retrode3-web-control", "retrode3-tools", "retrode3-udev-rules")
                    else lock["native_version"]):
         sys.exit("error: version mismatch: " + file.name)
-    if info[2] != ("all" if info[0] == "retrode3-web-control" else "mipsel"):
+    if info[2] != ("all" if info[0] in
+                   ("retrode3-web-control", "retrode3-tools", "retrode3-udev-rules")
+                   else "mipsel"):
         sys.exit("error: architecture mismatch: " + file.name)
     old = previous.get(info[0])
     if old == info[1]:
