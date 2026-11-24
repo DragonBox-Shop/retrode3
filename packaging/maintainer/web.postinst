@@ -56,11 +56,13 @@ case "${1:-}" in
             fi
         fi
         update-rc.d retrode3-web-v2 defaults
-        /etc/init.d/retrode3-core-runtime start
+        # invoke-rc.d respects policy-rc.d in offline Bookworm image chroots.
+        # Running hardware still gets ordinary SysV starts/restarts.
+        invoke-rc.d retrode3-core-runtime start
         if /etc/init.d/retrode3-web-v2 status >/dev/null 2>&1; then
-            /etc/init.d/retrode3-web-v2 restart
+            invoke-rc.d retrode3-web-v2 restart
         else
-            /etc/init.d/retrode3-web-v2 start
+            invoke-rc.d retrode3-web-v2 start
         fi
         ;;
     abort-upgrade|abort-remove|abort-deconfigure)
