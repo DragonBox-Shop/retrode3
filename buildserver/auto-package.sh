@@ -11,6 +11,24 @@ case "$branch" in
   master)  suite=stable;  checkout="$base/src/retrode3-stable-pr" ;;
   *) echo "Usage: $0 develop|master" >&2; exit 2 ;;
 esac
+
+# Report failures even when the normal build log is not being watched.
+# The EXIT trap preserves the original exit status and never retries publishing.
+failure_stage="startup"
+on_failure_exit() {
+  local code=$?
+  (( code != 0 )) || return 0
+  local reporter="$checkout/buildserver/package-failure-alert.sh"
+  if [[ -f "$reporter" ]]; then
+    bash "$reporter" "$branch" "$code" "$failure_stage" "${log:-}" ||
+      printf 'WARNING: could not save Retrode3 package failure report\n' >&2
+  else
+    printf 'FAILED: Retrode3 package run %s, stage %s, exit %s\n' \
+      "$branch" "$failure_stage" "$code" >&2
+  fi
+}
+trap on_failure_exit EXIT
+
 if [[ "$(id -un)" != retrode ]]; then
   echo "ERROR: run as the unprivileged retrode user, never root" >&2
   exit 1
@@ -44,6 +62,7 @@ current_branch="$(git -C "$checkout" symbolic-ref --quiet --short HEAD)" || {
   echo "ERROR: tracked files have local modifications; not updating" >&2; exit 1;
 }
 if [[ "$phase" == update ]]; then
+  failure_stage="git-update"
   echo "Updating $branch from origin (fast-forward only)..."
   git -C "$checkout" fetch origin "$branch"
   git -C "$checkout" merge --ff-only FETCH_HEAD
@@ -52,6 +71,7 @@ if [[ "$phase" == update ]]; then
 elif [[ "$phase" != updated ]]; then
   echo "ERROR: invalid automation stage" >&2; exit 2
 fi
+failure_stage="source-resolution"
 sha="$(git -C "$checkout" rev-parse HEAD)"
 # Resolve exactly one OSCR branch head for the entire build; no floating checkout.
 oscr_ref="refs/heads/$branch"
@@ -77,6 +97,7 @@ if [[ "$(git --git-dir="$oscr_history" rev-parse "refs/heads/$branch")" != "$osc
   exit 1
 fi
 echo "OS Git $branch: $sha; OSCR $branch: $oscr_sha; APT: $suite"
+failure_stage="release-state-check"
 state="$base/cache/last-published-$branch.json"
 repo_base="$base/repository"
 if [[ -f "$state" ]] && python3 - "$state" "$repo_base" "$suite" "$sha" "$checkout" "$oscr_sha" "$oscr_history" <<'PY'
@@ -159,6 +180,7 @@ save_published_manifest() {
 }
 # Resume a fully built candidate if the only source changes since building
 # were fixes to this publisher. The publisher revalidates every archive.
+failure_stage="candidate-resume"
 for manifest in "$RETRODE3_OUTPUT_BASE"/run.*/build-manifest.json; do
   [[ -f "$manifest" ]] || continue
   candidate_commit="$(python3 - "$manifest" "$suite" "$oscr_sha" <<'PY'
@@ -194,6 +216,7 @@ PY
   exit 0
 done
 log="$base/artifacts/logs/$branch-$(date -u +%Y%m%dT%H%M%SZ)-${sha:0:12}.log"
+failure_stage="package-build"
 echo "Building packages. Log: $log"
 # Keep a durable log of both stages. Pipefail preserves the build's exit code.
 bash "$checkout/buildserver/run-debs.sh" 2>&1 | tee "$log"
@@ -202,6 +225,7 @@ if [[ -z "$run" || ! -f "$run/build-manifest.json" ]]; then
   echo "ERROR: build did not produce a valid run directory" >&2
   exit 1
 fi
+failure_stage="apt-publication"
 echo "Publishing $branch -> $suite ..."
 bash "$checkout/buildserver/publish-debs.sh" "$branch" "$run" 2>&1 | tee -a "$log"
 # Save a state cache only after the publisher has returned success.
