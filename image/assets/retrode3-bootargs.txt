@@ -1,0 +1,4 @@
+# Retrode3 2.9.5 Bookworm test image boot arguments.
+# Only relevant when the U-Boot environment explicitly sources bootargs.scr.
+# No saveenv: the donor U-Boot environment must remain unchanged.
+setenv bootargs "console=ttyS2,115200 root=/dev/mmcblk0p2 rootfstype=ext4 rootwait rw"
