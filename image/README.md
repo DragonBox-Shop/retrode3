@@ -1,19 +1,37 @@
 # Retrode3 Debian 12 MIPSEL rootfs (experimental, stage 1)
 
-This directory begins the new SD image pipeline. This first artifact is a
-Debian 12 Bookworm MIPSEL root filesystem **only**. It is **not** a bootable
-SD image, contains no kernel or bootloader, and must not be installed on
-the production Retrode3. No block-device access or SD writing is implemented.
+This directory contains two separate experimental stages: a Debian 12 Bookworm
+MIPSEL rootfs archive (NOT BOOTABLE) and an SD-image assembler that combines it
+with a separately supplied matching kernel, DTB, modules and board SPL backup.
+The assembler writes only a regular image file, never a block device. Neither
+stage is a customer release.
+
+### Hardware bring-up evidence (Retrode3 2.9.5, 2026-11-24)
+
+A test SD image booted Debian 12.15 with kernel
+`7.3.0-rc5-letux-mips-retrode3+`, reached SysV runlevel 2, loaded the
+`retrode3` kernel module and provided working USB NCM and key-only SSH.
+Kernel slot change uevents and the cartridge LED triggers were checked on
+hardware; the LEDs required a temporary manual trigger assignment on that
+older DTB. The updated DTSI mapping requires a newly compiled DTB.
+
+Critical finding: new runlevel services were silently skipped with the
+existing SysV dependency caches. Creating
+`/etc/init.d/.legacy-bootordering` on the test SD allowed the USB service
+to start. The rootfs builder and image assembler now include that proven
+workaround. This is not yet a replacement for reviewing final package init
+registration and generating valid dependency caches.
 
 ## Base-image decisions
 
 - Debian 12 Bookworm, mipsel (MIPS32 little-endian).
 - SysV-Init (sysvinit-core), runlevel 2 and serial ttyS2 at 115200 baud.
-- udev, minimal network tools, ext4 utilities and APT.
+- udev, minimal network tools, ext4 utilities, APT and the DHCP binary from
+  `dnsmasq-base`. This package does not start a daemon on the base rootfs.
 - Planned ext4 root with noatime; FAT boot partition.
-- No running SSH server, Web UI, cartridge cores, developer tools or rsyslog in base.
-  The small dropbear-bin package is present but never starts without an
-  explicitly provisioned SSH public key in a test image.
+- No running SSH server, Web UI, cartridge cores, developer tools or rsyslog
+  in the unprovisioned base. Dropbear, DNSMASQ and the gadget service start
+  only on test images with an explicitly provisioned SSH public key.
 - No SD swapfile. zram and RAM-only diagnostics follow after RAM measurements.
 
 The normal Web UI will be optionally password-free. Developer settings
@@ -100,28 +118,33 @@ entries. It creates a regular-file MBR image with 128 MiB FAT32 boot
 and 1 GiB ext4 root, aligned at 1 MiB. The image is labelled
 FIRST_BOOT_TEST_ONLY. It is **not** a complete consumer image.
 
-**The current boot sequence has not yet been confirmed on the new
-SD card.** The existing bootargs.scr is a generic Letux/Beagle-era
-script and may not be the script used to boot this specific board.
-The raw preboot backup covers the first 1 MiB only; if the original
-loader uses additional raw sectors, the source image must be inspected
-before claiming the candidate can boot.
-Before claiming a successful boot, verify actual U-Boot search paths
-and device-tree choice on the physical device. Without the optional --ssh-authorized-key argument, the test image
-provides only a serial ttyS2 console. With a valid public SSH key, it
-also installs a **test-only** SysV service that creates a simple USB-NCM
-interface on 172.31.255.1/30 and starts Dropbear with password
-authentication disabled. No private keys or static SSH host keys are
-included in the image: host keys are generated on first startup.
-The normal device Web interface and permanent customer SSH settings
-are **not** included.
+The observed test SD does boot on the 2.9.5 board, but the repository
+assembler's current output still needs its own cold-boot acceptance, and
+board SPL/DTB choice must be verified for each hardware revision. The raw
+preboot backup covers only the first 1 MiB. Never assume unrelated boards
+can boot that snapshot.
 
-On the Arch Linux host, select the newly created USB-NCM network
-interface and assign the static host address 172.31.255.2/30.
-Connect using the corresponding private key to root@172.31.255.1.
-The first boot must be verified on hardware; USB-NCM and SSH are
-not yet physically accepted. This temporary test access must not be
-copied into a customer release.
+Without `--ssh-authorized-key` the assembled test image provides only the
+ttyS2 serial console. With a public SSH key it installs a **test-only** SysV
+service that creates a USB composite gadget:
+
+- NCM network on `172.31.255.1/29` with a DHCP pool from
+  `172.31.255.2` to `172.31.255.6`; no DNS server and no default gateway.
+- CDC ACM function exposed on the Arch Linux host as `/dev/ttyACM*`, with
+  a SysV getty on Retrode3 `/dev/ttyGS0` (115200 baud). This endpoint is
+  not an automatic root login; normal credentials still apply.
+- SSH-key-only Dropbear on `172.31.255.1:22`; no password authentication.
+  Host keys are generated on device first boot, not shipped in the image.
+
+The host normally obtains its USB address via DHCP. For manual fallback,
+assign `172.31.255.2/29` to the USB network interface and connect with
+`ssh -i ~/.ssh/id_ed25519 root@172.31.255.1`. The test-only USB/SSH service
+must not be copied into a customer release. The Web interface, cartridge
+cores and production USB gadget configuration are still separate work.
+
+After testing, verify actual kernel module/DTB versions and the complete
+composite gadget on hardware. The added DHCP/ACM configuration is not yet
+physically accepted.
 
 To write the candidate on a separate card, use a tool that makes you
 explicitly choose and verify the destination, such as a GUI image
@@ -156,9 +179,9 @@ Module.symvers/config and a real Retrode3 board boot.
 1. Integrate tested matching kernel, modules, uImage and Retrode3 DTB
    from the controlled kernel source plus the correct U-Boot script.
 2. Create FAT/ext4 partition images without auto-flashing devices.
-3. Migrate only required reviewed ConfigFS Gadget, USB networking,
-   DHCP, mass storage, HID and udev rules. Ignore accidental ad-hoc
-   modifications on the development Retrode.
+3. Replace the test-only NCM/ACM/DHCP gadget with a reviewed production
+   ConfigFS configuration, including required mass storage/HID and udev rules.
+   Ignore accidental ad-hoc modifications on the development Retrode.
 4. Install and test signed Retrode3 APT packages and Web stack.
 5. Implement secure first-run admin provisioning, developer settings,
    optional SSH, bounded in-RAM logs and a measured zram policy.
@@ -166,4 +189,6 @@ Module.symvers/config and a real Retrode3 board boot.
    this architecture has no official Debian LTS security coverage.
 7. Verify cold boot and rollback using a **separate** SD card.
 
-This phase has not passed a physical boot test and is not customer-ready.
+Basic Debian/USB-NCM/SSH boot was physically tested, but the new composite
+USB/ACM/DHCP candidate and production image have not been accepted on
+hardware. This phase is not customer-ready.
