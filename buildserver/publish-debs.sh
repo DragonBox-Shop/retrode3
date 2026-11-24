@@ -165,15 +165,65 @@ for file in files:
                  "; refusing downgrade")
 print("Preflight OK:", suite, len(files), "packages, OS", head)
 PY
+# Validate the suite's actual signer before the first APT database mutation.
+# A cold GPG agent must fail immediately, not time out after one includedeb.
+sign_fpr="$(python3 - "$base/conf/distributions" "$suite" <<'PY_SIGN'
+import re
+import sys
+from pathlib import Path
+
+paragraphs = re.split(r"\n\s*\n", Path(sys.argv[1]).read_text())
+for paragraph in paragraphs:
+    fields = {}
+    for line in paragraph.splitlines():
+        if ":" in line and not line[0].isspace():
+            key, value = line.split(":", 1)
+            fields[key.strip()] = value.strip()
+    if fields.get("Codename") != sys.argv[2]:
+        continue
+    fingerprint = fields.get("SignWith", "")
+    if not re.fullmatch(r"[a-fA-F0-9]{40}", fingerprint):
+        sys.exit("error: expected a full 40-character SignWith fingerprint")
+    print(fingerprint)
+    break
+else:
+    sys.exit("error: no matching Codename in distributions")
+PY_SIGN
+)"
+sign_dir="$(mktemp -d)"
+trap 'rm -rf "$sign_dir"' EXIT
+printf 'Retrode3 APT signing preflight\n' > "$sign_dir/test.txt"
+if ! timeout 20s gpg --homedir "$GNUPGHOME" \
+    --batch --no-tty --pinentry-mode error \
+    --local-user "$sign_fpr" --detach-sign \
+    --output "$sign_dir/test.sig" "$sign_dir/test.txt"; then
+  printf 'ERROR: signing preflight failed for %s. Unlock GPG agent before publishing. No new .deb was imported by this run.\n' "$suite" >&2
+  exit 1
+fi
+rm -rf "$sign_dir"
+trap - EXIT
+echo "Signing preflight OK for $suite; importing verified packages."
+# Stage every verified .deb in the reprepro database without exporting a
+# public index after each package. Preserve pool files referenced by the
+# still-public older index until the final export has succeeded.
 for deb in "$run"/*.deb; do
   pkg="$(dpkg-deb -f "$deb" Package)"
   version="$(dpkg-deb -f "$deb" Version)"
   if reprepro --basedir "$base" list "$suite" |
       grep -Fqx "$suite|main|mipsel: $pkg $version"; then
-    echo "Already published, verified in preflight: $pkg $version"
+    echo "Already indexed in APT database: $pkg $version"
     continue
   fi
-  reprepro --basedir "$base" --outdir "$public" includedeb "$suite" "$deb"
+  reprepro --basedir "$base" --outdir "$public" \
+    --export=never --keepunreferencedfiles \
+    includedeb "$suite" "$deb"
 done
+
+# A previous run may have staged some or all of the same packages but
+# failed to export. ALWAYS export, even when no includedeb was necessary.
+# The GPG preflight above ensures that a missing cached passphrase is
+# caught before any mutation. The final export is still not fully atomic.
+echo "Exporting and signing the complete $suite package index once..."
+reprepro --basedir "$base" --outdir "$public" export "$suite"
 reprepro --basedir "$base" --outdir "$public" list "$suite"
 echo "Published to APT $suite. Run: $run"

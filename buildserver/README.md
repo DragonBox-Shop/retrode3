@@ -84,6 +84,46 @@ the pool/installed-suite versions, publishes explicitly with `reprepro`,
 and saves an idempotency marker. Build/publish logs are kept in
 `buildserver/artifacts/logs`.
 
+### Package failure reporting
+
+If a `package_develop.sh` or `package_master.sh` run exits nonzero,
+the wrapper prints a prominent `FAILED` message with its stage, exit
+code and log path. It also saves a private failure marker under
+`buildserver/artifacts/logs/last-failed-develop.txt` or
+`last-failed-master.txt`. The original nonzero exit status is preserved.
+Failure markers describe the **last failure**, not the current health of
+the suite: verify the signed published index and the
+`cache/last-published-<branch>.json` manifest separately.
+
+To receive an optional email **via an already configured local
+`sendmail` transport**, export
+`RETRODE3_BUILD_ALERT_EMAIL=recipient@example.org` before invoking
+`package_*.sh`. No address is hardcoded and no key material or full
+build log is included in the alert. The script reports unavailable or
+failing mail delivery on stderr; the failure marker is still written.
+
+The publisher stages all verified packages using
+`reprepro --export=never --keepunreferencedfiles includedeb`, then
+performs exactly one `reprepro export <suite>` to sign and publish the
+complete index. Old pool files referenced by the currently public index
+are preserved during staging. On a retry, previously staged versions
+are skipped but the final export is still run. This minimizes the
+partial-publication window; index export itself is not atomic.
+
+The publisher now runs an unattended signing preflight with the suite's
+configured `SignWith` fingerprint **before importing the first package**.
+If the GPG agent has no cached authorization, it fails quickly instead of
+starting a partial import. This check reduces the risk of a partial
+publication but cannot make multiple `reprepro includedeb` calls atomic.
+
+**Important:** A signing error such as `gpgme: Pinentry Timeout` during
+`reprepro includedeb` can leave some newly imported packages in the
+repository database while the signed index still represents an older
+state. Do not interpret a nonzero exit or a single newer package in
+`reprepro list` as a successful release. Repair signing and reconcile
+the complete candidate/suite before retrying; neither the failure
+reporter nor the automatic wrapper silently rolls back or republishes.
+
 Automatic runs set `RETRODE3_AUTO_VERSION=1` and
 `RETRODE3_FOLLOW_OSCR_BRANCH=1`. Every package revision includes the
 UTC build timestamp (with nanoseconds) and the exact OS plus OSCR
