@@ -32,7 +32,7 @@ case "${1:-}" in
             chown root:www-data /etc/retrode3-web-control.auth
             chmod 0640 /etc/retrode3-web-control.auth
         fi
-        # Apache 2.4 / Debian 8: limit prefork workers on the 50 MiB device.
+        # Apache 2.4 / Debian 12: limit prefork workers on the 50 MiB device.
         # The shipped conf-available file overrides the distribution's MPM
         # defaults without editing the package-owned mpm_prefork.conf.
         if [ -f /etc/apache2/conf-available/retrode3-prefork.conf ] &&
