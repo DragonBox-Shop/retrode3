@@ -213,7 +213,10 @@ Every run generates a new output directory, for example:
     buildserver/artifacts/images/master/run.XXXXXXXX/retrode3-master.img.xz
 
 It also contains full-image-manifest.json, FULL-IMAGE-SHA256SUMS, the
-published package snapshot and kernel/rootfs bundles. While donor U-Boot
+published package snapshot and kernel/rootfs bundles.
+The three native cores snes/md/nes are enabled explicitly with the approved
+offline retrode3-corectl during image construction; optional adapter cores
+such as sms-md remain installed but disabled. While donor U-Boot
 is used, the manifests mark bootloader_source_built=false,
 hardware_accepted=false and customer_releasable=false.
 
