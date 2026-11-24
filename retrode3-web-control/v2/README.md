@@ -1,5 +1,64 @@
 # Retrode3 Web Control v2: shared CLI integration
 
+## Write Cartridge via the shared CLI
+
+Read and Write Cartridge use the **same Web job manager**, the **same**
+`/usr/bin/retrode3-cli` and dynamic core capabilities. There is no
+special privileged bridge, unlock button, lab-only core or extra
+confirmation prompt.
+
+The installed MegaDrive `md.so` advertises `probe_flash`,
+`write_flash` and `verify_flash` alongside ordinary ROM reading.
+The kernel permits the Flash ioctls through existing
+`/dev/slot-md` device permissions (`retrode3-reader` group). The
+SysV Web service already configures that group for device files
+and the core's scoped hardware-voltage profiles.
+
+The customer workflow:
+
+1. Insert a Flash cartridge and select the supported core in Write Cart
+2. Detect Flash to identify the manufacturer/device ID and CFI geometry
+3. Select and upload a ROM from the browser's native file requester
+4. Independently check **Erase**, **Write** and/or **Verify** (all three
+   are checked by default). Select 1..99 complete Verify passes and
+   press the **single Start button**.
+   - Erase alone with no uploaded image erases the entire chip.
+   - Erase with an uploaded image only erases overlapping sectors.
+   - Write alone programs an already erased chip.
+   - Verify alone reads and compares the existing chip contents.
+   - When Verify is unchecked, completion is explicitly `not_checked`,
+     never reported as `verified`.
+
+The shared CLI reports actual `bytes_per_second` and `elapsed_ms` in
+Write/Verify progress events using a monotonic phase clock. The
+Web page displays a measured `KiB/s` rate alongside the bytes
+completed. No browser-refresh-based speed estimates are used.
+The write rate is reset at Write start, and the Verify rate starts
+from zero when Verify begins. Erase reports sector count, not a
+made-up byte transfer speed.
+
+The Flash CLI/Core now uses one open device FD throughout a job;
+the matching updated kernel must be installed with the updated
+`md.so` and shared CLI. Old and new session behaviors must **not**
+be mixed, because the kernel now requires an Identify on the same
+open FD before Erase/Write.
+
+The kernel does *not* scan every word after each sector erase. It only
+polls the Flash's command-completion status. Full byte comparison takes
+place in the optional Verify phase **after all Write chunks**, repeating
+the entire image on each requested pass. Progress counts real sector
+erasures, programmed bytes and compared bytes, with a pass number.
+
+An **unrecognized or unsupported** chip will not be writable. The
+kernel/core check actual chip identity, power/slot and geometry on every
+destructive operation. The CLI owns exclusive bus serialization,
+cancellation and genuine per-phase progress. No additional approval or
+root privilege step is required to use normal Web features.
+
+The code stays on feature branches until device tests pass, without
+special *runtime* test switches. The Web installer does not install
+kernel or native core binaries and has no persistent rollback command.
+
 > **Development integration (2026-11-20):** `develop`
 > now uses the regular NES `nes.so` with MMC1 mapper-1 ROM
 > support and a database-driven candidate/layout selector in Web v2.
@@ -202,3 +261,17 @@ a replacement for device tests. See `docs/cli-integration.md` and
 
   Do this only while no cartridge operation is active and no local source edits
   need preservation. The updater never silently switches branches.
+
+### GBx-0011 and GBA adapter note
+
+The GBA-MD core is a **separate dynamic** `gba-md.so` even though its
+physical connector is the MD slot. Its earlier working source was on
+`feature/gba-md-v3-plugin` and was merged into the Flash CLI branch.
+Rebuild/install and enable this core as well as the normal `md.so`.
+The currently tested GBx kernel adapter still uses `gbx_md_test` mode;
+the mode resets on module replacement, requires 3.3V and the initial
+GBx arm cycle before insertion. Passive physical MD `sense` may remain
+`empty` with this adapter, so auto-detection on insertion alone is not
+yet reliable. That hardware transport mode must be made cleanly
+switchable before customer release. Do not mistake this limitation for
+a generic browser/plugin identification bug.

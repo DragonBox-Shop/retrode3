@@ -12,9 +12,9 @@ header("Content-Security-Policy: default-src 'self'; img-src 'self'; style-src '
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="csrf-token" content="<?php echo htmlspecialchars($csrf, ENT_QUOTES, 'UTF-8'); ?>">
 <title>Retrode3 Control</title>
-<link rel="stylesheet" href="assets/style.css">
-<script src="assets/selection-ui.js" defer></script>
-<script src="assets/app.js" defer></script>
+<link rel="stylesheet" href="assets/style.css?v=<?php echo (int) filemtime(__DIR__ . '/assets/style.css'); ?>">
+<script src="assets/selection-ui.js?v=<?php echo (int) filemtime(__DIR__ . '/assets/selection-ui.js'); ?>" defer></script>
+<script src="assets/app.js?v=<?php echo (int) filemtime(__DIR__ . '/assets/app.js'); ?>" defer></script>
 </head>
 <body>
 <header class="topbar"><div class="brand"><span class="brand-icon">R3</span><div><strong>Retrode3</strong><small data-i18n="subtitle">Cartridge Control</small></div></div><div class="top-right"><span id="connection" class="pill" data-i18n="connecting">Connecting…</span><select id="locale" aria-label="Language"><option value="en">English</option><option value="de">Deutsch</option></select></div></header>
@@ -63,13 +63,53 @@ header("Content-Security-Policy: default-src 'self'; img-src 'self'; style-src '
   </div>
 </div>
 <button id="read" class="btn primary" data-i18n="start_read">Read ROM</button>
-<div id="job-panel" class="job-panel" hidden><div class="progress-line"><strong id="job-label"></strong><span id="job-percent"></span></div><div class="progress"><div id="job-fill"></div></div><p id="job-detail" class="muted small"></p><p id="job-result-details" class="muted small" aria-live="polite"></p><button id="cancel" class="btn danger" data-i18n="cancel">Cancel</button></div>
+<div id="reader-progress-anchor"><div id="job-panel" class="job-panel" hidden><div class="progress-line"><strong id="job-label"></strong><div class="progress-numbers"><strong id="job-speed" class="job-speed" hidden></strong><span id="job-percent"></span></div></div><div class="progress"><div id="job-fill"></div></div><p id="job-detail" class="muted small"></p><p id="job-result-details" class="muted small" aria-live="polite"></p><button id="cancel" class="btn danger" data-i18n="cancel">Cancel</button></div></div>
 </div></div>
 </section>
 <section id="files" class="page"><p class="eyebrow" data-i18n="shared_storage">SHARED STORAGE</p><h1 data-i18n="files_title">Your game library</h1><p class="muted" data-i18n="files_desc">Browse, rename, move, download or delete ROM files in shared storage.</p>
 <div class="panel"><div class="file-head"><div id="breadcrumb" class="breadcrumb"></div><div class="actions"><button id="new-folder" class="btn secondary" data-i18n="new_folder">New folder</button><button id="refresh-files" class="btn secondary" data-i18n="refresh">Refresh</button></div></div>
 <div class="file-table-wrap"><table class="file-table"><thead><tr><th data-i18n="name">Name</th><th data-i18n="size">Size</th><th data-i18n="modified">Modified</th><th data-i18n="actions">Actions</th></tr></thead><tbody id="file-rows"></tbody></table></div></div></section>
-<section id="writer" class="page"><p class="eyebrow" data-i18n="future">FUTURE FEATURE</p><h1 data-i18n="writer_title">Write a cartridge</h1><div class="panel empty"><span class="big-icon">↗</span><h2 data-i18n="writer_unavailable">Writing isn't available yet</h2><p class="muted" data-i18n="writer_desc">This area is reserved for future flash and save operations, with explicit safety checks.</p></div></section>
+<section id="writer" class="page">
+<p class="eyebrow" data-i18n="writer_lab">FLASH CARTRIDGE</p>
+<h1 data-i18n="writer_title">Write a cartridge</h1>
+<p class="muted" data-i18n="writer_desc_live">Explicit Flash detection, sector erasure, programming and complete byte-for-byte verification.</p>
+<div class="two-col">
+<div class="panel">
+<h2 data-i18n="writer_target">Flash cartridge</h2>
+<label for="writer-system" data-i18n="writer_core">Flash-capable reader</label>
+<select id="writer-system"><option value="">—</option></select>
+<p class="muted small" id="writer-slot-status" role="status"></p>
+<button id="writer-detect" type="button" class="btn secondary" data-i18n="writer_detect">Detect Flash</button>
+<p id="writer-flash-status" class="muted small" role="status"></p>
+</div>
+<div class="panel">
+<h2 data-i18n="writer_rom">ROM file</h2>
+<label for="writer-file" data-i18n="writer_file">Choose ROM file to upload</label>
+<input id="writer-file" type="file" accept=".md,.bin,.gen,.sfc,.smc,.gba,.rom" />
+<p id="writer-upload-status" class="muted small" role="status"></p>
+<div class="flash-options" role="group" aria-labelledby="writer-options-title">
+<strong id="writer-options-title" data-i18n="writer_options">Operations</strong>
+<label class="flash-check"><input id="writer-erase" type="checkbox" checked />
+<span data-i18n="writer_erase">Erase</span></label>
+<label class="flash-check"><input id="writer-program" type="checkbox" checked />
+<span data-i18n="writer_program">Write</span></label>
+<div class="flash-verify-row">
+<label class="flash-check"><input id="writer-check" type="checkbox" checked />
+<span data-i18n="writer_verify">Verify</span></label>
+<label class="flash-count" for="writer-verify-passes">
+<span data-i18n="writer_verify_count">Number of Verify passes</span>
+<input id="writer-verify-passes" type="number" min="1" max="99" step="1" value="1" inputmode="numeric"/>
+</label>
+</div>
+<p class="muted small" id="writer-operation-hint" role="status"></p>
+</div>
+<div class="actions">
+<button id="writer-start" type="button" class="btn primary" data-i18n="writer_start">Start operation</button>
+</div>
+</div>
+</div>
+<div id="writer-progress-anchor"></div>
+</section>
 <section id="settings" class="page"><p class="eyebrow" data-i18n="device">DEVICE</p><h1 data-i18n="settings_title">General settings</h1><div class="two-col"><div class="panel"><h2 data-i18n="wifi">Wi-Fi connection</h2><div class="keyval"><span data-i18n="wifi_status">Status</span><strong id="wifi-status">…</strong></div><div class="keyval"><span data-i18n="ip_address">IP address</span><strong id="wifi-ip">…</strong></div>
 <div class="keyval"><span data-i18n="wifi_interface">Wireless interface</span><strong id="wifi-interface">…</strong></div><p id="wifi-diagnostic" class="muted small" role="status"></p>
 <div class="actions"><button id="scan-wifi" class="btn secondary" data-i18n="scan">Scan networks</button><button id="disconnect-wifi" class="btn danger" data-i18n="disconnect">Disconnect</button></div><div id="wifi-networks"></div>

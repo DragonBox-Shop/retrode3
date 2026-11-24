@@ -12,9 +12,11 @@ SOURCE=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)
 [ -d "$SOURCE/.git" ] || fail "No Git checkout at $SOURCE."
 BRANCH=$(git -C "$SOURCE" symbolic-ref --quiet --short HEAD) ||
     fail "Detached Git HEAD. Check out master (release) or develop first."
+# Update the checked-out development branch, including temporary feature
+# branches. No separate build/approval mode for customer-facing Web features.
 case "$BRANCH" in
-    master|develop|feature/web-control-v2) ;;
-    *) fail "Unexpected branch $BRANCH. Refusing to deploy another branch." ;;
+    master|develop|feature/*) ;;
+    *) fail "Unsupported branch name $BRANCH." ;;
 esac
 [ -z "$(git -C "$SOURCE" status --porcelain --untracked-files=no)" ] ||
     fail "Local tracked changes exist. Commit or revert them before updating."

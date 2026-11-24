@@ -40,3 +40,19 @@
 #generic-override-fields input[type=checkbox]{width:auto;max-width:none;accent-color:var(--accent)}
 #generic-override-fields .generic-field p{margin:5px 0 10px}
 #generic-override-hint:not(:empty){color:var(--danger)}
+
+/* Flash operations use normal customer controls, not separate privilege modes. */
+.flash-options{margin-top:18px;padding:16px;border:1px solid var(--line);border-radius:10px;background:#141d29}
+.flash-options>strong{display:block;margin-bottom:12px}
+.flash-check{display:flex;align-items:center;gap:10px;margin:9px 0;cursor:pointer;font-size:14px;color:var(--text)}
+.flash-check input[type=checkbox]{width:auto;max-width:none;margin:0;accent-color:var(--accent)}
+.flash-verify-row{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px}
+.flash-count{display:flex;align-items:center;gap:9px;margin:3px 0;font-weight:500}
+.flash-count input{width:77px;min-width:65px;text-align:center;padding:7px 9px}
+.flash-count input:disabled{opacity:.45}
+#writer-operation-hint{margin:12px 0 0;min-height:1.5em}
+
+/* Live Flash speed belongs next to percent, not in a muted detail paragraph. */
+.progress-numbers{display:flex;align-items:center;gap:12px;flex-shrink:0}
+.job-speed{font-size:14px;font-weight:700;color:var(--accent);font-variant-numeric:tabular-nums;white-space:nowrap}
+@media(max-width:380px){.progress-numbers{gap:7px}.job-speed{font-size:12px}}
