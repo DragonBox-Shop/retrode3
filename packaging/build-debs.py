@@ -50,7 +50,7 @@ TOOL_FILES = (
      "usr/local/bin/retrode3-admin", 0o755),
     ("retrode3-tools/usr/local/bin/retrode3-wlan",
      "usr/local/bin/retrode3-wlan", 0o755),
-    ("retrode3-tools/etc/sudoers.d/retrode3",
+    ("packaging/assets/retrode3-tools.sudoers",
      "etc/sudoers.d/retrode3", 0o440),
 )
 UDEV_FILES = (
