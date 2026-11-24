@@ -78,6 +78,9 @@ class ImageSafety(unittest.TestCase):
         root.mkdir()
         (root / "etc/init.d").mkdir(parents=True)
         (root / "etc/rc2.d").mkdir(parents=True)
+        (root / "etc/inittab").write_text("id:2:initdefault:\n")
+        (root / "usr/sbin").mkdir(parents=True)
+        (root / "usr/sbin/dnsmasq").write_text("test binary fixture\n")
         blob = (struct.pack(">I", 11) + b"ssh-ed25519" +
                 struct.pack(">I", 32) + b"0" * 32)
         key = self.base / "id_ed25519.pub"
@@ -87,6 +90,14 @@ class ImageSafety(unittest.TestCase):
         self.assertTrue((root / "etc/rc2.d/S02retrode3-bringup-usb").is_symlink())
         self.assertIn("dropbear -R -s",
                       (root / "etc/init.d/retrode3-bringup-usb").read_text())
+        self.assertIn("g0:2:respawn:/sbin/getty -L 115200 ttyGS0 vt102",
+                      (root / "etc/inittab").read_text())
+        service = (root / "etc/init.d/retrode3-bringup-usb").read_text()
+        for expected in ("functions/acm.GS0", "functions/ncm.usb0",
+                         "--interface=usb0", "--dhcp-range=172.31.255.2",
+                         "--dhcp-option=3", "--dhcp-option=6",
+                         "--port=0", "ADDR=172.31.255.1/29"):
+            self.assertIn(expected, service)
 
     def test_invalid_test_ssh_key_rejected(self):
         root = self.base / "root"
@@ -95,6 +106,17 @@ class ImageSafety(unittest.TestCase):
         bad.write_text("not-a-real-public-key\n")
         with self.assertRaisesRegex(ValueError, "public key"):
             module.provision_test_access(root, bad)
+
+    def test_legacy_sysv_boot_order_is_idempotent_and_not_a_symlink(self):
+        root = self.base / "root"
+        (root / "etc/init.d").mkdir(parents=True)
+        module.ensure_legacy_sysv_order(root)
+        module.ensure_legacy_sysv_order(root)
+        self.assertTrue((root / "etc/init.d/.legacy-bootordering").is_file())
+        (root / "etc/init.d/.legacy-bootordering").unlink()
+        (root / "etc/init.d/.legacy-bootordering").symlink_to("/etc/passwd")
+        with self.assertRaisesRegex(ValueError, "unsafe SysV"):
+            module.ensure_legacy_sysv_order(root)
 
     def test_sd_bootloader_mbr_snapshot(self):
         raw = self.base / "sd-preboot.bin"
