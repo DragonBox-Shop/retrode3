@@ -1,0 +1,45 @@
+"""Publisher regression checks for one signed export after staged imports."""
+from pathlib import Path
+import re
+import unittest
+
+
+PUBLISHER = (
+    Path(__file__).resolve().parents[2] / "buildserver/publish-debs.sh"
+)
+
+
+class StagedPublicationContractTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.script = PUBLISHER.read_text()
+
+    def test_signing_preflight_before_first_package_mutation(self):
+        preflight = self.script.index('if ! timeout 20s gpg')
+        include = self.script.index('includedeb "$suite" "$deb"')
+        self.assertLess(preflight, include)
+        self.assertIn('--pinentry-mode error', self.script[preflight:include])
+
+    def test_stage_packages_without_export_and_keep_old_pool_files(self):
+        include = self.script.index('includedeb "$suite" "$deb"')
+        self.assertIn('--export=never --keepunreferencedfiles',
+                      self.script[include - 110:include])
+        self.assertEqual(self.script.count('includedeb "$suite" "$deb"'), 1)
+
+    def test_single_signed_export_after_all_staging(self):
+        include = self.script.index('includedeb "$suite" "$deb"')
+        final = self.script.index('export "$suite"', include)
+        self.assertLess(include, final)
+        self.assertEqual(self.script.count('export "$suite"'), 1)
+        self.assertIn('done\n\n# A previous run may have staged',
+                      self.script[include:final])
+
+    def test_failed_export_stops_before_success_message(self):
+        after_export = self.script.split('export "$suite"', 1)[1]
+        self.assertIn('echo "Published to APT', after_export)
+        self.assertTrue(self.script.startswith('#!/usr/bin/env bash'))
+        self.assertIn('set -euo pipefail', self.script)
+
+
+if __name__ == "__main__":
+    unittest.main()
