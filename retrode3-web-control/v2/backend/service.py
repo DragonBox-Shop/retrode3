@@ -350,9 +350,12 @@ def core_registry():
             actions = c.get("actions")
             if not isinstance(actions, list) or any(not isinstance(a, str) or not CORE_ID.match(a) for a in actions):
                 raise ValueError("Invalid core actions")
-            cores.append(dict((key, c[key]) for key in
-                              ("id", "name", "version", "slot", "status",
-                               "installed", "enabled", "usable", "actions")))
+            entry = dict((key, c[key]) for key in
+                         ("id", "name", "version", "slot", "status",
+                          "installed", "enabled", "usable", "actions"))
+            if c.get("probe_without_sense") is True:
+                entry["probe_without_sense"] = True
+            cores.append(entry)
     except (ValueError, KeyError, UnicodeError, TypeError):
         raise ApiError(502, "core_protocol_invalid", "CLI inventory protocol mismatch")
     return {"available": True, "source": "retrode3-cli",
@@ -448,6 +451,8 @@ def reader_capability(core_id, registry=None):
     if not commands:
         result["reason"] = "core_operation_unavailable"
         return result
+    if core.get("probe_without_sense") is True:
+        result["probe_without_sense"] = True
     result.update({"available": True,
                    "capabilities": {"system": core["id"], "core": core["id"],
                                     "slot": core["slot"], "commands": commands,
@@ -839,9 +844,10 @@ MANAGER = JobManager()
 class AutomaticDetection(object):
     """Keep cartridge identity in the backend, independent of browser sessions.
 
-    Linux slot uevents wake the worker, but every decision is verified
-    against passive kernel sense sysfs, never against untrusted event text.
-    A periodic reconciliation also handles lost events or absent netlink.
+    Linux slot uevents wake the worker; their text never selects a core.
+    Passive sense is the ordinary trigger. Cores explicitly declaring
+    sense-independent probes may also be checked at a bounded interval.
+    A periodic reconciliation handles lost events or absent netlink.
     All probes are submitted through the same serialized JobManager as
     manually requested ROM reads; no second raw device reader exists.
     """
@@ -849,6 +855,7 @@ class AutomaticDetection(object):
         self.manager = manager
         self.lock = threading.RLock()
         self.records = {}
+        self.fallback_slots = None
         self.running = False
 
     def start(self):
@@ -862,6 +869,7 @@ class AutomaticDetection(object):
     def reset(self):
         """Re-evaluate installed/disabled cores after a registry change."""
         with self.lock:
+            self.fallback_slots = None
             for slot_id, record in list(self.records.items()):
                 if record["state"] == "detecting":
                     try:
@@ -878,6 +886,13 @@ class AutomaticDetection(object):
         with self.manager.lock:
             active = self.manager.active
         if active is not None and active.reader["slot"] == slot_id:
+            # A sense-independent reader must validate cartridge identity
+            # itself. Empty sense is not proof of removal for that reader.
+            if active.reader.get("probe_without_sense") is True:
+                return
+            record = self.records.get(slot_id) or {}
+            if active.action == "probe_slot" and record.get("fallback"):
+                return
             active.cancel()
 
     def _event_changed(self, payload):
@@ -969,7 +984,8 @@ class AutomaticDetection(object):
                     self.records[slot_id] = {
                         "presence": status,
                         "state": "pending" if status == "occupied" else "idle",
-                        "ready_at": now + 0.35,
+                        "ready_at": now + (0.35 if status == "occupied" else 3.0),
+                        "fallback": False,
                         "job_id": None,
                         "core_id": None,
                         "slot_probe": False,
@@ -977,7 +993,40 @@ class AutomaticDetection(object):
                         "error": None}
                     continue
                 if status != "occupied":
-                    continue
+                    if status != "empty":
+                        continue
+                    # No probing on browser refresh. Only the backend worker
+                    # schedules bounded, opt-in header probes while idle.
+                    if record["state"] != "detecting":
+                        if now < record["ready_at"]:
+                            continue
+                        with self.manager.lock:
+                            if self.manager.active is not None:
+                                continue
+                        if self.fallback_slots is None:
+                            try:
+                                self.fallback_slots = set(
+                                    reader["slot"] for reader in capability_probe()["systems"]
+                                    if reader and reader["available"] and
+                                    reader.get("probe_without_sense") is True)
+                            except ApiError:
+                                record["ready_at"] = now + 5.0
+                                continue
+                        if slot_id not in self.fallback_slots:
+                            continue
+                        record["fallback"] = True
+                        try:
+                            job = self.manager.submit_slot_probe(slot_id)
+                        except ApiError as error:
+                            if error.status != 409:
+                                record["ready_at"] = now + 5.0
+                            continue
+                        record["job_id"] = job["id"]
+                        record["slot_probe"] = True
+                        record["state"] = "detecting"
+                        continue
+                    if not record.get("fallback"):
+                        continue
                 if record["state"] == "detecting":
                     job = self.manager.get(record["job_id"]).snapshot()
                     if job["status"] == "done":
@@ -1007,6 +1056,16 @@ class AutomaticDetection(object):
                                         record["result"]["read_voltage_mv"] = probe["read_voltage_mv"]
                                     record["state"] = "detected"
                                     record["error"] = None
+                                    if record.get("fallback"):
+                                        record["ready_at"] = now + 5.0
+                            elif record.get("fallback"):
+                                # No valid header on a slot without sense:
+                                # remove cached identity, then wait to retry.
+                                record["state"] = "idle"
+                                record["result"] = None
+                                record["core_id"] = None
+                                record["error"] = None
+                                record["ready_at"] = now + 5.0
                             elif result.get("detection") == "empty":
                                 record["state"] = "pending"
                                 record["ready_at"] = now + 0.35
@@ -1029,6 +1088,10 @@ class AutomaticDetection(object):
                     elif job["status"] in ("failed", "cancelled"):
                         record["state"] = "failed"
                         record["error"] = (job.get("error") or {}).get("code", "probe_failed")
+                        if record.get("fallback"):
+                            record["ready_at"] = now + 5.0
+                            record["result"] = None
+                            record["core_id"] = None
                 elif record["state"] == "pending" and now >= record["ready_at"]:
                     # Waiting must be passive. Do not spawn repeated CLI
                     # inventory processes every 300 ms while another slot's
@@ -1084,8 +1147,17 @@ class AutomaticDetection(object):
             for slot in result["slots"]:
                 record = self.records.get(slot["id"])
                 if record is not None and record["presence"] == slot["status"]:
+                    # Keep passive sense separately; a confirmed header is
+                    # sufficient presence evidence for an opt-in core.
+                    detected_by_header = (record.get("fallback") and
+                                          record["result"] is not None and
+                                          record["core_id"] is not None)
+                    if detected_by_header:
+                        slot["sense_status"] = slot["status"]
+                        slot["status"] = "occupied"
+                        slot["presence_source"] = "header"
                     slot["detection"] = {
-                        "state": record["state"],
+                        "state": "detected" if detected_by_header else record["state"],
                         "core_id": record["core_id"],
                         "result": record["result"],
                         "error": record["error"]}

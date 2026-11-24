@@ -674,5 +674,56 @@ for line in sys.stdin:
             MODULE.slot_snapshot = old_snapshot
             MODULE.capability_probe = old_capabilities
 
+    def test_sense_independent_probe_detects_and_rechecks_header(self):
+        old_snapshot, old_capabilities = MODULE.slot_snapshot, MODULE.capability_probe
+        class FakeJob(object):
+            result = {"event": "slot_probe_result", "slot": "md",
+                      "detection": "detected", "core": "adapter",
+                      "probe_result": {"event": "probe_result", "slot": "md",
+                                       "system": "adapter", "title": "TEST CART"}}
+            def snapshot(self):
+                return {"status": "done", "result": self.result}
+        class FakeManager(object):
+            def __init__(self):
+                self.lock = MODULE.threading.RLock()
+                self.active = None
+                self.calls = []
+                self.job = FakeJob()
+            def submit_slot_probe(self, slot_id):
+                self.calls.append(slot_id)
+                return {"id": "job"}
+            def get(self, job_id):
+                return self.job
+        manager = FakeManager()
+        watcher = MODULE.AutomaticDetection(manager)
+        try:
+            MODULE.slot_snapshot = lambda: {"slots": [{
+                "id": "md", "name": "Mega Drive", "status": "empty"}]}
+            MODULE.capability_probe = lambda: {"systems": [{
+                "id": "adapter", "slot": "md", "available": True,
+                "probe_without_sense": True,
+                "capabilities": {"commands": ["probe"]}}]}
+            watcher.tick(now=1.0)
+            watcher.tick(now=3.0)
+            self.assertEqual(manager.calls, [])
+            watcher.tick(now=4.0)
+            watcher.tick(now=4.1)
+            self.assertEqual(manager.calls, ["md"])
+            slot = watcher.snapshot()["slots"][0]
+            self.assertEqual(slot["status"], "occupied")
+            self.assertEqual(slot["sense_status"], "empty")
+            self.assertEqual(slot["detection"]["core_id"], "adapter")
+            manager.job.result = {"event": "slot_probe_result", "slot": "md",
+                                  "detection": "empty", "core": None}
+            watcher.tick(now=8.0)
+            self.assertEqual(manager.calls, ["md"])
+            watcher.tick(now=9.2)
+            watcher.tick(now=9.3)
+            self.assertEqual(manager.calls, ["md", "md"])
+            self.assertEqual(watcher.snapshot()["slots"][0]["status"], "empty")
+        finally:
+            MODULE.slot_snapshot = old_snapshot
+            MODULE.capability_probe = old_capabilities
+
 if __name__ == "__main__":
     unittest.main()
