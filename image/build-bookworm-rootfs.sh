@@ -73,7 +73,7 @@ chroot "$root" /usr/bin/apt-get update
 chroot "$root" /usr/bin/apt-get install -y --no-install-recommends \
   sysvinit-core sysv-rc initscripts udev kmod \
   ifupdown iproute2 isc-dhcp-client e2fsprogs dosfstools ca-certificates \
-  dropbear-bin
+  dropbear-bin dnsmasq-base
 cat > "$root/etc/fstab" <<'EOF'
 # Planned Retrode3 SD partition layout, validated later with a test card.
 /dev/mmcblk0p2 / ext4 defaults,noatime,errors=remount-ro 0 1
@@ -97,6 +97,8 @@ l2:2:wait:/etc/init.d/rc 2
 ca:12345:ctrlaltdel:/sbin/shutdown -r now
 s2:2345:respawn:/sbin/getty -L 115200 ttyS2 vt102
 EOF
+# Preserve the numeric SysV ordering checked on the original Bookworm test SD.
+: > "$root/etc/init.d/.legacy-bootordering"
 rm -f "$root/usr/sbin/policy-rc.d" "$root/usr/bin/qemu-mipsel-static"
 rm -f "$root/etc/resolv.conf"
 rm -rf "$root/debootstrap" "$root/var/lib/apt/lists/"*
