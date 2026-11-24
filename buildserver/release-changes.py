@@ -18,12 +18,16 @@ NON_PACKAGE_FILES = frozenset({
     "buildserver/publish-debs.sh",
     "buildserver/install-launchers.sh",
     "buildserver/release-changes.py",
+    "buildserver/run-image.sh",
+    "buildserver/build-image-container.sh",
+    "buildserver/Containerfile.image",
 })
 NON_PACKAGE_PREFIXES = (
     ".github/",
     "docs/",
     "packaging/tests/",
     "buildserver/tests/",
+    "image/",
     "retrode3-web-control/v2/docs/",
     "retrode3-web-control/v2/tests/",
 )

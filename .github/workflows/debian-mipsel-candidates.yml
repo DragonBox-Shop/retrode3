@@ -95,3 +95,75 @@ jobs:
             build/debian-candidates/build-manifest.json
           if-no-files-found: error
           retention-days: 14
+
+  bookworm-mipsel-apt-install:
+    # Real foreign-architecture APT dependency test; not a device acceptance.
+    needs: cross-build-offline-debs
+    runs-on: ubuntu-24.04
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download exactly the untested MIPSEL Debian candidates
+        uses: actions/download-artifact@v4
+        with:
+          name: retrode3-develop-mipsel-debs-UNTESTED
+          path: build/apt-debs
+      - name: Install foreign-architecture tools
+        run: |
+          set -eux
+          sudo apt-get update
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y \
+            debootstrap qemu-user-static binfmt-support debian-archive-keyring xz-utils
+          sudo update-binfmts --enable qemu-mipsel
+          test -r /proc/sys/fs/binfmt_misc/qemu-mipsel
+          grep -x enabled /proc/sys/fs/binfmt_misc/qemu-mipsel
+      - name: Bootstrap real Bookworm MIPSEL and resolve all manifest packages
+        run: |
+          set -eux
+          mkdir -p "$PWD/build/ci-rootfs-artifacts" "$PWD/build/ci-mipsel-rootfs"
+          sudo env SOURCE_DATE_EPOCH=1795392000 \
+            bash image/build-bookworm-rootfs.sh "$PWD/build/ci-rootfs-artifacts"
+          sudo tar --numeric-owner -xJf \
+            build/ci-rootfs-artifacts/retrode3-bookworm-mipsel-rootfs.tar.xz \
+            -C build/ci-mipsel-rootfs
+          ROOT="$PWD/build/ci-mipsel-rootfs"
+          sudo install -m 0755 /usr/bin/qemu-mipsel-static "$ROOT/usr/bin/qemu-mipsel-static"
+          sudo cp /etc/resolv.conf "$ROOT/etc/resolv.conf"
+          sudo mkdir -p "$ROOT/tmp/retrode3-debs"
+          sudo cp build/apt-debs/*.deb "$ROOT/tmp/retrode3-debs/"
+          sudo sh -c 'printf "#!/bin/sh\nexit 101\n" > "$1"' sh "$ROOT/usr/sbin/policy-rc.d"
+          sudo chmod 0755 "$ROOT/usr/sbin/policy-rc.d"
+          sudo chroot "$ROOT" apt-get update
+          sudo chroot "$ROOT" /bin/sh -c \
+            'apt-get -y --no-install-recommends install /tmp/retrode3-debs/*.deb'
+          sudo chroot "$ROOT" dpkg --audit
+          # Verify *every* discovered dynamic OSCR core and every all-arch
+          # support package in the exact candidate manifest, not a fixed list.
+          mapfile -t pinned < <(python3 - <<'PY_PACKAGES'
+          import json
+          data = json.load(open("build/apt-debs/build-manifest.json"))
+          names = [record["package"] for record in data["packages"]]
+          required = {"retrode3-core-runtime", "retrode3-web-control",
+                      "retrode3-tools", "retrode3-udev-rules"}
+          assert required.issubset(names), "Missing required image packages"
+          assert len(names) == len(set(names)), "Duplicate package records"
+          for name in sorted(names):
+              print(name)
+          PY_PACKAGES
+          )
+          sudo chroot "$ROOT" dpkg-query -W "${pinned[@]}" \
+            apache2 libapache2-mod-php8.2 php8.2-cli
+          if sudo chroot "$ROOT" dpkg-query -W -f='${Status}' systemd-sysv 2>/dev/null \
+            | grep -q 'install ok installed'; then
+            echo "systemd-sysv incorrectly installed in SysV rootfs" >&2
+            exit 1
+          fi
+          # Do not leak the emulator, package installation helper or DNS file.
+          sudo rm -f "$ROOT/usr/bin/qemu-mipsel-static" \
+            "$ROOT/usr/sbin/policy-rc.d" "$ROOT/etc/resolv.conf"
+          sudo rm -rf "$ROOT/tmp/retrode3-debs"
+          sudo python3 image/verify-rootfs.py --with-retrode3 "$ROOT"
+      - name: Explain test limitations
+        run: |
+          echo "Verified: package dependency closure and maintainer scripts in Debian 12 MIPSEL."
+          echo "Not verified: kernel, U-Boot, WLAN connect, USB gadgets or physical Retrode3."

@@ -45,9 +45,18 @@ def verify(root, with_retrode3=False):
         if name in packages and (name != "retrode3-web-control" or not with_retrode3):
             raise ValueError("forbidden base package: " + name)
     if with_retrode3:
-        for name in ("retrode3-core-runtime", "retrode3-web-control"):
+        for name in ("retrode3-core-runtime", "retrode3-web-control",
+                     "retrode3-tools", "retrode3-udev-rules",
+                     "apache2", "libapache2-mod-php8.2"):
             if name not in packages:
                 raise ValueError("missing Retrode3 image package: " + name)
+        # The chroot's Apache may not be runnable under foreign QEMU while
+        # services are intentionally blocked, but PHP/MPM module enablement
+        # must still be present in the emitted image.
+        for module in ("mpm_prefork.load", "php8.2.load"):
+            entry = root / "etc/apache2/mods-enabled" / module
+            if not entry.is_symlink() or not entry.exists():
+                raise ValueError("missing enabled Apache module: " + module)
     for name, record in packages.items():
         if record.get("Architecture") not in ("mipsel", "all"):
             raise ValueError("unexpected package architecture: " + name)

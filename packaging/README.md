@@ -99,7 +99,21 @@ records checksums and source pins. It deliberately states
 | retrode3-core-md | mipsel | `md.so` + `md.core` in the same directory |
 | retrode3-core-nes | mipsel | `nes.so` + `nes.core` in the same directory |
 | retrode3-core-sms-md | mipsel | `sms-md.so` + `sms-md.core` in the same directory; physical slot `md` |
+| retrode3-tools | all | Legacy `retrode3-admin` and `retrode3-wlan` helpers; limited read-only WLAN sudo policy for Bookworm bring-up |
+| retrode3-udev-rules | all | `/etc/udev/rules.d/70-retrode3-cartridge.rules` without old systemd/gadget hooks |
 | retrode3-web-control | all | `/opt/retrode3-web-v2/backend`, `/var/www/html`, `/etc/init.d/retrode3-web-v2`, auth helper, default settings and exact-argument sudoers policy |
+
+**Debian 12 Bookworm transition:** The Web v2 .deb now depends on Debian's
+`apache2`, `libapache2-mod-php8.2` and `php8.2-cli`, rather than
+`letux-httpd` or obsolete PHP 5 alternatives. `retrode3-tools` and
+`retrode3-udev-rules` are now produced in the same pinned candidate set
+(with the Web package version) so a new rootfs can resolve all dependencies.
+The tools package intentionally does not pull in `letux-config-etc` or
+`ucon64`. **WLAN connect/disconnect remains disabled for the Web sudo
+path until the legacy `/root/wlan-*` helpers have a tested Bookworm
+replacement.** This is an installability milestone, not acceptance of all
+features on hardware. Do not publish to `stable` until that work and
+physical testing are complete.
 
 The Web package deliberately reuses Nikolaus' earlier
 `retrode3-web-control` package name to allow Debian to upgrade the v1

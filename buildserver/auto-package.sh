@@ -150,7 +150,8 @@ try:
         sys.exit(1)
     for record in records:
         pkg = record["package"]
-        version = (manifest["web_version"] if pkg == "retrode3-web-control"
+        version = (manifest["web_version"] if pkg in
+                   ("retrode3-web-control", "retrode3-tools", "retrode3-udev-rules")
                    else manifest["native_version"])
         if (pkg, version) not in indexed:
             sys.exit(1)

@@ -85,9 +85,12 @@ without these settings remains a plain Debian rootfs.
   Retrode3 X1600 source. A donor-card SPL is not an autonomous build.
 - The working MIPS32EL kernel compiler (Bootlin GCC 8.2.0) and the
   device's FULLCONFIG must be made available to the server and pinned.
-- The new Web .deb currently depends on letux-httpd, retrode3-tools,
-  retrode3-udev-rules, PHP and Python; confirm each dependency is
-  available to a fresh Bookworm rootfs from a trusted repository.
+- Bookworm development package candidates now include `retrode3-tools` and
+  `retrode3-udev-rules`; Web depends on Debian 12 Apache/PHP rather than
+  `letux-httpd`. Verify signed publication and test the entire APT
+  dependency closure in a fresh MIPSEL rootfs before considering this done.
+  WLAN connect/disconnect still require a safe replacement for the legacy
+  `/root/wlan-*` scripts before device acceptance.
 - Confirm the public signed testing/stable InRelease endpoints and
   their key fingerprints from the server. No external availability
   or signature validation has yet been observed here.

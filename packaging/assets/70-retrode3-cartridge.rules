@@ -1,0 +1,5 @@
+# Debian 12 / SysV: only grant access to verified Retrode3 character nodes.
+# The retrode3-core-runtime postinst creates the retrode3-reader group.
+# Do not invoke systemctl or legacy gadget.sh from udev.
+SUBSYSTEMS=="retrode3", KERNEL=="slot-*", ACTION=="add", GROUP="retrode3-reader", MODE="0660"
+SUBSYSTEMS=="retrode3", KERNEL=="slot-*", ACTION=="change", GROUP="retrode3-reader", MODE="0660"
