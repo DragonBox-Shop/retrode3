@@ -209,11 +209,13 @@ the next `package_*.sh` invocation automatically builds it.
 
 ## Full Debian SD image candidates (one command per branch)
 
-The image builder **reuses** the existing package launchers and their
-published manifests. It then builds Linux + DTB + modules from
-DragonBox-Shop/retrode3-kernel, bootstraps Bookworm MIPSEL, installs the
-exact published Retrode3 packages from signed packages.retrode.com, and
-assembles a FAT32/ext4 .img.xz regular file.
+The development image builder **reuses** the existing package launcher and
+published manifests. It builds SPL/U-Boot from
+`DragonBox-Shop/retrode3-uboot/develop` (target `lx16_uImage_msc0`),
+then Linux + DTB + modules from `retrode3-kernel/develop`, bootstraps
+Bookworm MIPSEL, installs the pinned `testing` packages, and assembles a
+FAT32/ext4 .img.xz regular file. Only `develop` is enabled: the U-Boot
+master branch is currently an unrelated upstream default.
 
 Install launchers once as the existing unprivileged retrode user:
 
@@ -239,22 +241,16 @@ Provision these **non-DocumentRoot** directories:
 
 Each directory must contain:
 
-- FULLCONFIG: approved, matching Retrode3 kernel config. The channels
-  can require different configs if master/develop kernel sources differ.
-- toolchain/bin/mipsel-linux-gcc: the full pinned Bootlin MIPS32EL GCC 8.2
-  toolchain including its libraries, mounted read-only, not just gcc.
-- sd-preboot-1MiB.bin: the original donor SD bootloader dump. PRIVATE!
-  This is an explicit temporary fallback until board U-Boot source
-  and raw-sector placement have been verified.
-- preboot.sha256: lowercase 64-character hash of the donor, no filename.
+- FULLCONFIG: approved, matching Retrode3 kernel config. For the first
+  development attempt compare it against the approved kernel/develop revision.
+- The image build uses Debian 12's `gcc-mipsel-linux-gnu`, with a recorded
+  compiler SHA256; Bootlin GCC 8.2.0 is **not** required.
+- The 1 MiB donor SD snapshot is **not** an input to the new source-built
+  development pipeline. Keep the saved copy private for reference and recovery.
+  The assembler's legacy `--sd-preboot` option remains for prior test cases.
 - retrode3-archive.gpg: public-only GPG export of the APT archive signing key.
 - apt-fingerprint: full 40-character primary signing-key fingerprint.
 - Optional ssh.pub: a PUBLIC developer SSH key for temporary USB NCM access.
-
-For example:
-
-    cd /srv/www/vhosts/retrode.com/buildserver/private/image/develop
-    sha256sum sd-preboot-1MiB.bin | cut -d' ' -f1 > preboot.sha256
 
 The APT administrator can export the PUBLIC archive key using:
 
@@ -268,8 +264,8 @@ each channel. **Never** mount the signing secret or full repo keyring.
 Rootless Podman with crun/slirp4netns, QEMU MIPSEL binfmt registered
 on the host by the administrator, sufficient disk space and HTTPS to
 GitHub, Debian and the signed Retrode3 APT suites are required.
-The image container has the build programs; the host must provide
-binfmt and the pinned compiler. The container never mounts /dev,
+The image container has the build programs and Debian MIPS cross compiler;
+the host must provide binfmt. The container never mounts /dev,
 Maildir, public website or the APT secret keyring; it does not
 request --privileged. The rootless chroot/binfmt interactions still
 require a real Amaterasu integration test.
@@ -283,14 +279,15 @@ It also contains full-image-manifest.json, FULL-IMAGE-SHA256SUMS, the
 published package snapshot and kernel/rootfs bundles.
 The three native cores snes/md/nes are enabled explicitly with the approved
 offline retrode3-corectl during image construction; optional adapter cores
-such as sms-md remain installed but disabled. While donor U-Boot
-is used, the manifests mark bootloader_source_built=false,
-hardware_accepted=false and customer_releasable=false.
+such as sms-md remain installed but disabled. Source-built U-Boot manifests mark bootloader_source_built=true,
+but hardware_accepted=false and customer_releasable=false until a separate
+SD-card cold boot verifies the entire chain.
 
-**Expected blockers:** The Web .deb currently depends on letux-httpd,
-retrode3-tools, retrode3-udev-rules and PHP/Python. Their full Debian 12
-dependency chain must be present in trusted signed APT sources; if not,
-the image build fails visibly. Similarly, stable cannot be claimed
-successful if the master kernel source/config is not yet approved.
+**Current gates:** The nine new Bookworm development packages have already
+been published in signed APT `testing`, and the CI verifies their install.
+The FULLCONFIG input and compatibility of the older Ingenic X1600 U-Boot
+sources with Debian 12's newer cross compiler must still be verified. The
+bootloader build is checked against documented SPL positions (sector 34,
+U-Boot sector 86) before constructing an SD image. Master is not ready.
 Kernel/USB/regression hardware tests and customer release authorization
 remain separate gates.
