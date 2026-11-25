@@ -71,8 +71,8 @@ jobs:
               root / "spl/u-boot-spl.bin",
               root / "u-boot.bin")
           assert len(preboot)==1024*1024
-          assert preboot[512:17408]==b"\\0" * (17408-512)
-          assert preboot[44032:44040]!=b"\\0"*8
+          assert preboot[512:17408]==bytes(17408-512)
+          assert preboot[44032:44040]!=bytes(8)
           print("Verified source-built X1600 U-Boot, no vendor GPT")
           PY
 
