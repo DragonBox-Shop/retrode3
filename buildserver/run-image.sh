@@ -119,6 +119,18 @@ uboot_sha="${uboot_line%%[[:space:]]*}"
   echo "Cannot resolve pinned Retrode3 U-Boot develop" >&2; exit 1;
 }
 
+# Mount only the public APT trust material and optional public test SSH key.
+# Do not expose the whole private image input directory to Podman.
+private_mounts=(
+  -v "$private/retrode3-archive.gpg:/private/retrode3-archive.gpg:ro"
+  -v "$private/apt-fingerprint:/private/apt-fingerprint:ro"
+)
+if [[ -e "$private/ssh.pub" || -L "$private/ssh.pub" ]]; then
+  [[ -f "$private/ssh.pub" && ! -L "$private/ssh.pub" ]] || {
+    echo "Unsafe optional SSH public key path" >&2; exit 1;
+  }
+  private_mounts+=( -v "$private/ssh.pub:/private/ssh.pub:ro" )
+fi
 run="$(mktemp -d "$images/run.XXXXXXXX")"
 cp "$published" "$run/published-packages.json"
 printf '%s\n' "$os_sha" > "$run/image-os-commit"
@@ -142,7 +154,7 @@ podman --runtime=crun --cgroup-manager=systemd run --rm \
     --pids-limit "${RETRODE3_IMAGE_PIDS:-512}" \
     -v "$image_checkout:/src:ro" -v "$run:/work:rw" \
     -v /proc/sys/fs/binfmt_misc:/proc/sys/fs/binfmt_misc:ro \
-    -v "$private:/private:ro" \
+    "${private_mounts[@]}" \
     -e "RETRODE3_IMAGE_BRANCH=$branch" \
     -e "RETRODE3_IMAGE_SUITE=$suite" \
     -e "RETRODE3_OS_SHA=$os_sha" \
