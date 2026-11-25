@@ -34,7 +34,8 @@ done
 [[ -d "$checkout/.git" ]] || {
   echo "Missing branch checkout: $checkout" >&2; exit 1;
 }
-[[ -d "$image_checkout/.git" && "$image_checkout" != "$checkout" ]] || {
+[[ -e "$image_checkout/.git" && ! -L "$image_checkout/.git" && "$image_checkout" != "$checkout" ]] &&\
+  git -C "$image_checkout" rev-parse --is-inside-work-tree | grep -qx true || {
   echo "Image builder requires its own dedicated Git checkout, separate from the APT automation checkout" >&2
   exit 1
 }
