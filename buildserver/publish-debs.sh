@@ -13,15 +13,26 @@ case "$branch" in
   master) suite=stable ;;
   *) echo "error: unknown Git branch: $branch" >&2; exit 2 ;;
 esac
-root="$(cd "$(dirname "$0")/.." && pwd)"
-actual_branch="$(git -C "$root" symbolic-ref --quiet --short HEAD)" || {
-  echo "error: publish from a named Git branch, not a detached worktree" >&2
-  exit 1
-}
-if [[ "$actual_branch" != "$branch" ]]; then
-  echo "error: checkout branch $actual_branch does not match $branch" >&2
+root="${RETRODE3_PACKAGE_SOURCE_ROOT:-$(cd "$(dirname "$0")/.." && pwd)}"
+os_tag="${RETRODE3_RELEASE_TAG:-}"
+os_sha="${RETRODE3_RELEASE_COMMIT:-}"
+oscr_tag="${RETRODE3_OSCR_TAG:-}"
+# The APT release gate is intentionally stricter than manual offline builds:
+# no immutable OS and OSCR source tags means no APT publication.
+if [[ -z "$os_tag" || -z "$oscr_tag" || ! "$os_sha" =~ ^[0-9a-f]{40}$ ]]; then
+  echo "error: APT publication requires selected OS and OSCR release tags" >&2
   exit 1
 fi
+git -C "$root" check-ref-format "refs/tags/$os_tag" || exit 1
+[[ "$(git -C "$root" rev-parse --verify "refs/tags/$os_tag^{commit}")" == "$os_sha" &&
+   "$(git -C "$root" rev-parse HEAD)" == "$os_sha" ]] || {
+  echo "error: source worktree is not the selected release tag" >&2
+  exit 1
+}
+git -C "$root" merge-base --is-ancestor "$os_sha" "refs/heads/$branch" || {
+  echo "error: source release tag is not contained in $branch" >&2
+  exit 1
+}
 test -z "$(git -C "$root" status --porcelain --untracked-files=no)" || {
   echo "error: checkout contains modified tracked files" >&2; exit 1
 }
@@ -59,17 +70,10 @@ candidate_commit = manifest.get("os_commit", "")
 if not isinstance(candidate_commit, str) or not re.fullmatch(r"[0-9a-f]{40}", candidate_commit):
     sys.exit("error: missing or invalid source Git commit in build manifest")
 if candidate_commit != head:
-    # Only known non-package changes may differ from the built source commit.
-    helper = root / "buildserver/release-changes.py"
-    check = subprocess.run(
-        [sys.executable, str(helper), "--repo", str(root),
-         "--base", candidate_commit, "--head", head],
-        capture_output=True, text=True)
-    if check.returncode != 0:
-        sys.exit("error: cannot reuse candidate: package inputs changed "
-                 "or Git history could not be verified; rebuild required. " +
-                 check.stdout.strip() + " " + check.stderr.strip())
-    print("Validated non-package changes since candidate commit", candidate_commit)
+    sys.exit("error: candidate OS commit differs from the exact tagged source")
+if (manifest.get("os_tag") != os.environ.get("RETRODE3_RELEASE_TAG") or
+        manifest.get("oscr_tag") != os.environ.get("RETRODE3_OSCR_TAG")):
+    sys.exit("error: package manifest source tags do not match selected tags")
 auto = os.environ.get("RETRODE3_AUTO_VERSION", "0") == "1"
 if bool(manifest.get("auto_versioned", False)) != auto:
     sys.exit("error: automatic-version mode differs from build manifest")
