@@ -86,6 +86,20 @@ for spec in "${packages[@]}"; do
     echo "Wrong APT package version: $pkg actual=$got expected=$ver" >&2; exit 1;
   }
 done
+# Debian's libapache2-mod-php8.2 may print transient "No MPM loaded"
+# warnings while switching from mpm_event to mpm_prefork. The finished
+# offline image must nevertheless have a consistent Apache configuration.
+for module in mpm_prefork.load php8.2.load; do
+  [[ -L "/work/rootfs/etc/apache2/mods-enabled/$module" &&
+     -e "/work/rootfs/etc/apache2/mods-enabled/$module" ]] || {
+    echo "Missing final Apache module: $module" >&2; exit 1;
+  }
+done
+if [[ -e /work/rootfs/etc/apache2/mods-enabled/mpm_event.load ||
+      -e /work/rootfs/etc/apache2/mods-enabled/mpm_worker.load ]]; then
+  echo "Apache has an unexpected conflicting MPM enabled" >&2; exit 1;
+fi
+chroot /work/rootfs /usr/sbin/apache2ctl configtest
 # APT installs boot candidates into *staging*, never directly over a live
 # kernel/bootloader. The offline assembler selects the exact package versions.
 mapfile -t platform_versions < <(python3 - <<'PY'
@@ -129,6 +143,20 @@ cp -a "$module_root" "/work/stage/lib/modules/$krel"
 # The SD assembler installs the matching module tree exactly once into
 # the final disk rootfs. Do not pre-populate /lib/modules here.
 tar -C /work/stage --numeric-owner -czf /work/kernel-bundle.tar.gz boot lib
+# Native packages deliberately do not ship mutable /etc runtime state.
+# The privileged corectl fails closed unless the enablement directory
+# exists, is root-owned, non-symlink, and not group/other writable.
+# Create it once for this fresh offline image, before enabling any cores.
+core_parent=/work/rootfs/etc/retrode3
+core_enabled="$core_parent/cores-enabled"
+[[ ! -L "$core_parent" && ! -L "$core_enabled" ]] || {
+  echo "Refusing symlinked cartridge core runtime state" >&2; exit 1;
+}
+install -d -o 0 -g 0 -m 0755 "$core_enabled"
+[[ -d "$core_enabled" && ! -L "$core_enabled" &&
+   "$(stat -c '%u:%g:%a' "$core_enabled")" == 0:0:755 ]] || {
+  echo "Untrusted cartridge core enablement directory" >&2; exit 1;
+}
 for core in snes md nes; do
   chroot /work/rootfs /usr/sbin/retrode3-corectl enable "$core"
   [[ -L "/work/rootfs/etc/retrode3/cores-enabled/$core.so" ]] || exit 1
