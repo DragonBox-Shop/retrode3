@@ -221,10 +221,14 @@ Install launchers once as the existing unprivileged retrode user:
 
     bash /srv/www/vhosts/retrode.com/buildserver/src/retrode3-testing-pr/buildserver/install-launchers.sh
 
-Then invoke either:
+For the first source-built X1600 bring-up invoke **develop only**:
 
     /srv/www/vhosts/retrode.com/build_image_develop.sh
-    /srv/www/vhosts/retrode.com/build_image_master.sh
+
+The master launcher exists for future releases, but the new image script
+intentionally refuses it until `retrode3-uboot/master` carries an accepted
+board-specific U-Boot revision. The older default master is not suitable
+for Retrode3.
 
 Each command calls the matching package_develop.sh/package_master.sh first.
 The existing automation updates the selected checkout, builds/publishes
