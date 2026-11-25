@@ -4,7 +4,7 @@ set -euo pipefail
 : "${RETRODE3_COMPONENT:?}" "${RETRODE3_COMPONENT_SHA:?}"
 : "${RETRODE3_BUILDER_IMAGE_ID:?}" "${RETRODE3_PLATFORM_KEY:?}"
 : "${RETRODE3_PLATFORM_RECIPE_SHA:?}"
-[[ "$(sha256sum /src/buildserver/build-platform-component.sh | cut -d\x27 \x27 -f1)" == "$RETRODE3_PLATFORM_RECIPE_SHA" ]] || exit 1
+[[ "$(sha256sum /src/buildserver/build-platform-component.sh | cut -d' ' -f1)" == "$RETRODE3_PLATFORM_RECIPE_SHA" ]] || exit 1
 [[ "${RETRODE3_COMPONENT_SHA}" =~ ^[a-f0-9]{40}$ ]] || exit 1
 case "$RETRODE3_COMPONENT" in
   kernel)
@@ -38,7 +38,7 @@ version="${base}+build$(date -u +%Y%m%d%H%M%S)+git${sha:0:12}+b${key:0:12}-1"
 export SOURCE_DATE_EPOCH="$epoch"
 bash /work/source/packaging/retrode3/build-debs.sh /out "$version"
 python3 - "$RETRODE3_COMPONENT" "$sha" "$RETRODE3_BUILDER_IMAGE_ID" \
-  "$key" "$version" <<'PY'
+  "$key" "$version" "$RETRODE3_PLATFORM_RECIPE_SHA" <<'PY'
 import hashlib, json, pathlib, sys
 kind, commit, image_id, key, version, recipe_sha = sys.argv[1:]
 directory = pathlib.Path("/out")
