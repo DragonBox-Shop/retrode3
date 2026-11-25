@@ -125,9 +125,17 @@ moddir="/work/modules-root/lib/modules/$krel"
 rm -f "$moddir/build" "$moddir/source"
 ko="$moddir/kernel/drivers/misc/retrode3/retrode3.ko"
 [[ -f "$ko" ]] || { echo "Missing built Retrode3 module" >&2; exit 1; }
-modinfo -F vermagic "$ko" | grep -Fqx "$krel preempt mod_unload modversions MIPS32_R2 32BIT" || {
-  echo "Retrode3 vermagic not validated against expected target" >&2; exit 1;
+# Linux's MIPS MODULE_KERNEL_TYPE expands to "32BIT " (trailing space).
+# modinfo preserves this optional final whitespace. Ignore only that suffix,
+# while still requiring exact release, PREEMPT, MODVERSIONS and CPU ABI tokens.
+expected_vermagic="$krel preempt mod_unload modversions MIPS32_R2 32BIT"
+actual_vermagic="$(modinfo -F vermagic "$ko" | sed 's/[[:space:]]*$//')"
+[[ "$actual_vermagic" == "$expected_vermagic" ]] || {
+  printf 'ERROR: Retrode3 vermagic mismatch. Actual: <%s> Expected: <%s>\\n' \\
+    "$actual_vermagic" "$expected_vermagic" >&2
+  exit 1
 }
+echo "Retrode3 vermagic verified: $actual_vermagic"
 cp -L /work/kernel-build/arch/mips/boot/uImage /work/stage/boot/uImage
 cp /work/kernel-build/arch/mips/boot/dts/ingenic/lx16-retrode-2.9.5.dtb \
    /work/stage/boot/ingenic/lx16-retrode-2.9.5.dtb
