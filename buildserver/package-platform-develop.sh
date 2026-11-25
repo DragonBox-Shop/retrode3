@@ -17,7 +17,7 @@ podman --runtime=crun --cgroup-manager=systemd build \
   --network=slirp4netns -f "$src/buildserver/Containerfile.platform" \
   -t "$image" "$src/buildserver"
 image_id="$(podman image inspect --format '{{.Id}}' "$image")"
-recipe_sha="$(sha256sum "$src/buildserver/build-platform-component.sh" | cut -d\x27 \x27 -f1)"
+recipe_sha="$(sha256sum "$src/buildserver/build-platform-component.sh" | cut -d' ' -f1)"
 [[ "$image_id" =~ ^sha256:[a-f0-9]{64}$ ]] || exit 1
 run="$(mktemp -d "$runs/run.XXXXXXXX")"
 for kind in kernel uboot; do
