@@ -59,11 +59,13 @@ jobs:
       - name: Compile reviewed X1600-v5 source and validate preboot offsets
         run: |
           set -eux
+          uboot_url=https://github.com/DragonBox-Shop/retrode3-uboot.git
+          selected="$(git ls-remote --exit-code "$uboot_url" refs/heads/develop)"
+          expected="${selected%%[[:space:]]*}"
+          test "${#expected}" -eq 40
           git clone --depth 1 --single-branch --branch develop \
-            https://github.com/DragonBox-Shop/retrode3-uboot.git \
-            "$RUNNER_TEMP/retrode3-uboot"
-          test "$(git -C "$RUNNER_TEMP/retrode3-uboot" rev-parse HEAD)" = \
-            "247f2c5397f4ab58a24a9f830aeb900c2ffb4361"
+            "$uboot_url" "$RUNNER_TEMP/retrode3-uboot"
+          test "$(git -C "$RUNNER_TEMP/retrode3-uboot" rev-parse HEAD)" = "$expected"
           make -C "$RUNNER_TEMP/retrode3-uboot" \
             CROSS_COMPILE=mipsel-linux-gnu- lx16_uImage_msc0
           make -C "$RUNNER_TEMP/retrode3-uboot" \
