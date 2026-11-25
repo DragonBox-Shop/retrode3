@@ -134,6 +134,22 @@ class PackageOnlyImageTests(unittest.TestCase):
         self.assertIn('--exclude=\'dev/*\'', assembler)
         self.assertNotIn('mknod ', assembler)
 
+    def test_offline_core_enablement_creates_trusted_state(self):
+        image = (ROOT / "buildserver/build-image-from-packages.sh").read_text()
+        self.assertIn('core_enabled="$core_parent/cores-enabled"', image)
+        self.assertIn('install -d -o 0 -g 0 -m 0755 "$core_enabled"', image)
+        self.assertIn('[[ ! -L "$core_parent" && ! -L "$core_enabled" ]]', image)
+        self.assertIn('"$(stat -c \'%u:%g:%a\' "$core_enabled")" == 0:0:755', image)
+        self.assertLess(image.index('install -d -o 0 -g 0 -m 0755 "$core_enabled"'),
+                        image.index('retrode3-corectl enable "$core"'))
+
+    def test_final_apache_mpm_checked_after_apt(self):
+        image = (ROOT / "buildserver/build-image-from-packages.sh").read_text()
+        self.assertIn('for module in mpm_prefork.load php8.2.load; do', image)
+        self.assertIn('chroot /work/rootfs /usr/sbin/apache2ctl configtest', image)
+        self.assertLess(image.index('apt-get -y --no-install-recommends install'),
+                        image.index('apache2ctl configtest'))
+
     def test_package_producer_cache_and_source_recipe_contract(self):
         producer = (ROOT / "buildserver/package-platform-develop.sh").read_text()
         self.assertIn("platform-cache.py", producer)
