@@ -107,10 +107,8 @@ mkimage -A mips -O linux -T script -C none \
   -n "Retrode3 Bookworm bootargs" \
   -d /src/image/assets/retrode3-bootargs.txt /work/stage/boot/bootargs.scr
 cp -a "$module_root" "/work/stage/lib/modules/$krel"
-# The new image's rootfs receives the selected module version.
-mkdir -p /work/rootfs/lib/modules
-[[ ! -e "/work/rootfs/lib/modules/$krel" ]] || exit 1
-cp -a "$module_root" "/work/rootfs/lib/modules/$krel"
+# The SD assembler installs the matching module tree exactly once into
+# the final disk rootfs. Do not pre-populate /lib/modules here.
 tar -C /work/stage --numeric-owner -czf /work/kernel-bundle.tar.gz boot lib
 for core in snes md nes; do
   chroot /work/rootfs /usr/sbin/retrode3-corectl enable "$core"
