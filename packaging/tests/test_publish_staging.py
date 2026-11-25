@@ -80,7 +80,8 @@ class BuildOnlyContractTests(unittest.TestCase):
 
     def test_automation_builds_exact_tagged_snapshot(self):
         self.assertIn('select-release-tag.py', self.script)
-        self.assertIn('worktree add --quiet --detach', self.script)
+        self.assertIn('git clone --quiet --no-local', self.script)
+        self.assertIn('checkout --quiet --detach "$os_sha"', self.script)
         self.assertIn('RETRODE3_PACKAGE_SOURCE_ROOT="$tag_worktree"', self.script)
         self.assertIn('RETRODE3_RELEASE_TAG="$os_tag"', self.script)
         self.assertIn('RETRODE3_OSCR_TAG="$oscr_tag"', self.script)
