@@ -8,8 +8,9 @@ umask 027
 base=/srv/www/vhosts/retrode.com/buildserver
 vhost=/srv/www/vhosts/retrode.com
 image_checkout="$base/src/retrode3-image-dev"
-[[ -d "$image_checkout/.git" && ! -L "$image_checkout" ]] || {
-  echo "Missing dedicated source-built image checkout: $image_checkout" >&2; exit 1;
+[[ -e "$image_checkout/.git" && ! -L "$image_checkout/.git" ]] &&\
+  git -C "$image_checkout" rev-parse --is-inside-work-tree | grep -qx true || {
+  echo "Missing dedicated source-built image Git worktree: $image_checkout" >&2; exit 1;
 }
 [[ "$(git -C "$image_checkout" symbolic-ref --short HEAD)" == feature/source-built-x1600-uboot-image ]] || {
   echo "Wrong image checkout branch, require feature/source-built-x1600-uboot-image" >&2; exit 1;
