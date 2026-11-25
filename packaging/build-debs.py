@@ -320,7 +320,7 @@ def package_version(package, lock):
 
 
 def package_arch(package):
-    return "all" if package in BOOKWORM_ALL + (META,) else "mipsel"
+    return "all" if package in BOOKWORM_ALL else "mipsel"
 
 
 def control_text(package, lock, native=None):
