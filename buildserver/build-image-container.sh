@@ -6,29 +6,31 @@ export DEBIAN_FRONTEND=noninteractive
 export LC_ALL=C
 
 : "$RETRODE3_IMAGE_BRANCH" "$RETRODE3_IMAGE_SUITE" "$RETRODE3_KERNEL_SHA"
-: "$RETRODE3_OS_SHA" "$RETRODE3_APT_FINGERPRINT" "$RETRODE3_PREBOOT_SHA256"
+: "$RETRODE3_OS_SHA" "$RETRODE3_APT_FINGERPRINT" "$RETRODE3_UBOOT_SHA"
 case "$RETRODE3_IMAGE_BRANCH:$RETRODE3_IMAGE_SUITE" in
   develop:testing|master:stable) ;;
   *) echo "Invalid Git branch/APT suite pairing" >&2; exit 1 ;;
 esac
 [[ "$RETRODE3_KERNEL_SHA" =~ ^[a-f0-9]{40}$ &&
    "$RETRODE3_OS_SHA" =~ ^[a-f0-9]{40}$ &&
-   "$RETRODE3_PREBOOT_SHA256" =~ ^[a-f0-9]{64}$ &&
+   "$RETRODE3_UBOOT_SHA" =~ ^[a-f0-9]{40}$ &&
    "$RETRODE3_APT_FINGERPRINT" =~ ^[A-Fa-f0-9]{40}$ ]] || {
   echo "Missing or invalid pinned inputs" >&2; exit 1;
 }
 [[ "$(id -u)" = 0 ]] || { echo "Container must run as namespaced root" >&2; exit 1; }
 for file in /private/FULLCONFIG /private/retrode3-archive.gpg \
-            /private/sd-preboot-1MiB.bin /work/published-packages.json; do
+            /work/published-packages.json; do
   [[ -f "$file" && ! -L "$file" ]] || {
     echo "Missing regular private input: $file" >&2; exit 1;
   }
 done
-[[ -x /toolchain/bin/mipsel-linux-gcc ]] || {
-  echo "Missing pinned Bootlin MIPS32EL toolchain at /toolchain" >&2; exit 1;
+cross=mipsel-linux-gnu-
+command -v "mipsel-linux-gnu-gcc" >/dev/null || {
+  echo "Missing Debian Bookworm MIPS32EL cross compiler" >&2; exit 1;
 }
-printf '%s  %s\n' "$RETRODE3_PREBOOT_SHA256" \
-  /private/sd-preboot-1MiB.bin | sha256sum --strict --check -
+[[ "$(mipsel-linux-gnu-gcc -dumpmachine)" == mipsel-linux-gnu ]] || {
+  echo "Cross compiler target is not mipsel-linux-gnu" >&2; exit 1;
+}
 
 # Validate the package snapshot before even downloading a kernel.
 python3 - "$RETRODE3_IMAGE_SUITE" "$RETRODE3_OS_SHA" <<'PY'
