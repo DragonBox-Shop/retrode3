@@ -120,10 +120,55 @@ New untagged development commits alone do not invalidate the candidate.
 The GPG passphrase must **not** be stored in Git, shell scripts, or public
 images. Build-only does not modify APT or the last-published marker.
 
+### Optional unattended signing with a private local passphrase
+
+For a single-admin buildserver, it is possible to have the publisher unlock
+the APT signing key automatically **only at publication time**, using a local
+plaintext secret file outside Git and outside the HTTP DocumentRoot.
+This makes unattended publishing possible, but **any attacker who gains
+the `retrode` user's privileges can use the signing key**. The key encryption
+does not defend against same-user compromise; harden the host, services and
+backups accordingly. For stronger isolation use a dedicated signing service
+with a separate Unix identity and allowlisted release requests.
+
+Opt in as `retrode` on Amaterasu (do not type the secret as a shell command
+argument or put it in Git):
+
+```sh
+BASE=/srv/www/vhosts/retrode.com/buildserver
+umask 077
+install -d -m 700 "$BASE/private/signing"
+read -rs -p "APT GPG signing passphrase: " apt_passphrase
+printf '\n'
+printf '%s\n' "$apt_passphrase" > "$BASE/private/signing/apt-signing-passphrase"
+unset apt_passphrase
+chmod 600 "$BASE/private/signing/apt-signing-passphrase"
+```
+
+The directory must be owned by `retrode` with mode `0700`, the
+non-symlink, single-link secret file owned by `retrode` with mode `0600`.
+The file is a **local administrator-managed secret**, not a tracked
+project file or CI artifact. Exclude it from shared/web backups,
+synchronization, shell debug traces, and the Podman source mounts.
+
+Once configured, the normal `package_develop.sh` (or explicitly approved
+`package_master.sh`) reuses/builds the tag-pinned candidate, validates it,
+warms the GPG agent using `--pinentry-mode loopback --passphrase-file`, then
+verifies the existing **noninteractive signing preflight** before importing
+any .debs. If the file is missing, the previous manual SSH-unlock method
+continues to work; if permissions or the passphrase are wrong, publication
+fails *before the first package import*. No passphrase appears in process
+arguments, the environment, log output or version manifests.
+
+The secret remains on disk between boots so automated package publication
+is a deliberate security tradeoff. To return to interactive operation, move
+the secret **out of the signing directory** to secured offline storage and
+use `unlock-apt-signing.sh` as described below. No changes to the tag
+policy, packaging, GPG keys or public APT endpoints are required.
+
 ### Unlocking the APT signing key over SSH
 
-The publisher deliberately calls GPG with `--batch --no-tty
---pinentry-mode error` before importing anything. It must **not** prompt
+The publisher deliberately calls GPG with `--batch --no-tty --pinentry-mode error` before importing anything. It must **not** prompt
 during publication. Instead, unlock the existing key interactively in the
 same `retrode` account's GPG agent shortly **after** the MIPS build, and
 then resume the previously built candidate.

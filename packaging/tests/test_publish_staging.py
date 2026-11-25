@@ -20,6 +20,28 @@ class StagedPublicationContractTests(unittest.TestCase):
         self.assertLess(preflight, include)
         self.assertIn('--pinentry-mode error', self.script[preflight:include])
 
+    def test_optional_local_secret_priming_happens_before_apt_mutation(self):
+        secret = self.script.index('signing_secret_dir=')
+        priming = self.script.index('--passphrase-file "$signing_secret"')
+        preflight = self.script.index('if ! timeout 20s gpg', priming)
+        include = self.script.index('includedeb "$suite" "$deb"')
+        self.assertLess(secret, priming)
+        self.assertLess(priming, preflight)
+        self.assertLess(preflight, include)
+        self.assertIn('--pinentry-mode loopback', self.script[secret:preflight])
+        self.assertIn('--pinentry-mode error', self.script[preflight:include])
+        self.assertIn('stat -c', self.script[secret:preflight])
+        self.assertIn('600:$(id -u):1', self.script[secret:preflight])
+        self.assertIn('700:$(id -u)', self.script[secret:preflight])
+        self.assertIn('! -r "$signing_secret"', self.script[secret:preflight])
+        self.assertIn('[[ -e "$signing_secret" || -L "$signing_secret" ]]',
+                      self.script[secret:preflight])
+        self.assertIn('no packages imported', self.script[secret:preflight])
+        # The secret is never injected as a command-line value or a process env var.
+        self.assertNotIn('--passphrase "', self.script)
+        self.assertNotIn('export apt_passphrase=', self.script)
+        self.assertNotIn('cat "$signing_secret"', self.script)
+
     def test_stage_packages_without_export_and_keep_old_pool_files(self):
         include = self.script.index('includedeb "$suite" "$deb"')
         self.assertIn('--export=never --keepunreferencedfiles',
