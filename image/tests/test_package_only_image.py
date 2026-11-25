@@ -127,7 +127,7 @@ class PackageOnlyImageTests(unittest.TestCase):
         self.assertIn('for device in null zero random urandom tty; do', host)
         self.assertIn('[[ -c "/dev/$device" && ! -L "/dev/$device" ]]', host)
         self.assertIn('device_mounts+=( -v "/dev/$device:/work/rootfs/dev/$device:rw" )', host)
-        self.assertIn('"''${device_mounts[@]}''"', host)
+        self.assertIn('"${device_mounts[@]}"', host)
         self.assertIn('Chroot APT devices ready', assembler)
         self.assertIn('[[ -c "/work/rootfs/dev/$device" ]]', assembler)
         self.assertIn('--exclude=\'./dev/*\'', assembler)
