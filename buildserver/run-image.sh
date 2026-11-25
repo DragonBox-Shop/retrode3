@@ -45,14 +45,13 @@ done
 image_builder_sha="$(git -C "$image_checkout" rev-parse HEAD)"
 [[ "$image_builder_sha" =~ ^[a-f0-9]{40}$ ]] || exit 1
 [[ -x "$vhost/package_$branch.sh" ]] || {
-  echo "Missing existing package launcher: $vhost/package_$branch.sh" >&2; exit 1;
+  echo "Missing package publisher; prepare the package server first" >&2; exit 1;
 }
 mkdir -p "$images"
 exec 8>"$base/cache/image-$branch.lock"
 flock -n 8 || { echo "An image build for $branch is running" >&2; exit 1; }
-# Reuse exactly the existing automatic branch-aware package build/publisher.
-# It also fast-forwards the selected OS checkout.
-bash "$vhost/package_$branch.sh"
+# Image assembly must NEVER trigger package builds or APT publication.
+# The separately run package command prepared the tagged checkout/cache.
 [[ "$(git -C "$checkout" symbolic-ref --short HEAD)" == "$branch" ]] || exit 1
 [[ -z "$(git -C "$checkout" status --porcelain --untracked-files=no)" ]] || exit 1
 published="$base/cache/last-published-$branch.json"
