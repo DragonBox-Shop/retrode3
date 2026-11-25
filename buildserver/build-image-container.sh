@@ -88,7 +88,6 @@ for required in CONFIG_CPU_LITTLE_ENDIAN=y CONFIG_CPU_MIPS32_R2=y \
 done
 mkdir -p /work/kernel-build
 cp "$kernel_config" /work/kernel-build/.config
-sha256sum "$kernel_config" | awk '{print $1}' > /work/kernel-config.git.sha256
 # Build U-Boot FIRST, before the expensive full kernel. The only vetted
 # Retrode3 X1600 source branch is uboot/develop; uboot/master is unrelated.
 [[ "$RETRODE3_IMAGE_BRANCH" == develop ]] || {
@@ -237,6 +236,7 @@ python3 - "$RETRODE3_IMAGE_BRANCH" "$RETRODE3_IMAGE_SUITE" \
 import hashlib, json, pathlib, sys
 work=pathlib.Path("/work")
 branch,suite,ossha,ksha,krel=sys.argv[1:]
+snapshot=json.load(open("/work/published-packages.json"))
 def sha(path):
     h=hashlib.sha256()
     with open(path,"rb") as f:
@@ -248,9 +248,9 @@ files=["kernel-bundle.tar.gz","retrode3-rootfs.tar.xz",
 manifest={
  "schema":1,"branch":branch,"apt_suite":suite,
  "os_commit":ossha,"kernel_commit":ksha,"kernel_release":krel,
- "os_tag":open("/work/published-packages.json").read() and json.load(open("/work/published-packages.json"))["os_tag"],
- "oscr_tag":json.load(open("/work/published-packages.json"))["oscr_tag"],
- "oscr_commit":json.load(open("/work/published-packages.json"))["oscr_commit"],
+ "os_tag":snapshot["os_tag"],
+ "oscr_tag":snapshot["oscr_tag"],
+ "oscr_commit":snapshot["oscr_commit"],
  "image_builder_commit":open("/work/image-builder-commit").read().strip(),
  "image_build_os_commit":open("/work/image-os-commit").read().strip(),
  "kernel_config_source":"retrode3-kernel:"+ksha+":arch/mips/configs/retrode3_full.config",
@@ -268,7 +268,7 @@ manifest={
  "bootloader_source_built":True,
  "hardware_accepted":False,"customer_releasable":False,
  "enabled_cores_initial":["snes","md","nes"],
- "package_snapshot":json.load(open("/work/published-packages.json")),
+ "package_snapshot":snapshot,
  "files":{name:sha(work/name) for name in files},
 }
 (work/"full-image-manifest.json").write_text(
