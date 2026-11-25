@@ -3,6 +3,8 @@
 set -euo pipefail
 : "${RETRODE3_COMPONENT:?}" "${RETRODE3_COMPONENT_SHA:?}"
 : "${RETRODE3_BUILDER_IMAGE_ID:?}" "${RETRODE3_PLATFORM_KEY:?}"
+: "${RETRODE3_PLATFORM_RECIPE_SHA:?}"
+[[ "$(sha256sum /src/buildserver/build-platform-component.sh | cut -d\x27 \x27 -f1)" == "$RETRODE3_PLATFORM_RECIPE_SHA" ]] || exit 1
 [[ "${RETRODE3_COMPONENT_SHA}" =~ ^[a-f0-9]{40}$ ]] || exit 1
 case "$RETRODE3_COMPONENT" in
   kernel)
@@ -18,7 +20,8 @@ case "$RETRODE3_COMPONENT" in
   *) echo "Unsupported build component" >&2; exit 1 ;;
 esac
 key="$(python3 /src/buildserver/platform-cache.py key \
-  "$RETRODE3_COMPONENT" "$RETRODE3_COMPONENT_SHA" "$RETRODE3_BUILDER_IMAGE_ID")"
+  "$RETRODE3_COMPONENT" "$RETRODE3_COMPONENT_SHA" "$RETRODE3_BUILDER_IMAGE_ID" \
+  "$RETRODE3_PLATFORM_RECIPE_SHA")"
 [[ "$key" == "$RETRODE3_PLATFORM_KEY" ]] || exit 1
 [[ -d /out && -z "$(ls -A /out)" ]] || {
   echo "Output directory must be empty" >&2; exit 1;
@@ -31,13 +34,13 @@ sha="$(git -C /work/source rev-parse HEAD)"
 epoch="$(git -C /work/source show -s --format=%ct HEAD)"
 [[ "$epoch" =~ ^[0-9]{10,12}$ ]] || exit 1
 stamp="$(date -u -d "@$epoch" +%Y%m%d%H%M%S)"
-version="${base}+git${stamp}.${sha:0:12}+b${key:0:12}-1"
+version="${base}+build$(date -u +%Y%m%d%H%M%S)+git${sha:0:12}+b${key:0:12}-1"
 export SOURCE_DATE_EPOCH="$epoch"
 bash /work/source/packaging/retrode3/build-debs.sh /out "$version"
 python3 - "$RETRODE3_COMPONENT" "$sha" "$RETRODE3_BUILDER_IMAGE_ID" \
   "$key" "$version" <<'PY'
 import hashlib, json, pathlib, sys
-kind, commit, image_id, key, version = sys.argv[1:]
+kind, commit, image_id, key, version, recipe_sha = sys.argv[1:]
 directory = pathlib.Path("/out")
 files = {}
 for path in sorted(directory.glob("*.deb")):
@@ -47,7 +50,7 @@ expected = 2 if kind == "kernel" else 1
 if len(files) != expected:
     sys.exit("Wrong number of built platform Debian packages")
 manifest = dict(schema=1, kind=kind, commit=commit, version=version,
-                builder_image_id=image_id, cache_key=key,
+                builder_image_id=image_id, cache_key=key, recipe_sha256=recipe_sha,
                 hardware_accepted=False, apt_published=False, files=files)
 (directory / "platform-manifest.json").write_text(
     json.dumps(manifest, sort_keys=True, indent=2) + "\n")
