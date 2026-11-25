@@ -204,7 +204,7 @@ if ! timeout 20s gpg --homedir "$GNUPGHOME" \
     --batch --no-tty --pinentry-mode error \
     --local-user "$sign_fpr" --detach-sign \
     --output "$sign_dir/test.sig" "$sign_dir/test.txt"; then
-  printf 'ERROR: signing preflight failed for %s. Unlock GPG agent before publishing. No new .deb was imported by this run.\n' "$suite" >&2
+  printf 'ERROR: signing preflight failed for %s. From an interactive retrode SSH shell, run buildserver/automation/unlock-apt-signing.sh %s, then retry. No new .deb was imported by this run.\n' "$suite" "$suite" >&2
   exit 1
 fi
 rm -rf "$sign_dir"
