@@ -2,6 +2,12 @@
 # Install exactly two small launchers outside the web DocumentRoot.
 set -euo pipefail
 umask 027
+mode="${1:---all}"
+[[ "$#" -le 1 ]] || { echo "Usage: $0 [--packages-only|--all]" >&2; exit 2; }
+case "$mode" in
+  --all|--packages-only) ;;
+  *) echo "Usage: $0 [--packages-only|--all]" >&2; exit 2 ;;
+esac
 vhost=/srv/www/vhosts/retrode.com
 base="$vhost/buildserver"
 [[ "$(id -un)" == retrode ]] || {
@@ -57,6 +63,10 @@ EOF
   echo "Installed: $target"
 done
 echo "Run either $vhost/package_master.sh or $vhost/package_develop.sh"
+if [[ "$mode" == --packages-only ]]; then
+  echo "Only APT automation and package launchers installed; image launchers unchanged."
+  exit 0
+fi
 # The image launchers run the matching package_* launcher first, then build
 # the full SD image into private candidate artifacts. No SD writing.
 for spec in "master:retrode3-stable-pr" "develop:retrode3-testing-pr"; do
