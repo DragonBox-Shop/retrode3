@@ -100,13 +100,38 @@ class LauncherIsolationTests(unittest.TestCase):
     def test_apt_only_install_does_not_touch_image_launchers(self):
         script = (Path(__file__).resolve().parents[2] /
                   "buildserver/install-launchers.sh").read_text()
-        self.assertIn('mode="${1:---all}"', script)
-        self.assertIn('if [[ "$mode" == --packages-only ]]', script)
-        self.assertLess(script.index('if [[ "$mode" == --packages-only ]]'),
+        self.assertIn('install_mode="${1:---all}"', script)
+        self.assertIn('case "$install_mode" in', script)
+        self.assertIn('if [[ "$install_mode" == --packages-only ]]', script)
+        self.assertIn('file_mode=750', script)
+        self.assertIn('file_mode=640', script)
+        self.assertIn('install -m "$file_mode"', script)
+        # Guard against overwriting the installation mode with file modes.
+        self.assertNotRegex(script, r'(?m)(?<![A-Za-z_])mode=(?:640|750)')
+        self.assertLess(script.index('if [[ "$install_mode" == --packages-only ]]'),
                         script.index('# The image launchers run'))
         self.assertIn('exit 0', script[
-            script.index('if [[ "$mode" == --packages-only ]]'):
+            script.index('if [[ "$install_mode" == --packages-only ]]'):
             script.index('# The image launchers run')])
+
+    def test_interactive_signer_is_installed_without_touching_image_scripts(self):
+        installer = (Path(__file__).resolve().parents[2] /
+                     "buildserver/install-launchers.sh").read_text()
+        self.assertIn('unlock-apt-signing.sh', installer)
+        signer = (Path(__file__).resolve().parents[2] /
+                  "buildserver/unlock-apt-signing.sh").read_text()
+        self.assertIn('[[ -t 0 && -t 1 ]]', signer)
+        self.assertIn('[[ "$(id -un)" == retrode ]]', signer)
+        self.assertIn('GPG_TTY="$(tty)"', signer)
+        self.assertIn('updatestartuptty /bye', signer)
+        self.assertIn('pinentry-program /usr/bin/pinentry-curses', signer)
+        self.assertIn('gpgconf --homedir "$GNUPGHOME" --reload gpg-agent', signer)
+        self.assertIn('SignWith', signer)
+        self.assertIn('--batch --no-tty --pinentry-mode error', signer)
+        self.assertNotRegex(signer, r'(?m)^\s*reprepro\s')
+        self.assertNotIn('--passphrase-file', signer)
+        self.assertNotIn('--passphrase-fd', signer)
+
 
 
 
