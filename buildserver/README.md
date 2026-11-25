@@ -108,9 +108,9 @@ unset RETRODE3_BUILD_ONLY
 /srv/www/vhosts/retrode.com/package_develop.sh
 ```
 
-The first invocation follows `develop` and `retrode3-oscr/develop`,
-compiles only if package-affecting changes exist, and retains the exact
-candidate and manifest. A valid existing candidate is reused even in
+The first invocation selects the latest tagged snapshots reachable from
+`develop` and `retrode3-oscr/develop`, compiles only if that exact pair
+has no already-built candidate, and retains the manifest. A valid existing candidate is reused even in
 build-only mode. The second invocation uses the ordinary
 `candidate-resume` path: it verifies exact source commits and checksums,
 then imports the candidate and makes one signed `reprepro export`.
@@ -119,6 +119,55 @@ be built; an old candidate is never silently published as a different tag.
 New untagged development commits alone do not invalidate the candidate.
 The GPG passphrase must **not** be stored in Git, shell scripts, or public
 images. Build-only does not modify APT or the last-published marker.
+
+### Unlocking the APT signing key over SSH
+
+The publisher deliberately calls GPG with `--batch --no-tty
+--pinentry-mode error` before importing anything. It must **not** prompt
+during publication. Instead, unlock the existing key interactively in the
+same `retrode` account's GPG agent shortly **after** the MIPS build, and
+then resume the previously built candidate.
+
+One-time setup on Amaterasu:
+
+1. Install `pinentry-curses` on the **build server** (not in a Retrode3
+   image), e.g. as root: `apt-get install pinentry-curses`.
+2. As `retrode`, edit
+   `/srv/www/vhosts/retrode.com/buildserver/repository/gnupg/gpg-agent.conf`.
+   Configure the line `pinentry-program /usr/bin/pinentry-curses` and
+   ensure there is no conflicting later `pinentry-program` directive.
+   Protect the file with mode 0600. Never store the passphrase in it.
+3. Install the verified APT helper and package launchers from the current
+   development checkout, without touching image launchers:
+
+```sh
+bash /srv/www/vhosts/retrode.com/buildserver/src/retrode3-testing-pr/buildserver/install-launchers.sh --packages-only
+```
+
+For each **manual** publication, connect with an interactive SSH terminal
+(`ssh -t` if required) as `retrode` and run:
+
+```sh
+/srv/www/vhosts/retrode.com/buildserver/automation/unlock-apt-signing.sh testing
+unset RETRODE3_BUILD_ONLY
+/srv/www/vhosts/retrode.com/package_develop.sh
+```
+
+For an explicitly approved stable release, use the helper with `stable`
+and then `package_master.sh` instead. The helper reads the configured
+40-digit `SignWith` fingerprint from the correct `reprepro` suite,
+selects its existing secret key, binds `GPG_TTY` and `updatestartuptty`
+to the SSH terminal, reloads `gpg-agent`'s pinentry configuration, and
+performs one interactive signature to cache the authorization. It then
+performs the **same no-prompt signing preflight as the publisher**.
+The helper changes no APT index, package, Git ref or release manifest.
+
+The cache is temporary (typically 10 minutes by default). If it has
+expired, rerun the helper; do not switch the unattended publisher to
+`--pinentry-mode loopback`, store plaintext passphrases, or disable its
+early signing preflight. If terminal pinentry fails, inspect the
+`gpg-agent.conf`, installed `pinentry-curses`, `TERM`, account and
+`GNUPGHOME`. The publisher will continue to refuse publication safely.
 
 ### Package failure reporting
 
