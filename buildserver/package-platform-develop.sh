@@ -56,7 +56,7 @@ for kind in kernel uboot; do
       "$image" bash /src/buildserver/build-platform-component.sh
     [[ ! -e "$entry" ]] || exit 1
     mv -T "$temp" "$entry"
-    python3 "$src/buildserver/platform-cache.py" verify "$kind" "$sha" "$image_id" "$entry"
+    python3 "$src/buildserver/platform-cache.py" verify "$kind" "$sha" "$image_id" "$recipe_sha" "$entry"
   fi
   cp "$entry"/*.deb "$run/"
   cp "$entry/platform-manifest.json" "$run/$kind-manifest.json"
