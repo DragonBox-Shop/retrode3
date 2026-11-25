@@ -16,11 +16,13 @@ PACKAGES = {
 }
 
 
-def key(kind, commit, image_id):
-    if kind not in PACKAGES or not SHA40.fullmatch(commit) or not IMGID.fullmatch(image_id):
+def key(kind, commit, image_id, recipe_sha):
+    if (kind not in PACKAGES or not SHA40.fullmatch(commit) or
+            not IMGID.fullmatch(image_id) or
+            not re.fullmatch(r"[0-9a-f]{64}", recipe_sha)):
         raise ValueError("Invalid platform package cache inputs")
-    return hashlib.sha256(("platform-deb-v1\n" + kind + "\n" +
-                           commit + "\n" + image_id + "\n").encode()).hexdigest()
+    payload = "\n".join(("platform-deb-v2", kind, commit, image_id, recipe_sha)) + "\n"
+    return hashlib.sha256(payload.encode("ascii")).hexdigest()
 
 
 def sha256(path):
@@ -31,10 +33,10 @@ def sha256(path):
     return h.hexdigest()
 
 
-def verify(directory, kind, commit, image_id):
+def verify(directory, kind, commit, image_id, recipe_sha):
     if directory.is_symlink() or not directory.is_dir():
         raise ValueError("Missing or unsafe platform cache directory")
-    expected_key = key(kind, commit, image_id)
+    expected_key = key(kind, commit, image_id, recipe_sha)
     if directory.name != expected_key:
         raise ValueError("Wrong platform cache path")
     mpath = directory / "platform-manifest.json"
@@ -44,6 +46,7 @@ def verify(directory, kind, commit, image_id):
     for field, expected in {
         "schema": 1, "kind": kind, "commit": commit,
         "builder_image_id": image_id, "cache_key": expected_key,
+        "recipe_sha256": recipe_sha,
         "hardware_accepted": False,
     }.items():
         if manifest.get(field) != expected:
@@ -83,15 +86,17 @@ def main():
     parser.add_argument("kind", choices=tuple(PACKAGES))
     parser.add_argument("commit")
     parser.add_argument("image_id")
+    parser.add_argument("recipe_sha")
     parser.add_argument("directory", type=Path, nargs="?")
     args = parser.parse_args()
     try:
         if args.command == "key":
-            print(key(args.kind, args.commit, args.image_id))
+            print(key(args.kind, args.commit, args.image_id, args.recipe_sha))
         else:
             if args.directory is None:
                 raise ValueError("Missing cache directory")
-            doc = verify(args.directory, args.kind, args.commit, args.image_id)
+            doc = verify(args.directory, args.kind, args.commit, args.image_id,
+                         args.recipe_sha)
             print(doc["version"])
     except (OSError, ValueError, KeyError, subprocess.CalledProcessError) as exc:
         parser.exit(1, "Invalid platform cache: " + str(exc) + "\n")
