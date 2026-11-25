@@ -93,6 +93,16 @@ class PackageOnlyImageTests(unittest.TestCase):
         self.assertLess(producer.index('image_id="sha256:$image_id"'),
                         producer.index('platform-cache.py" key'))
 
+    def test_signing_directory_supports_secure_setgid_inheritance(self):
+        publisher = (ROOT / "buildserver/publish-platform-develop.sh").read_text()
+        self.assertIn('"700:$owner_uid"', publisher)
+        self.assertIn('"2700:$owner_uid"', publisher)
+        self.assertIn('"600:$owner_uid:1"', publisher)
+        self.assertIn('! -L "$secret_dir"', publisher)
+        self.assertIn('! -L "$secret"', publisher)
+        self.assertIn('stage=signature-preflight', publisher)
+        self.assertNotIn('== "700:$(id -u)"', publisher)
+
     def test_package_producer_cache_and_source_recipe_contract(self):
         producer = (ROOT / "buildserver/package-platform-develop.sh").read_text()
         self.assertIn("platform-cache.py", producer)
