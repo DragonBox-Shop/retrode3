@@ -111,10 +111,10 @@ class TaggedImageContractTests(unittest.TestCase):
         self.assertIn(
             '[[ "$actual_vermagic" == "$expected_vermagic" ]]', container)
         expected = "7.3.0-rc5-letux-mips-retrode3+ preempt mod_unload modversions MIPS32_R2 32BIT"
-        actual = expected + " \\n"
+        actual = expected + " " + chr(10)
         normalized = subprocess.run(
             ["sed", "s/[[:space:]]*$//"], input=actual,
-            text=True, capture_output=True, check=True).stdout.rstrip("\\n")
+            text=True, capture_output=True, check=True).stdout.splitlines()[0]
         self.assertEqual(normalized, expected)
         for incorrect in (expected.replace("modversions ", ""),
                           expected.replace("preempt ", ""),
