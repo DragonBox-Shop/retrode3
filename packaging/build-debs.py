@@ -36,6 +36,7 @@ WEB_FILES = (
     ("backend/service.py", "opt/retrode3-web-v2/backend/service.py", 0o644),
     ("web/index.php", "var/www/html/index.php", 0o644),
     ("web/api.php", "var/www/html/api.php", 0o644),
+    ("web/rom-upload.php", "var/www/html/rom-upload.php", 0o644),
     ("web/auth.php", "var/www/html/auth.php", 0o644),
     ("web/assets/app.js", "var/www/html/assets/app.js", 0o644),
     ("web/assets/selection-ui.js", "var/www/html/assets/selection-ui.js", 0o644),
@@ -65,6 +66,8 @@ WEB_EXTRA = (
      "etc/default/retrode3-web-v2", 0o644),
     ("packaging/assets/retrode3-prefork.conf",
      "etc/apache2/conf-available/retrode3-prefork.conf", 0o644),
+    ("packaging/assets/retrode3-rom-upload.ini",
+     "etc/php/8.2/apache2/conf.d/99-retrode3-rom-upload.ini", 0o644),
     ("packaging/assets/retrode3-corectl.sudoers",
      "etc/sudoers.d/retrode3-corectl", 0o440),
 )
@@ -72,7 +75,8 @@ CONFFILES = {
     "retrode3-core-runtime": ("/etc/init.d/retrode3-core-runtime",),
     WEB: ("/etc/init.d/retrode3-web-v2", "/etc/default/retrode3-web-v2",
           "/etc/sudoers.d/retrode3-corectl",
-          "/etc/apache2/conf-available/retrode3-prefork.conf"),
+          "/etc/apache2/conf-available/retrode3-prefork.conf",
+          "/etc/php/8.2/apache2/conf.d/99-retrode3-rom-upload.ini"),
     TOOLS: ("/etc/sudoers.d/retrode3",),
     UDEV: ("/etc/udev/rules.d/70-retrode3-cartridge.rules",)
 }
@@ -413,7 +417,9 @@ def build_one(work, package, layout, lock, stage, epoch, native=None):
     names = cmd(["dpkg-deb", "--contents", str(destination)])
     required_files = {
         WEB: ("opt/retrode3-web-v2/backend/service.py",
-              "var/www/html/index.php", "etc/init.d/retrode3-web-v2"),
+              "var/www/html/index.php", "var/www/html/rom-upload.php",
+              "etc/php/8.2/apache2/conf.d/99-retrode3-rom-upload.ini",
+              "etc/init.d/retrode3-web-v2"),
         TOOLS: ("usr/local/bin/retrode3-admin", "usr/local/bin/retrode3-wlan"),
         UDEV: ("etc/udev/rules.d/70-retrode3-cartridge.rules",),
     }

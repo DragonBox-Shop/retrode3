@@ -36,6 +36,8 @@ node --check retrode3-web-control/v2/web/assets/app.js
 node --check retrode3-web-control/v2/web/assets/selection-ui.js
 node retrode3-web-control/v2/tests/test_frontend_generic_selection.js
 node retrode3-web-control/v2/tests/test_frontend_v3_job.js
+node retrode3-web-control/v2/tests/test_frontend_job_progress.js
+node retrode3-web-control/v2/tests/test_frontend_flash_writer.js
 node retrode3-web-control/v2/tests/test_frontend_filename.js
 node retrode3-web-control/v2/tests/test_frontend_slot_card.js
 node retrode3-web-control/v2/tests/test_frontend_slot_poll.js

@@ -78,6 +78,10 @@ class TestPackaging(unittest.TestCase):
                 if name == pkg.WEB:
                     self.assertIn("./etc/init.d/retrode3-web-v2", contents)
                     self.assertIn("./var/www/html/assets/app.js", contents)
+                    self.assertIn("./var/www/html/rom-upload.php", contents)
+                    upload_ini = "/etc/php/8.2/apache2/conf.d/99-retrode3-rom-upload.ini"
+                    self.assertIn("." + upload_ini, contents)
+                    self.assertIn(upload_ini, pkg.CONFFILES[pkg.WEB])
                     self.assertIn("./etc/apache2/conf-available/retrode3-prefork.conf", contents)
                     self.assertIn("Architecture: all", info)
                     self.assertIn("/etc/apache2/conf-available/retrode3-prefork.conf",

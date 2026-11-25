@@ -9,6 +9,10 @@
   var coreState = null, corePending = false, registryRevision = null;
   var readerOptions = null, readerOptionsLoading = false, readerOptionsRequest = 0;
   var genericWidget = null;
+  var writerIdentified = null;
+  var writerSourcePath = "";
+  var writerUploading = false;
+  var writerUploadSerial = 0;
   var csrf = document.querySelector('meta[name="csrf-token"]').content;
   var $ = function (id) { return document.getElementById(id); };
   function t(key) { return messages[key] || key; }
@@ -55,6 +59,7 @@
     if (slotData) renderSlots();
     renderSelectedProbe();
     renderCores();
+    renderWriterState();
   }
   function setLocale(lang) {
     if (!/^(en|de)$/.test(lang)) lang = "en";
@@ -74,8 +79,14 @@
     document.querySelectorAll(".page").forEach(function (el) {
       el.classList.toggle("active", el.id === id);
     });
+    if (id === "writer") {
+      $("writer-progress-anchor").appendChild($("job-panel"));
+    } else {
+      $("reader-progress-anchor").appendChild($("job-panel"));
+    }
     if (id === "files") listFiles();
     if (id === "reader") loadCapabilities();
+    if (id === "writer") renderWriterState();
     if (id === "settings") loadSettings();
     if (id === "plugins") loadCores();
   }
@@ -138,7 +149,7 @@
     $("read").disabled = !reader || commands.indexOf("read_rom") === -1 ||
       Boolean(activeJob) || readerOptionsLoading || !genericSchema() ||
       !genericWidget || !genericWidget.allowed();
-
+    renderWriterState();
   }
   function selectReader(id) {
     var previous = selectedReader;
@@ -379,6 +390,7 @@
           var oldSlot = selectedSlotId();
           if (oldSlot && autoNames[oldSlot] && $("filename").value === autoNames[oldSlot])
             $("filename").value = selectedReader.toUpperCase() + "-Dump";
+          writerIdentified = null;
           detectedBySlot = {};
           manualReaderBySlot = {};
           autoNames = {};
@@ -394,6 +406,10 @@
       var previousSlots = slotData && slotData.slots || [];
       data.slots.forEach(function (slot) {
         var previous = previousSlots.filter(function (entry) { return entry.id === slot.id; })[0];
+        if (typeof writerIdentified !== "undefined" && writerIdentified &&
+            writerIdentified.slot === slot.id && previous &&
+            previous.status === "occupied" && slot.status === "empty")
+          writerIdentified = null;
         if (!previous || previous.status !== slot.status || slot.status !== "occupied") {
           delete detectedBySlot[slot.id];
           delete manualReaderBySlot[slot.id];
@@ -494,6 +510,7 @@
         option.value = reader.id; text(option, reader.name); select.appendChild(option);
       });
       selectReader(previous);
+      updateWriterReaders();
       if (!activeJob) slotFingerprint = null;
       return refreshSlots();
     }).catch(function (error) {
@@ -517,6 +534,152 @@
     });
     if (updateFilename !== false && data.title) $("filename").value = data.title;
     renderGenericOptions();
+  }
+  function flashReader() {
+    return readerById($("writer-system").value);
+  }
+  function flashSupports(reader, action) {
+    return !!reader && (reader.capabilities.commands || []).indexOf(action) !== -1;
+  }
+  function updateWriterReaders() {
+    var select = $("writer-system"), preferred = select.value;
+    select.innerHTML = "";
+    var empty = document.createElement("option");
+    empty.value = ""; text(empty, t("choose_reader")); select.appendChild(empty);
+    readers().forEach(function (reader) {
+      if (!flashSupports(reader, "probe_flash")) return;
+      var option = document.createElement("option");
+      option.value = reader.id; text(option, reader.name); select.appendChild(option);
+    });
+    if (readerById(preferred) && flashSupports(readerById(preferred), "probe_flash"))
+      select.value = preferred;
+    else if (readerById(selectedReader) &&
+             flashSupports(readerById(selectedReader), "probe_flash"))
+      select.value = selectedReader;
+    else if (select.options.length === 2) select.value = select.options[1].value;
+    renderWriterState();
+  }
+  function renderWriterState() {
+    var reader = flashReader();
+    var id = reader && reader.id;
+    var slot = reader && slotData && slotData.slots.filter(function (entry) {
+      return entry.id === reader.slot;
+    })[0];
+    var occupied = slot && slot.status === "occupied";
+    if (!reader || !writerIdentified ||
+        writerIdentified.reader !== id || writerIdentified.slot !== reader.slot)
+      writerIdentified = null;
+    text($("writer-slot-status"), reader ?
+      (reader.name + " · " + reader.slot + " · " +
+       t(occupied ? "writer_cart_inserted" : "writer_insert_cart")) :
+      t("writer_missing_core"));
+    var info = writerIdentified && writerIdentified.data;
+    text($("writer-flash-status"), info ?
+      t("writer_detected") + ": 0x" + Number(info.manufacturer_id).toString(16) +
+      " / 0x" + Number(info.device_id).toString(16) +
+      " · " + humanSize(info.capacity_bytes) +
+      " · " + info.sector_count + " " + t("progress_sectors") :
+      t("writer_not_detected"));
+    var erase = $("writer-erase").checked;
+    var write = $("writer-program").checked;
+    var verify = $("writer-check").checked;
+    var passes = Number($("writer-verify-passes").value);
+    var validPasses = !verify || (Number.isInteger(passes) && passes >= 1 &&
+                                  passes <= 99);
+    var selected = erase || write || verify;
+    var sourceReady = Boolean(writerSourcePath) && !writerUploading;
+    var sourceRequired = write || verify;
+    $("writer-verify-passes").disabled = !verify || Boolean(activeJob);
+    $("writer-detect").disabled = !flashSupports(reader, "probe_flash") ||
+      Boolean(activeJob);
+    $("writer-start").disabled = !writerIdentified || !selected || !validPasses ||
+      (sourceRequired && !sourceReady) || writerUploading || Boolean(activeJob) ||
+      !flashSupports(reader, "flash_operation");
+    text($("writer-operation-hint"), !selected ? t("writer_choose_operation") :
+      !validPasses ? t("writer_bad_passes") :
+      sourceRequired && !sourceReady ? t("writer_upload_required") :
+      erase && !writerSourcePath ? t("writer_erase_all_hint") :
+      !verify ? t("writer_not_verified_hint") : "");
+  }
+  function uploadWriterFile() {
+    var reader = flashReader();
+    var selected = $("writer-file").files && $("writer-file").files[0];
+    var serial = ++writerUploadSerial;
+    writerSourcePath = "";
+    text($("writer-upload-status"), "");
+    renderWriterState();
+    if (!selected) return;
+    if (!reader) return notify(t("writer_missing_core"));
+    if (selected.size < 512 || selected.size > 4194304 ||
+        selected.size % 2 !== 0) {
+      text($("writer-upload-status"), t("writer_upload_bad_size"));
+      return;
+    }
+    if (activeJob || writerUploading) return;
+    writerUploading = true;
+    renderWriterState();
+    text($("writer-upload-status"), t("writer_uploading"));
+    var data = new FormData();
+    data.append("folder", reader.folder);
+    data.append("rom", selected, selected.name);
+    fetch("rom-upload.php", {
+      method: "POST", credentials: "same-origin", cache: "no-store",
+      headers: {"X-CSRF-Token": csrf}, body: data
+    }).then(function (reply) {
+      return reply.json().then(function (result) {
+        if (!reply.ok || !result.ok || !result.path)
+          throw new Error(result.message || result.error || t("writer_upload_failed"));
+        return result;
+      });
+    }).then(function (result) {
+      if (serial !== writerUploadSerial ||
+          !flashReader() || flashReader().id !== reader.id) return;
+      writerSourcePath = result.path;
+      text($("writer-upload-status"), t("writer_uploaded") + ": " +
+        selected.name + " (" + humanSize(result.size) + ")");
+    }).catch(function (err) {
+      if (serial !== writerUploadSerial) return;
+      text($("writer-upload-status"), err.message || t("writer_upload_failed"));
+    }).then(function () {
+      writerUploading = false;
+      renderWriterState();
+    });
+  }
+  function startFlashJob(action) {
+    var reader = flashReader();
+    if (!reader || !flashSupports(reader, action) || activeJob) return;
+    var payload = {system: reader.id, command: action};
+    if (action === "probe_flash") {
+      writerIdentified = null;
+    } else if (action === "flash_operation") {
+      var erase = Boolean($("writer-erase").checked);
+      var write = Boolean($("writer-program").checked);
+      var verify = Boolean($("writer-check").checked);
+      var passes = verify ? Number($("writer-verify-passes").value) : 0;
+      if (!writerIdentified || !(erase || write || verify) ||
+          (verify && (!Number.isInteger(passes) || passes < 1 || passes > 99)) ||
+          ((write || verify) && !writerSourcePath) || writerUploading) {
+        renderWriterState();
+        return;
+      }
+      payload.erase = erase;
+      payload.write = write;
+      payload.verify = verify;
+      payload.verify_passes = passes;
+      // Erase alone with no ROM erases the entire chip. If a ROM was
+      // uploaded, erase just the sectors covering its length.
+      if (writerSourcePath) payload.source = writerSourcePath;
+    } else return;
+    renderWriterState();
+    api("/api/jobs", payload).then(function (job) {
+      activeJob = job.id;
+      $("job-panel").hidden = false;
+      $("cancel").disabled = false;
+      $("writer-progress-anchor").appendChild($("job-panel"));
+      renderJob(job);
+      renderWriterState();
+      schedulePoll();
+    }).catch(function (err) { renderWriterState(); fail(err); });
   }
   function startJob(command) {
     var reader = readerById(selectedReader);
@@ -553,13 +716,66 @@
     });
   }
   function renderJob(job) {
-    text($("job-label"), t(job.status));
     var progress = job.progress || {};
-    var percent = typeof progress.percent === "number" ? progress.percent : 0;
+    // Same progress widget for ROM reads and future Flash jobs.
+    // Flash progress is phase-local: erase sectors, program bytes, verify bytes.
+    var phases = {
+      read_rom: "progress_phase_read_rom",
+      erase: "progress_phase_erase",
+      program: "progress_phase_program",
+      verify: "progress_phase_verify"
+    };
+    var phase = Object.prototype.hasOwnProperty.call(phases, progress.phase) ?
+      phases[progress.phase] : null;
+    var busy = job.status === "running" || job.status === "cancelling";
+    var label = busy && phase ? t(phase) : t(job.status);
+    if (busy && phase && job.status === "cancelling")
+      label += " · " + t("cancelling");
+    text($("job-label"), label);
+    var percent = typeof progress.percent === "number" && isFinite(progress.percent) ?
+      Math.floor(Math.max(0, Math.min(100, progress.percent))) : 0;
     text($("job-percent"), percent + "%");
     $("job-fill").style.width = percent + "%";
-    text($("job-detail"), progress.bytes_total ?
-      humanSize(progress.bytes_done) + " / " + humanSize(progress.bytes_total) : "");
+    var detail = "";
+    if (progress.units === "sectors" &&
+        typeof progress.units_done === "number" &&
+        typeof progress.units_total === "number" &&
+        isFinite(progress.units_done) && isFinite(progress.units_total) &&
+        progress.units_done >= 0 && progress.units_total > 0 &&
+        progress.units_done <= progress.units_total) {
+      detail = progress.units_done + " / " + progress.units_total +
+        " " + t("progress_sectors");
+    } else if (typeof progress.bytes_total === "number" &&
+               typeof progress.bytes_done === "number" &&
+               isFinite(progress.bytes_total) && isFinite(progress.bytes_done) &&
+               progress.bytes_total > 0 && progress.bytes_done >= 0 &&
+               progress.bytes_done <= progress.bytes_total) {
+      detail = humanSize(progress.bytes_done) + " / " +
+        humanSize(progress.bytes_total);
+    }
+    if (progress.phase === "verify" &&
+        Number.isInteger(progress.verify_pass) &&
+        Number.isInteger(progress.verify_passes) &&
+        progress.verify_passes > 1)
+      detail += " · " + t("writer_verify_pass") + " " +
+        progress.verify_pass + "/" + progress.verify_passes;
+    // The CLI reports an elapsed-phase monotonic throughput figure,
+    // independent of browser polling or network response timing.
+    var rateAvailable = (progress.phase === "program" || progress.phase === "verify") &&
+      typeof progress.bytes_per_second === "number" &&
+      isFinite(progress.bytes_per_second) && progress.bytes_per_second > 0;
+    var speedDisplay = $("job-speed");
+    if (rateAvailable) {
+      var kibPerSecond = progress.bytes_per_second / 1024;
+      text(speedDisplay, kibPerSecond.toLocaleString(undefined, {
+        minimumFractionDigits: 1, maximumFractionDigits: 1
+      }) + " KiB/s");
+      speedDisplay.hidden = false;
+    } else {
+      speedDisplay.hidden = true;
+      text(speedDisplay, "");
+    }
+    text($("job-detail"), detail);
     var result = job.command === "read_rom" && job.status === "done" && job.result || null;
     var identity = result && result.identity || {};
     var verification = result && result.verification || {};
@@ -571,7 +787,16 @@
       }).join(" · ") : "";
     var verifyText = verification.status ?
       t("verification_" + verification.status) : "";
-    text($("job-result-details"), result ?
+    if ((job.command === "write_flash" || job.command === "verify_flash" ||
+         job.command === "flash_operation") &&
+        job.status === "done" && job.result && job.result.flash_verification) {
+      var flashResult = job.result.flash_verification;
+      text($("job-result-details"), flashResult.verified ?
+        t("writer_verified") + ": " +
+          humanSize(flashResult.bytes_compared) + " (" +
+          flashResult.passes_completed + " " + t("writer_verify_passes_label") + ")" :
+        t("writer_finished_unverified"));
+    } else text($("job-result-details"), result ?
       (title ? title + " · " : "") +
       (result.layout_id ? result.layout_id + " · " : "") +
       (configurationText ? configurationText + " · " : "") +
@@ -590,14 +815,26 @@
         }
         probeTarget = null;
         notify(t("probe_finished"));
-      }
-      else {
+      } else if (job.command === "probe_flash") {
+        writerIdentified = {reader: job.system, slot: (readerById(job.system) || {}).slot,
+          data: job.result || {}};
+        renderWriterState();
+        notify(t("writer_detected"));
+      } else if (job.command === "write_flash" ||
+                 job.command === "verify_flash" ||
+                 job.command === "flash_operation") {
+        notify(job.result && job.result.flash_verification &&
+          job.result.flash_verification.verified ?
+          t("writer_verified") : t("writer_finished_unverified"));
+      } else {
         var verify = job.result && job.result.verification;
         notify(t("read_finished") + (verify && verify.status ?
           " · " + t("verification_" + verify.status) : ""));
       }
     } else if (job.status === "failed") {
       if (job.command === "probe") probeTarget = null;
+      if (job.command === "probe_flash") writerIdentified = null;
+      renderWriterState();
       notify(t("failed") + ": " + (job.error && (job.error.message || job.error.code) || t("unknown")));
     } else if (job.status === "cancelled") {
       if (job.command === "probe") probeTarget = null;
@@ -616,6 +853,7 @@
       else {
         activeJob = null;
         renderCores();
+        renderWriterState();
         $("cancel").disabled = true;
         loadCapabilities();
         loadCores();
@@ -799,6 +1037,21 @@
     });
     $("probe").addEventListener("click", function () { startJob("probe"); });
     $("read").addEventListener("click", function () { startJob("read_rom"); });
+    $("writer-system").addEventListener("change", function () {
+      writerIdentified = null;
+      writerSourcePath = "";
+      ++writerUploadSerial;
+      $("writer-file").value = "";
+      text($("writer-upload-status"), "");
+      renderWriterState();
+    });
+    $("writer-file").addEventListener("change", uploadWriterFile);
+    $("writer-detect").addEventListener("click", function () { startFlashJob("probe_flash"); });
+    $("writer-start").addEventListener("click", function () { startFlashJob("flash_operation"); });
+    ["writer-erase", "writer-program", "writer-check", "writer-verify-passes"].forEach(function (id) {
+      $(id).addEventListener("change", renderWriterState);
+      $(id).addEventListener("input", renderWriterState);
+    });
     $("cancel").addEventListener("click", function () {
       if (activeJob) api("/api/jobs/" + activeJob + "/cancel", {}).catch(fail);
     });
@@ -838,6 +1091,10 @@
   function resumeJob() {
     api("/api/jobs/active").then(function (job) {
       if (!job.id || job.automatic) return;
+      if (["probe_flash", "write_flash", "verify_flash", "flash_operation"].indexOf(job.command) !== -1) {
+        showTab("writer");
+        $("writer-system").value = job.system;
+      }
       $("job-panel").hidden = false;
       renderJob(job);
       if (["done", "failed", "cancelled"].indexOf(job.status) === -1) {

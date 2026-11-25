@@ -28,6 +28,8 @@ FILES_ROOT = os.path.join(ROOT, "ROMs")
 SENSE_ROOT = os.environ.get("RETRODE3_SYSFS_ROOT", "/sys/class/retrode3")
 
 CLI_BIN = "/usr/bin/retrode3-cli"
+# Flash operations follow the same shared CLI path as regular ROM reads.
+FLASH_ACTIONS = ("probe_flash", "write_flash", "verify_flash", "flash_operation")
 CORECTL_BIN = "/usr/sbin/retrode3-corectl"
 CORES_ENABLED_DIR = "/etc/retrode3/cores-enabled"
 CORE_CONTROL_ENABLED = os.environ.get("RETRODE3_CORE_CONTROL_ENABLED", "0") == "1"
@@ -351,9 +353,12 @@ def core_registry():
             actions = c.get("actions")
             if not isinstance(actions, list) or any(not isinstance(a, str) or not CORE_ID.match(a) for a in actions):
                 raise ValueError("Invalid core actions")
-            cores.append(dict((key, c[key]) for key in
-                              ("id", "name", "version", "slot", "status",
-                               "installed", "enabled", "usable", "actions")))
+            entry = dict((key, c[key]) for key in
+                         ("id", "name", "version", "slot", "status",
+                          "installed", "enabled", "usable", "actions"))
+            if c.get("probe_without_sense") is True:
+                entry["probe_without_sense"] = True
+            cores.append(entry)
     except (ValueError, KeyError, UnicodeError, TypeError):
         raise ApiError(502, "core_protocol_invalid", "CLI inventory protocol mismatch")
     return {"available": True, "source": "retrode3-cli",
@@ -444,15 +449,17 @@ def reader_capability(core_id, registry=None):
             core["status"] == "ready" and core["usable"]):
         result["reason"] = "core_not_ready"
         return result
-    commands = [action for action in ("probe", "read_rom")
+    commands = [action for action in ("probe", "read_rom") + FLASH_ACTIONS
                 if action in core["actions"]]
     if not commands:
         result["reason"] = "core_operation_unavailable"
         return result
+    if core.get("probe_without_sense") is True:
+        result["probe_without_sense"] = True
     result.update({"available": True,
                    "capabilities": {"system": core["id"], "core": core["id"],
                                     "slot": core["slot"], "commands": commands,
-                                    "write_operations": False}})
+                                    "write_operations": "write_flash" in commands}})
     return result
 
 
@@ -578,11 +585,14 @@ def capability_probe():
 
 class Job(object):
     def __init__(self, manager, reader_id, action, label,
-                 reader, automatic=False, selection=None):
+                 reader, automatic=False, selection=None, source=None,
+                 flash_options=None):
         self.manager = manager
         self.reader_id = reader_id
         self.reader = reader
         self.selection = selection
+        self.source = source
+        self.flash_options = flash_options
         self.automatic = automatic
         self.id = uuid.uuid4().hex
         self.action = action
@@ -644,7 +654,9 @@ class Job(object):
                                            stderr=subprocess.DEVNULL, bufsize=0)
                 with self.lock:
                     self.process = process
-                deadline = time.time() + 900
+                deadline = time.time() + (max(3600, (self.flash_options or {}).get(
+                    "verify_passes", 0) * 900) if self.action in
+                    ("write_flash", "verify_flash", "flash_operation") else 900)
                 sent = False
                 while time.time() < deadline:
                     if process.poll() is not None and not select.select([process.stdout], [], [], 0)[0]:
@@ -674,12 +686,19 @@ class Job(object):
                             if self.action == "read_rom":
                                 command["output"] = self.output
                                 command["selection"] = self.selection
+                            elif self.action in ("write_flash", "verify_flash"):
+                                command["source"] = self.source
+                            elif self.action == "flash_operation":
+                                command.update(self.flash_options)
+                                if self.source:
+                                    command["source"] = self.source
                             self._send(command)
                             sent = True
                         continue
                     if not sent:
                         continue
-                    if kind not in ("error", "progress", "probe_result", "slot_probe_result", "result"):
+                    if kind not in ("error", "progress", "probe_result", "slot_probe_result",
+                                    "flash_probe_result", "result"):
                         continue
                     # Some parser errors have no request_id; do not associate
                     # unrelated valid IDs with our running operation.
@@ -697,6 +716,36 @@ class Job(object):
                             self.result = event
                             self.status = "done"
                         elif kind == "probe_result" and self.action == "probe":
+                            self.result = event
+                            self.status = "done"
+                        elif kind == "flash_probe_result" and self.action == "probe_flash":
+                            if (event.get("system") != self.reader_id or
+                                    not event.get("write_supported")):
+                                raise ApiError(502, "invalid_result", "Unexpected Flash identity")
+                            self.result = event
+                            self.status = "done"
+                        elif kind == "result" and self.action in (
+                                "write_flash", "verify_flash", "flash_operation"):
+                            verification = event.get("flash_verification") or {}
+                            requested = (self.flash_options or {}).get(
+                                "verify", self.action != "flash_operation")
+                            expected_status = "verified" if requested else "not_checked"
+                            if (event.get("ok") is not True or
+                                    event.get("command") != self.action or
+                                    verification.get("status") != expected_status or
+                                    verification.get("verified") is not requested):
+                                raise ApiError(502, "invalid_result",
+                                               "Flash operation status inconsistent")
+                            if self.action == "flash_operation":
+                                operations = event.get("operations") or {}
+                                if any(operations.get(name) is not self.flash_options[name]
+                                       for name in ("erase", "write", "verify")):
+                                    raise ApiError(502, "invalid_result",
+                                                   "Flash operation stages inconsistent")
+                                if requested and verification.get("passes_completed") != (
+                                        self.flash_options["verify_passes"]):
+                                    raise ApiError(502, "invalid_result",
+                                                   "Not all Verify passes completed")
                             self.result = event
                             self.status = "done"
                         elif kind == "result" and self.action == "read_rom":
@@ -748,21 +797,49 @@ class JobManager(object):
 
     def submit(self, data, automatic=False):
         reader_id = data.get("system")
+        action = data.get("command")
         if (not isinstance(reader_id, str) or not CORE_ID.match(reader_id) or
-                data.get("command") not in ("probe", "read_rom")):
+                action not in ("probe", "read_rom") + FLASH_ACTIONS):
             raise ApiError(400, "unsupported", "Unknown reader or unsupported command")
-        # The web API is v3-only: do not infer layout or silently forward
-        # legacy NES-v2/SNES/MD parameters to an older installed reader.
-        action = data["command"]
+        if automatic and action in FLASH_ACTIONS:
+            raise ApiError(400, "unsupported", "Flash operations are never automatic")
+        selection = None
+        source = None
+        flash_options = None
         if action == "read_rom":
             if set(data) != {"system", "command", "filename", "selection"}:
                 raise ApiError(400, "invalid_selection",
                                "ROM reads require the generic v3 selection envelope")
             selection = validate_generic_selection(data["selection"], action)
-        else:
+        elif action in ("probe", "probe_flash"):
             if set(data) != {"system", "command"}:
-                raise ApiError(400, "invalid_command", "Probe takes no read options")
-            selection = None
+                raise ApiError(400, "invalid_command", "Probe takes no extra options")
+        elif action == "flash_operation":
+            required = {"system", "command", "erase", "write", "verify", "verify_passes"}
+            if set(data) not in (required, required | {"source"}):
+                raise ApiError(400, "invalid_command", "Invalid Flash operation fields")
+            if (type(data["erase"]) is not bool or
+                    type(data["write"]) is not bool or
+                    type(data["verify"]) is not bool or
+                    type(data["verify_passes"]) is not int):
+                raise ApiError(400, "invalid_command", "Invalid Flash stage value")
+            count = data["verify_passes"]
+            if (not any((data["erase"], data["write"], data["verify"])) or
+                    (data["verify"] and not 1 <= count <= 99) or
+                    (not data["verify"] and count != 0)):
+                raise ApiError(400, "invalid_command", "Invalid Flash stage selection")
+            source = data.get("source")
+            if (data["write"] or data["verify"]) and not source:
+                raise ApiError(400, "invalid_path", "Upload a ROM for Write or Verify")
+            flash_options = {key: data[key] for key in
+                             ("erase", "write", "verify", "verify_passes")}
+        else:
+            fields = {"system", "command", "source"}
+            if set(data) != fields:
+                raise ApiError(400, "invalid_command", "Invalid Flash job fields")
+            source = data.get("source")
+            if not isinstance(source, str) or not source:
+                raise ApiError(400, "invalid_path", "Select a ROM from shared storage")
         cap = reader_capability(reader_id)
         if cap is None:
             raise ApiError(400, "unsupported", "Core not registered by CLI")
@@ -770,11 +847,22 @@ class JobManager(object):
             raise ApiError(503, "native_protocol_unavailable",
                            "The requested shared CLI core is not available")
         features = cap["capabilities"]
-        if data["command"] not in features["commands"]:
+        if action not in features["commands"]:
             raise ApiError(400, "unsupported", "Command unavailable for this reader")
+        if source is not None:
+            if not isinstance(source, str):
+                raise ApiError(400, "invalid_path", "ROM path must be a string")
+            # A Flash source must be a regular ROM in this *logical* system
+            # directory, not a user-supplied /dev path or a different core's ROM.
+            if not source.startswith(cap["folder"] + "/"):
+                raise ApiError(400, "invalid_path", "ROM belongs to a different system folder")
+            source = safe_path(source)
+            if not os.path.isfile(source):
+                raise ApiError(400, "invalid_path", "Flash source is not a regular ROM")
+            length = os.path.getsize(source)
+            if length < 512 or length > 4194304 or length % 2:
+                raise ApiError(400, "invalid_size", "Unsupported Flash ROM size")
         if selection is not None:
-            # Metadata query is cartridge-I/O free. The native v3 core
-            # remains the final authority for schema, parameters and safety.
             opts = native_reader_options(reader_id)
             schema = opts.get("selection_schema")
             if (schema is None or selection["schema_id"] != schema["schema_id"] or
@@ -783,7 +871,8 @@ class JobManager(object):
                                "Reader selection capabilities changed; reload options")
         job = Job(self, reader_id, action,
                   sanitized_filename(data.get("filename")),
-                  cap, automatic=automatic, selection=selection)
+                  cap, automatic=automatic, selection=selection,
+                  source=source, flash_options=flash_options)
         with self.lock:
             if self.active is not None:
                 raise ApiError(409, "busy", "Cartridge reader already busy")
@@ -840,9 +929,10 @@ MANAGER = JobManager()
 class AutomaticDetection(object):
     """Keep cartridge identity in the backend, independent of browser sessions.
 
-    Linux slot uevents wake the worker, but every decision is verified
-    against passive kernel sense sysfs, never against untrusted event text.
-    A periodic reconciliation also handles lost events or absent netlink.
+    Linux slot uevents wake the worker; their text never selects a core.
+    Passive sense is the ordinary trigger. Cores explicitly declaring
+    sense-independent probes may also be checked at a bounded interval.
+    A periodic reconciliation handles lost events or absent netlink.
     All probes are submitted through the same serialized JobManager as
     manually requested ROM reads; no second raw device reader exists.
     """
@@ -850,6 +940,7 @@ class AutomaticDetection(object):
         self.manager = manager
         self.lock = threading.RLock()
         self.records = {}
+        self.fallback_slots = None
         self.running = False
         self.registry_stamp = self._registry_stamp()
         self.registry_revision = 0
@@ -884,6 +975,7 @@ class AutomaticDetection(object):
         """Re-evaluate occupied slots after a registry change."""
         with self.lock:
             self.registry_revision += 1
+            self.fallback_slots = None
             for slot_id, record in list(self.records.items()):
                 if record["state"] == "detecting":
                     try:
@@ -900,6 +992,13 @@ class AutomaticDetection(object):
         with self.manager.lock:
             active = self.manager.active
         if active is not None and active.reader["slot"] == slot_id:
+            # A sense-independent reader must validate cartridge identity
+            # itself. Empty sense is not proof of removal for that reader.
+            if active.reader.get("probe_without_sense") is True:
+                return
+            record = self.records.get(slot_id) or {}
+            if active.action == "probe_slot" and record.get("fallback"):
+                return
             active.cancel()
 
     def _event_changed(self, payload):
@@ -992,7 +1091,8 @@ class AutomaticDetection(object):
                     self.records[slot_id] = {
                         "presence": status,
                         "state": "pending" if status == "occupied" else "idle",
-                        "ready_at": now + 0.35,
+                        "ready_at": now + (0.35 if status == "occupied" else 3.0),
+                        "fallback": False,
                         "job_id": None,
                         "core_id": None,
                         "slot_probe": False,
@@ -1000,7 +1100,40 @@ class AutomaticDetection(object):
                         "error": None}
                     continue
                 if status != "occupied":
-                    continue
+                    if status != "empty":
+                        continue
+                    # No probing on browser refresh. Only the backend worker
+                    # schedules bounded, opt-in header probes while idle.
+                    if record["state"] != "detecting":
+                        if now < record["ready_at"]:
+                            continue
+                        with self.manager.lock:
+                            if self.manager.active is not None:
+                                continue
+                        if self.fallback_slots is None:
+                            try:
+                                self.fallback_slots = set(
+                                    reader["slot"] for reader in capability_probe()["systems"]
+                                    if reader and reader["available"] and
+                                    reader.get("probe_without_sense") is True)
+                            except ApiError:
+                                record["ready_at"] = now + 5.0
+                                continue
+                        if slot_id not in self.fallback_slots:
+                            continue
+                        record["fallback"] = True
+                        try:
+                            job = self.manager.submit_slot_probe(slot_id)
+                        except ApiError as error:
+                            if error.status != 409:
+                                record["ready_at"] = now + 5.0
+                            continue
+                        record["job_id"] = job["id"]
+                        record["slot_probe"] = True
+                        record["state"] = "detecting"
+                        continue
+                    if not record.get("fallback"):
+                        continue
                 if record["state"] == "detecting":
                     job = self.manager.get(record["job_id"]).snapshot()
                     if job["status"] == "done":
@@ -1030,6 +1163,16 @@ class AutomaticDetection(object):
                                         record["result"]["read_voltage_mv"] = probe["read_voltage_mv"]
                                     record["state"] = "detected"
                                     record["error"] = None
+                                    if record.get("fallback"):
+                                        record["ready_at"] = now + 5.0
+                            elif record.get("fallback"):
+                                # No valid header on a slot without sense:
+                                # remove cached identity, then wait to retry.
+                                record["state"] = "idle"
+                                record["result"] = None
+                                record["core_id"] = None
+                                record["error"] = None
+                                record["ready_at"] = now + 5.0
                             elif result.get("detection") == "empty":
                                 record["state"] = "pending"
                                 record["ready_at"] = now + 0.35
@@ -1052,6 +1195,10 @@ class AutomaticDetection(object):
                     elif job["status"] in ("failed", "cancelled"):
                         record["state"] = "failed"
                         record["error"] = (job.get("error") or {}).get("code", "probe_failed")
+                        if record.get("fallback"):
+                            record["ready_at"] = now + 5.0
+                            record["result"] = None
+                            record["core_id"] = None
                 elif record["state"] == "pending" and now >= record["ready_at"]:
                     # Waiting must be passive. Do not spawn repeated CLI
                     # inventory processes every 300 ms while another slot's
@@ -1108,8 +1255,17 @@ class AutomaticDetection(object):
             for slot in result["slots"]:
                 record = self.records.get(slot["id"])
                 if record is not None and record["presence"] == slot["status"]:
+                    # Keep passive sense separately; a confirmed header is
+                    # sufficient presence evidence for an opt-in core.
+                    detected_by_header = (record.get("fallback") and
+                                          record["result"] is not None and
+                                          record["core_id"] is not None)
+                    if detected_by_header:
+                        slot["sense_status"] = slot["status"]
+                        slot["status"] = "occupied"
+                        slot["presence_source"] = "header"
                     slot["detection"] = {
-                        "state": record["state"],
+                        "state": "detected" if detected_by_header else record["state"],
                         "core_id": record["core_id"],
                         "result": record["result"],
                         "error": record["error"]}

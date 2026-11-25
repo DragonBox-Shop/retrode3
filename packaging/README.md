@@ -25,7 +25,7 @@ not an accepted package upgrade, APT release or customer SD image.
 `native-source-lock.json` fixes:
 
 - OSCR `DragonBox-Shop/retrode3-oscr` commit
-  `12a7a580ac423962104e63e3524006fd3a9c857f`
+  `4f61f86b1c21dc5a9c6a386e51648f4abb44866c`
 - Sanni submodule `third_party/oscr-firmware` gitlink
   `e5a08326dfc8fff67193f7fc5a7bc36b5282b28c`
 - Discovery and operation ABI v1, and one development package revision.
@@ -38,7 +38,7 @@ device-compatible artifacts.
 ```sh
 git clone https://github.com/DragonBox-Shop/retrode3-oscr.git
 cd retrode3-oscr
-git checkout 12a7a580ac423962104e63e3524006fd3a9c857f
+git checkout 4f61f86b1c21dc5a9c6a386e51648f4abb44866c
 git submodule update --init third_party/oscr-firmware
 git rev-parse HEAD:third_party/oscr-firmware
 git -C third_party/oscr-firmware rev-parse HEAD
@@ -131,6 +131,16 @@ Core enablement in `/etc/retrode3/cores-enabled` is **mutable
 device policy**, not a package-managed link. New packages do not
 create enabled links; existing enabled links are not modified.
 Only `retrode3-corectl` manages links.
+
+## Flash writer in Bookworm packages
+
+The packaged Web UI includes the tested Flash writer from master, its
+`rom-upload.php` endpoint and a PHP 8.2 Apache-SAPI upload conffile
+(8 MiB upload / 9 MiB POST; the endpoint limits a ROM to 4 MiB).
+The default OSCR lock is updated to the source used in the first booted
+Bookworm candidate; tag-selected builds still resolve their own exact pin.
+The CLI continues to enforce Flash detection and operation constraints.
+Physical validation on a fresh Bookworm card remains required.
 
 ## Boot and permissions
 

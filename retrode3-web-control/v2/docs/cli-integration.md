@@ -164,8 +164,14 @@ reconciliation loop. An occupied slot is debounced for 350ms and
 submitted as a read-only `probe` via the **same shared JobManager**
 and common CLI. If exactly one active ready core has a `probe`
 operation for that `slot`, it is selected automatically; if several
-cores claim a slot, no speculative probe occurs, and the user must
-select an adapter/reader manually. On removal the displayed title
+cores claim a slot, the CLI performs its electrically gated `probe_slot`
+operation. A manual choice remains available if no safe match is found.
+Opt-in cores declaring `probe_without_sense` may perform bounded header
+probes on apparently empty slots while the bus is idle (GBx adapters).
+The backend observes changes to the core enablement directory, invalidates
+cached identities and re-probes occupied slots without reinsertion. The
+browser observes the registry revision and refreshes reader capabilities.
+On removal of a sense-dependent cartridge the displayed title
 is discarded, and an active cartridge job for that slot is cancelled.
 The browser only displays the backend's observed slot state and cached
 probe metadata; it polls the lightweight endpoint every 1.5s. There is
