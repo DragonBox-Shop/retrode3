@@ -27,6 +27,7 @@ CORE_ID = re.compile(r"^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$")
 WEB = "retrode3-web-control"
 TOOLS = "retrode3-tools"
 UDEV = "retrode3-udev-rules"
+META = "retrode3-cores"
 BOOKWORM_ALL = (WEB, TOOLS, UDEV)
 # Fixed executable modes; every complete staged core pair is discovered at build time.
 MODES = {"usr/bin/retrode3-cli": 0o755,
@@ -319,15 +320,21 @@ def package_version(package, lock):
 
 
 def package_arch(package):
-    return "all" if package in BOOKWORM_ALL else "mipsel"
+    return "all" if package in BOOKWORM_ALL + (META,) else "mipsel"
 
 
-def control_text(package, lock):
+def control_text(package, lock, native=None):
     native_version = lock["native_version"]
     web_version = lock["web_version"]
     version = package_version(package, lock)
     arch = package_arch(package)
-    if package == "retrode3-core-runtime":
+    if package == META:
+        if not native:
+            error("Meta-package needs the full discovered core set")
+        cores = sorted(name for name in native if name.startswith(CORE_PREFIX))
+        deps = ", ".join(["{} (= {})".format(RUNTIME, native_version)] +
+                         ["{} (= {})".format(name, native_version) for name in cores])
+    elif package == "retrode3-core-runtime":
         deps = "libc6, libstdc++6, passwd, adduser, init-system-helpers"
     elif package == WEB:
         deps = ("retrode3-core-runtime (>= " + native_version + "), "
@@ -365,7 +372,7 @@ def control_text(package, lock):
 def build_one(work, package, layout, lock, stage, epoch, native=None):
     if native is None:
         native = discover_native_packages(stage, layout)
-    if package not in native and package not in BOOKWORM_ALL:
+    if package not in native and package not in BOOKWORM_ALL + (META,):
         error("unapproved package: " + package)
     root = work / package
     (root / "DEBIAN").mkdir(parents=True)
@@ -391,7 +398,11 @@ def build_one(work, package, layout, lock, stage, epoch, native=None):
     elif package == UDEV:
         for rel, target, mode in UDEV_FILES:
             put(root, REPO / rel, target, mode)
-    put_text(root, "DEBIAN/control", control_text(package, lock))
+    elif package == META:
+        put_text(root, "usr/share/doc/retrode3-cores/README",
+                 "Dynamic meta-package: install all released Retrode3 cartridge plugins.\n"
+                 "Plugins remain disabled until explicitly enabled by an administrator.\n")
+    put_text(root, "DEBIAN/control", control_text(package, lock, native))
     if package in CONFFILES:
         put_text(root, "DEBIAN/conffiles", "\n".join(CONFFILES[package]) + "\n")
     maintainer_scripts(root, package)
@@ -416,6 +427,7 @@ def build_one(work, package, layout, lock, stage, epoch, native=None):
               "var/www/html/index.php", "etc/init.d/retrode3-web-v2"),
         TOOLS: ("usr/local/bin/retrode3-admin", "usr/local/bin/retrode3-wlan"),
         UDEV: ("etc/udev/rules.d/70-retrode3-cartridge.rules",),
+        META: ("usr/share/doc/retrode3-cores/README",),
     }
     for required in native[package] if package in native else required_files[package]:
         if "./" + required not in names:
@@ -486,7 +498,7 @@ def main():
     with tempfile.TemporaryDirectory(prefix=".retrode3-debs-", dir=str(out)) as temp:
         work = Path(temp)
         records = []
-        for package in tuple(native) + BOOKWORM_ALL:
+        for package in tuple(native) + BOOKWORM_ALL + (META,):
             filename, archive = build_one(work, package, layout, lock,
                                           stage, epoch, native)
             digest = hashlib.sha256(archive.read_bytes()).hexdigest()
