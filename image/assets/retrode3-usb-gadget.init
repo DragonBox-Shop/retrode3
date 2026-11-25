@@ -1,0 +1,132 @@
+#!/bin/sh
+### BEGIN INIT INFO
+# Provides:          retrode3-usb-gadget
+# Required-Start:    $local_fs
+# Required-Stop:     $local_fs
+# Default-Start:     2
+# Default-Stop:      0 1 6
+# Short-Description: Retrode3 USB NCM + ACM + read-only welcome disk
+### END INIT INFO
+# Prototype USB identity for physical development SD cards ONLY.
+# USB networking/serial/mass storage are independent of SSH and authentication.
+# A production VID/PID must be assigned and reviewed before customer release.
+set -u
+
+G=/sys/kernel/config/usb_gadget/retrode3
+DISK=/usr/share/retrode3/usb-welcome.img
+DHCP_PID=/run/retrode3-usb-dhcp.pid
+DHCP_LEASES=/run/retrode3-usb-dhcp.leases
+IP=172.31.255.1/29
+
+start_gadget() {
+    [ -r "$DISK" ] && [ -s "$DISK" ] || {
+        echo "Retrode3 welcome disk missing: $DISK" >&2
+        return 1
+    }
+    [ -x /usr/sbin/dnsmasq ] || {
+        echo "dnsmasq-base missing" >&2
+        return 1
+    }
+    if [ -d "$G" ]; then
+        echo "Retrode3 USB gadget already exists; refusing to overwrite" >&2
+        return 1
+    fi
+    modprobe libcomposite 2>/dev/null || :
+    modprobe usb_f_ncm 2>/dev/null || :
+    modprobe usb_f_acm 2>/dev/null || :
+    modprobe usb_f_mass_storage 2>/dev/null || :
+
+    mkdir -p /sys/kernel/config || return 1
+    grep -q ' /sys/kernel/config configfs ' /proc/mounts ||
+        mount -t configfs configfs /sys/kernel/config || return 1
+    mkdir "$G" || return 1
+    # Development-only identity, not the final product USB VID/PID.
+    echo 0x1d6b > "$G/idVendor" || return 1
+    echo 0x0104 > "$G/idProduct" || return 1
+    echo 0x0200 > "$G/bcdUSB" || return 1
+    echo 0xef > "$G/bDeviceClass" || return 1
+    echo 0x02 > "$G/bDeviceSubClass" || return 1
+    echo 0x01 > "$G/bDeviceProtocol" || return 1
+    mkdir -p "$G/strings/0x409" "$G/configs/c.1/strings/0x409" || return 1
+    echo Retrode3 > "$G/strings/0x409/manufacturer"
+    echo "Retrode3 Bookworm development" > "$G/strings/0x409/product"
+    echo "RETRODE3-DEV-ONLY" > "$G/strings/0x409/serialnumber"
+    echo "NCM network + ACM serial + welcome disk" > "$G/configs/c.1/strings/0x409/configuration"
+    echo 250 > "$G/configs/c.1/MaxPower"
+
+    mkdir "$G/functions/ncm.usb0" || return 1
+    echo 46:10:3a:b3:af:d9 > "$G/functions/ncm.usb0/dev_addr"
+    echo 32:70:05:18:ff:78 > "$G/functions/ncm.usb0/host_addr"
+    mkdir "$G/functions/acm.GS0" || return 1
+    mkdir "$G/functions/mass_storage.usb0" || return 1
+    echo 1 > "$G/functions/mass_storage.usb0/lun.0/ro" || return 1
+    echo 1 > "$G/functions/mass_storage.usb0/lun.0/removable" || return 1
+    echo "$DISK" > "$G/functions/mass_storage.usb0/lun.0/file" || return 1
+    ln -s "$G/functions/ncm.usb0" "$G/configs/c.1/ncm.usb0" || return 1
+    ln -s "$G/functions/acm.GS0" "$G/configs/c.1/acm.GS0" || return 1
+    ln -s "$G/functions/mass_storage.usb0" "$G/configs/c.1/mass_storage.usb0" || return 1
+
+    set -- /sys/class/udc/*
+    [ -e "$1" ] || {
+        echo "No USB device controller detected" >&2
+        return 1
+    }
+    printf '%s\n' "${1##*/}" > "$G/UDC" || return 1
+    tries=0
+    while [ ! -d /sys/class/net/usb0 ] && [ "$tries" -lt 10 ]; do
+        tries=$((tries + 1))
+        sleep 1
+    done
+    [ -d /sys/class/net/usb0 ] || {
+        echo "USB NCM interface usb0 not created" >&2
+        return 1
+    }
+    ip -4 addr replace "$IP" dev usb0 || return 1
+    ip link set usb0 up || return 1
+    /usr/sbin/dnsmasq --conf-file=/dev/null --port=0 --interface=usb0 \
+        --bind-interfaces --dhcp-authoritative \
+        --dhcp-range=172.31.255.2,172.31.255.6,255.255.255.248,12h \
+        --dhcp-option=3 --dhcp-option=6 \
+        --dhcp-leasefile="$DHCP_LEASES" --pid-file="$DHCP_PID" || return 1
+    [ -s "$DHCP_PID" ] || {
+        echo "USB NCM DHCP did not start" >&2
+        return 1
+    }
+    echo "Retrode3 USB gadget ready: NCM 172.31.255.1, ACM ttyGS0, read-only HTML disk"
+    echo "SSH is not enabled by the USB gadget service."
+}
+
+stop_gadget() {
+    if [ -r "$DHCP_PID" ]; then
+        read -r pid < "$DHCP_PID"
+        case "$pid" in
+            *[!0-9]*|'') : ;;
+            *) kill "$pid" 2>/dev/null || : ;;
+        esac
+    fi
+    rm -f "$DHCP_PID" "$DHCP_LEASES"
+    [ -d "$G" ] || return 0
+    if [ -w "$G/UDC" ]; then
+        printf '\n' > "$G/UDC" || :
+    fi
+    for name in ncm.usb0 acm.GS0 mass_storage.usb0; do
+        rm -f "$G/configs/c.1/$name"
+    done
+    if [ -w "$G/functions/mass_storage.usb0/lun.0/file" ]; then
+        printf '\n' > "$G/functions/mass_storage.usb0/lun.0/file" || :
+    fi
+    rmdir "$G/functions/mass_storage.usb0" "$G/functions/acm.GS0" \
+        "$G/functions/ncm.usb0" 2>/dev/null || :
+    rmdir "$G/configs/c.1/strings/0x409" "$G/configs/c.1" \
+        "$G/strings/0x409" "$G" 2>/dev/null || :
+}
+
+case "${1:-}" in
+    start) start_gadget || { stop_gadget; exit 1; } ;;
+    stop) stop_gadget ;;
+    restart|force-reload) stop_gadget; start_gadget || { stop_gadget; exit 1; } ;;
+    status)
+        [ -r "$G/UDC" ] && [ -s "$G/UDC" ] &&
+            [ -s "$DHCP_PID" ] ;;
+    *) echo "Usage: $0 {start|stop|restart|status}" >&2; exit 2 ;;
+esac
