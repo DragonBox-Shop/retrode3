@@ -139,8 +139,8 @@ BASE=/srv/www/vhosts/retrode.com/buildserver
 umask 077
 install -d -m 700 "$BASE/private/signing"
 read -rs -p "APT GPG signing passphrase: " apt_passphrase
-printf '\\n'
-printf '%s\\n' "$apt_passphrase" > "$BASE/private/signing/apt-signing-passphrase"
+printf '\n'
+printf '%s\n' "$apt_passphrase" > "$BASE/private/signing/apt-signing-passphrase"
 unset apt_passphrase
 chmod 600 "$BASE/private/signing/apt-signing-passphrase"
 ```
@@ -168,8 +168,7 @@ policy, packaging, GPG keys or public APT endpoints are required.
 
 ### Unlocking the APT signing key over SSH
 
-The publisher deliberately calls GPG with `--batch --no-tty
---pinentry-mode error` before importing anything. It must **not** prompt
+The publisher deliberately calls GPG with `--batch --no-tty --pinentry-mode error` before importing anything. It must **not** prompt
 during publication. Instead, unlock the existing key interactively in the
 same `retrode` account's GPG agent shortly **after** the MIPS build, and
 then resume the previously built candidate.
