@@ -3,8 +3,8 @@
 Status: one-command candidate builder implemented in buildserver/run-image.sh and
 buildserver/build-image-container.sh, **not yet run or hardware-accepted on
 Amaterasu**. See buildserver/README.md for private inputs and launchers.
-The temporary donor-SPL path is deliberate and must not be described as a
-source-built U-Boot release.
+The new development candidate uses source-built X1600 SPL/U-Boot. The saved
+donor 1 MiB stays a private comparison/rollback reference, not a build input.
 
 ## Target: one command on Amaterasu
 
@@ -79,12 +79,15 @@ without these settings remains a plain Debian rootfs.
 
 ## Open prerequisites before claiming one-command readiness
 
-- The X1600 board-specific U-Boot source, exact commit, defconfig and
-  raw SD boot-sector map have not been verified. Goldelico's public
-  letux-uboot master appears to be an older 2016 line, not a proven
-  Retrode3 X1600 source. A donor-card SPL is not an autonomous build.
-- The working MIPS32EL kernel compiler (Bootlin GCC 8.2.0) and the
-  device's FULLCONFIG must be made available to the server and pinned.
+- The correct X1600 source is now `DragonBox-Shop/retrode3-uboot/develop`
+  based on Letux `ingenic-x1600-v5`, with `lx16_uImage_msc0` target.
+  Its documented raw layout places SPL at sector 34, U-Boot at sector 86.
+  CI must prove the source build and the real SD cold boot must prove the
+  bootloader/DDR/board configuration before a release.
+- Use Debian Bookworm's MIPSEL cross GCC for kernel and U-Boot. The exact
+  compiler executable SHA256 is recorded in each candidate manifest.
+  FULLCONFIG is still a private prerequisite; its compatibility with the
+  kernel/develop source must be checked before the full build.
 - Bookworm development package candidates now include `retrode3-tools` and
   `retrode3-udev-rules`; Web depends on Debian 12 Apache/PHP rather than
   `letux-httpd`. Verify signed publication and test the entire APT
@@ -110,11 +113,12 @@ non-reproducible bootloader snapshots.
 The server scripts now launch the existing package pipeline first and
 produce a kernel build, staged rootfs and image candidate for a selected
 channel. They reject unverified donor checksums and unsigned/unavailable
-APT packages. The donor has a guarded legacy-GPT migration identical to
-the first successful SD experiment. The U-Boot code is still NOT compiled
-from source; see the required private-input documentation in README.md.
+APT packages. The old donor-GPT migration remains only for historical assembler tests.
+The new development pipeline instead builds and checks X1600 SPL/U-Boot from
+Git, strips vendor GPT sectors and writes a fresh DOS partition table. It
+never reads from or writes directly to any SD device.
 
-No run of the complete new pipeline on Amaterasu has been verified yet.
+No run of the complete source-built pipeline on Amaterasu has been verified yet.
 Physical checks of newly built modules and the combined image must be
 completed before approving master or customer publication. Until then,
 the scripts fail closed on missing input or package dependencies rather
