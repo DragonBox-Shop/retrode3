@@ -6,6 +6,7 @@ src=/src
 out=/out
 lock="$src/packaging/native-source-lock.json"
 test -f "$lock"
+python3 "$src/buildserver/verify-plugin-meta.py" "$src/packaging/core-meta.json"
 readarray -t pins < <(python3 - "$lock" <<'PY'
 import json,sys
 with open(sys.argv[1], encoding="utf-8") as f:
