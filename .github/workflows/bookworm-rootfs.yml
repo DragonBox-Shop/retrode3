@@ -35,7 +35,7 @@ jobs:
           test -f buildserver/Containerfile.image
           test -f image/assets/retrode3-bootargs.txt
           sh -n image/capture-current-kernel.sh image/capture-sd-preboot.sh image/assets/retrode3-bringup-usb.init
-          python3 -m py_compile image/verify-rootfs.py image/manifest-rootfs.py image/assemble-sd-image.py image/configure-apt-source.py buildserver/verify-image-snapshot.py
+          python3 -m py_compile image/verify-rootfs.py image/verify-apache-offline.py image/manifest-rootfs.py image/assemble-sd-image.py image/configure-apt-source.py buildserver/verify-image-snapshot.py
           python3 -m py_compile buildserver/platform-cache.py buildserver/verify-platform-snapshot.py
           python3 -m py_compile buildserver/verify-platform-publication.py buildserver/write-package-image-manifest.py
           command -v gpg
