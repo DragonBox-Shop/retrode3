@@ -80,7 +80,7 @@ python3 "$image_checkout/buildserver/verify-image-snapshot.py" \
 [[ -d "$private" && ! -L "$private" ]] || {
   echo "Missing private image inputs: $private" >&2; exit 1;
 }
-for name in FULLCONFIG retrode3-archive.gpg apt-fingerprint; do
+for name in retrode3-archive.gpg apt-fingerprint; do
   [[ -f "$private/$name" && ! -L "$private/$name" ]] || {
     echo "Missing private image input: $name" >&2; exit 1;
   }
