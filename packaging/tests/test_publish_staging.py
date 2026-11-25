@@ -63,7 +63,7 @@ class BuildOnlyContractTests(unittest.TestCase):
         match = self.script.index('echo "Resuming exact tagged candidate: $run"')
         build_only = self.script.index('if [[ "$build_only" == 1 ]]', match)
         publish = self.script.index(
-            'bash "$checkout/buildserver/publish-debs.sh" "$branch" "$run"',
+            'bash "$script_dir/publish-debs.sh" "$branch" "$run"',
             match,
         )
         self.assertLess(build_only, publish)
