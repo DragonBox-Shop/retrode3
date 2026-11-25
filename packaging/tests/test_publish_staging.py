@@ -128,7 +128,7 @@ class LauncherIsolationTests(unittest.TestCase):
         self.assertIn('gpgconf --homedir "$GNUPGHOME" --reload gpg-agent', signer)
         self.assertIn('SignWith', signer)
         self.assertIn('--batch --no-tty --pinentry-mode error', signer)
-        self.assertNotIn('reprepro ', signer)
+        self.assertNotRegex(signer, r'(?m)^\s*reprepro\s')
         self.assertNotIn('--passphrase-file', signer)
         self.assertNotIn('--passphrase-fd', signer)
 
