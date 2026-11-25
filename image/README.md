@@ -49,7 +49,25 @@ and only creates output archives in the supplied directory.
 The Debian package mirror is currently live; a truly bit-for-bit
 reproducible release requires a pinned, signed package snapshot.
 
-## First SD-card test image (kernel copied from development Retrode3)
+## Full development SD image with source-built X1600 U-Boot
+
+The new `build_image_develop.sh` path builds U-Boot/SPL from
+`DragonBox-Shop/retrode3-uboot/develop`, target `lx16_uImage_msc0`,
+and a matching kernel+DTB+modules from `retrode3-kernel/develop`.
+The original 1 MiB donor bootloader dump is now **reference only**.
+A generated `u-boot-with-spl-mbr-gpt.bin` is not copied wholesale:
+the source-built container verifies its contents against the separate
+SPL and U-Boot binaries, keeps the 446-byte Ingenic first-stage header,
+removes the vendor GPT, and writes the verified SPL at sector 34 and U-Boot
+at sector 86. The SD assembler writes a fresh DOS partition table.
+
+The X1600-v5 U-Boot boot command expects `/uImage` and
+`/ingenic/lx16.dtb`, both present in the FAT partition. The kernel
+rootfs uses `/dev/mmcblk0p2`. An actual board cold boot is still
+required before calling this image bootable. The legacy donor route below
+is kept for documenting our earlier test-card approach.
+
+## First SD-card test image (historical donor-based path)
 
 The separate image assembler **only writes an image file**. It never
 accesses /dev/sd*, /dev/mmcblk*, USB storage devices or the running SD
