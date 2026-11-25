@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Install the isolated, source-built DEVELOPMENT image launcher only.
-# Never rewrite the tested APT launchers or the stable image launcher.
+# Install coordinated DEVELOPMENT package + image launchers.
+# Reuse verified OS/OSCR release automation; never alter master/stable.
 set -euo pipefail
 umask 027
 [[ "$#" == 0 ]] || { echo "Usage: $0" >&2; exit 2; }
@@ -21,11 +21,24 @@ image_checkout="$base/src/retrode3-image-dev"
 [[ -f "$image_checkout/image/source_uboot_layout.py" ]] || {
   echo "Missing source-built U-Boot image assembly code" >&2; exit 1;
 }
-bash -n "$image_checkout/buildserver/run-image.sh"
-bash -n "$image_checkout/buildserver/build-image-container.sh"
-[[ -x "$vhost/package_develop.sh" ]] || {
-  echo "Missing installed tagged APT package launcher" >&2; exit 1;
+# Check both launchers and every new package/image entrypoint first.
+for script in run-image.sh build-image-from-packages.sh package-develop-all.sh \
+    package-platform-develop.sh build-platform-component.sh \
+    publish-platform-develop.sh; do
+  bash -n "$image_checkout/buildserver/$script"
+done
+[[ -f "$base/automation/auto-package.sh" && \
+   ! -L "$base/automation/auto-package.sh" ]] || {
+  echo "Missing tested OS/OSCR package automation" >&2; exit 1;
 }
+package_target="$vhost/package_develop.sh"
+[[ -f "$package_target" && ! -L "$package_target" ]] || {
+  echo "Missing or unsafe existing package develop launcher" >&2; exit 1;
+}
+if ! grep -Fqx '# Managed by Retrode3 buildserver/install-launchers.sh' "$package_target" &&
+   ! grep -Fqx '# Managed by Retrode3 buildserver/install-image-launcher.sh' "$package_target"; then
+  echo "Refusing to replace unmanaged package develop launcher" >&2; exit 1;
+fi
 target="$vhost/build_image_develop.sh"
 [[ ! -L "$target" ]] || { echo "Refusing image launcher symlink" >&2; exit 1; }
 if [[ -e "$target" ]] &&
@@ -33,14 +46,29 @@ if [[ -e "$target" ]] &&
     ! grep -Fqx '# Managed by Retrode3 buildserver/install-image-launcher.sh' "$target"; then
   echo "Refusing to overwrite unmanaged image launcher" >&2; exit 1;
 fi
-temp="$(mktemp "$vhost/.retrode3-image-XXXXXXXX")"
-trap 'rm -f "$temp"' EXIT
-cat > "$temp" <<EOF
+# Preserve the original managed launcher for fast rollback if needed.
+# No source checkout, Git remote or APT signing material is modified here.
+mkdir -p "$base/cache/launcher-backups"
+backup="$base/cache/launcher-backups/package_develop.before-platform.$(date -u +%Y%m%dT%H%M%SZ).sh"
+cp -p -- "$package_target" "$backup"
+temp_pkg="$(mktemp "$vhost/.retrode3-package-XXXXXXXX")"
+temp_img="$(mktemp "$vhost/.retrode3-image-XXXXXXXX")"
+trap 'rm -f -- "$temp_pkg" "$temp_img"' EXIT
+cat > "$temp_pkg" <<EOF
+#!/usr/bin/env bash
+# Managed by Retrode3 buildserver/install-image-launcher.sh
+set -euo pipefail
+exec bash "$image_checkout/buildserver/package-develop-all.sh" --publish-testing
+EOF
+cat > "$temp_img" <<EOF
 #!/usr/bin/env bash
 # Managed by Retrode3 buildserver/install-image-launcher.sh
 set -euo pipefail
 exec bash "$image_checkout/buildserver/run-image.sh" develop
 EOF
-install -m 750 "$temp" "$target"
-echo "Installed source-built development image launcher: $target"
-echo "Unchanged: package_develop.sh, package_master.sh, build_image_master.sh"
+install -m 750 "$temp_pkg" "$package_target"
+install -m 750 "$temp_img" "$target"
+echo "Installed: $package_target (OS, OSCR, kernel, U-Boot -> signed testing)"
+echo "Installed: $target (refresh packages, then assemble from signed APT)"
+echo "Original package launcher backup: $backup"
+echo "Unchanged: package_master.sh, build_image_master.sh, OS/OSCR automation"
