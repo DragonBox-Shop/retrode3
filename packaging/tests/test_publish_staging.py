@@ -95,5 +95,21 @@ class BuildOnlyContractTests(unittest.TestCase):
                       self.script)
 
 
+
+class LauncherIsolationTests(unittest.TestCase):
+    def test_apt_only_install_does_not_touch_image_launchers(self):
+        script = (Path(__file__).resolve().parents[2] /
+                  "buildserver/install-launchers.sh").read_text()
+        self.assertIn('mode="${1:---all}"', script)
+        self.assertIn('if [[ "$mode" == --packages-only ]]', script)
+        self.assertLess(script.index('if [[ "$mode" == --packages-only ]]'),
+                        script.index('# The image launchers run'))
+        self.assertIn('exit 0', script[
+            script.index('if [[ "$mode" == --packages-only ]]'):
+            script.index('# The image launchers run')])
+
+
+
+
 if __name__ == "__main__":
     unittest.main()
