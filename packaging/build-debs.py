@@ -85,7 +85,8 @@ DESCRIPTIONS = {
     "retrode3-core-nes": "NES NROM and MMC1 ROM reader module for Retrode3",
     WEB: "Retrode3 Web Control v2 with Python backend and SysV service",
     TOOLS: "Retrode3 legacy administrative and WLAN helper scripts",
-    UDEV: "Retrode3 cartridge node permissions for udev and SysV init"
+    UDEV: "Retrode3 cartridge node permissions for udev and SysV init",
+    META: "Meta-package for all released Retrode3 cartridge cores"
 }
 
 
