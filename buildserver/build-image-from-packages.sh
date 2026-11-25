@@ -22,7 +22,18 @@ export RETRODE3_APT_PUBLIC_KEY=/private/retrode3-archive.gpg
 export RETRODE3_APT_SUITE=testing
 mkdir -p /work/base-rootfs
 bash /src/image/build-bookworm-rootfs.sh /work/base-rootfs
-mkdir -p /work/rootfs
+# The host image launcher pre-created a private /dev subtree with OCI
+# bind mounts for null/zero/random/urandom/tty. We must NOT overwrite it
+# or try mknod, and we must not export these host-backed device nodes.
+[[ -d /work/rootfs/dev ]] || {
+  echo "Missing prepared chroot /dev directory" >&2; exit 1;
+}
+for device in null zero random urandom tty; do
+  [[ -c "/work/rootfs/dev/$device" ]] || {
+    echo "Missing Podman-bound chroot device: /dev/$device" >&2; exit 1;
+  }
+done
+echo "Chroot APT devices ready (OCI bind mounts, no mknod)."
 tar --numeric-owner -xJf /work/base-rootfs/retrode3-bookworm-mipsel-rootfs.tar.xz \
   -C /work/rootfs
 cp /usr/bin/qemu-mipsel-static /work/rootfs/usr/bin/qemu-mipsel-static
@@ -118,8 +129,11 @@ rm -f /work/rootfs/usr/bin/qemu-mipsel-static \
       /work/rootfs/usr/sbin/policy-rc.d /work/rootfs/etc/resolv.conf
 rm -rf /work/rootfs/var/lib/apt/lists/*
 python3 /src/image/verify-rootfs.py --with-retrode3 /work/rootfs
-tar --sort=name --numeric-owner -C /work/rootfs -cJf \
-  /work/retrode3-rootfs.tar.xz .
+# These are OCI bind mounts for build-time APT only. Never put the
+# host's character devices into the SD image; the target kernel mounts
+# devtmpfs itself on boot.
+tar --sort=name --numeric-owner --exclude='./dev/*' --exclude='dev/*' \
+  -C /work/rootfs -cJf /work/retrode3-rootfs.tar.xz .
 args=(--rootfs /work/retrode3-rootfs.tar.xz
       --kernel-bundle /work/kernel-bundle.tar.gz
       --kernel-release "$krel"
