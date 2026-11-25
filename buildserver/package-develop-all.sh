@@ -28,6 +28,25 @@ bash "$src/buildserver/package-platform-develop.sh" 2>&1 | tee "$log"
 candidate="$(sed -n 's/^Platform Debian candidate: //p' "$log" | tail -n 1)"
 [[ "$candidate" == /* && -f "$candidate/platform-package-set.json" ]] || exit 1
 if [[ "$1" == --publish-testing ]]; then
+  # A published, verified identical source/package set is a strict no-op.
+  # No recompilation, GPG unlock or repeated reprepro export is needed.
+  previous="$base/cache/last-published-platform-develop.json"
+  if [[ -f "$previous" && ! -L "$previous" ]] &&
+     python3 "$src/buildserver/verify-platform-snapshot.py" \
+       "$previous" "$base/repository" >/dev/null &&
+     python3 - "$candidate/platform-package-set.json" "$previous" <<'PY'
+import json, sys
+new, old = (json.load(open(p)) for p in sys.argv[1:])
+if (new.get("sources") == old.get("sources") and
+    sorted(new.get("packages", []), key=lambda x: x["name"]) ==
+    sorted(old.get("packages", []), key=lambda x: x["name"])):
+    sys.exit(0)
+sys.exit(1)
+PY
+  then
+    echo "Nothing to publish: identical kernel/U-Boot package set already in signed testing."
+    exit 0
+  fi
   # The public package_develop.sh is the explicit operator request
   # to refresh the signed TESTING suite, including staged (not activated)
   # kernel and U-Boot candidates. This never touches a live /boot.
