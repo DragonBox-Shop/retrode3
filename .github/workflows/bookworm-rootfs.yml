@@ -98,7 +98,7 @@ jobs:
           set -eux
           sudo apt-get update
           sudo DEBIAN_FRONTEND=noninteractive apt-get install -y \
-            debootstrap qemu-user-static binfmt-support debian-archive-keyring xz-utils
+            mmdebstrap arch-test qemu-user-static binfmt-support debian-archive-keyring xz-utils
           sudo update-binfmts --enable qemu-mipsel
           test -r /proc/sys/fs/binfmt_misc/qemu-mipsel
           grep -x enabled /proc/sys/fs/binfmt_misc/qemu-mipsel
