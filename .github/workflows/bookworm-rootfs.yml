@@ -36,6 +36,46 @@ jobs:
           command -v gpg
           python3 -m unittest discover -s image/tests -p 'test_*.py' -v
 
+  source-uboot-crossbuild:
+    # Only compile/inspect U-Boot. Never create or flash a deployable SD card.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Bookworm-compatible MIPSEL compiler
+        run: |
+          sudo apt-get update
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y \
+            git make gcc-mipsel-linux-gnu binutils-mipsel-linux-gnu \
+            bison flex python3
+      - name: Compile reviewed X1600-v5 source and validate preboot offsets
+        run: |
+          set -eux
+          git clone --depth 1 --single-branch --branch develop \
+            https://github.com/DragonBox-Shop/retrode3-uboot.git \
+            "$RUNNER_TEMP/retrode3-uboot"
+          test "$(git -C "$RUNNER_TEMP/retrode3-uboot" rev-parse HEAD)" = \
+            "247f2c5397f4ab58a24a9f830aeb900c2ffb4361"
+          make -C "$RUNNER_TEMP/retrode3-uboot" \
+            CROSS_COMPILE=mipsel-linux-gnu- lx16_uImage_msc0
+          make -C "$RUNNER_TEMP/retrode3-uboot" \
+            CROSS_COMPILE=mipsel-linux-gnu- -j2
+          python3 - "$RUNNER_TEMP/retrode3-uboot" <<'PY'
+          import sys
+          from pathlib import Path
+          sys.path.insert(0, "image")
+          from source_uboot_layout import source_preboot
+          root=Path(sys.argv[1])
+          preboot=source_preboot(
+              root / "u-boot-with-spl-mbr-gpt.bin",
+              root / "spl/u-boot-spl.bin",
+              root / "u-boot.bin")
+          assert len(preboot)==1024*1024
+          assert preboot[512:17408]==b"\\0" * (17408-512)
+          assert preboot[44032:44040]!=b"\\0"*8
+          print("Verified source-built X1600 U-Boot, no vendor GPT")
+          PY
+
   build-mipsel-base:
     # Ubuntu 26.04 replaced qemu-user-static with virtual package providers.
     runs-on: ubuntu-24.04
