@@ -71,6 +71,7 @@ class PackageOnlyImageTests(unittest.TestCase):
         self.assertIn("build-image-from-packages.sh", host)
         self.assertIn("verify-platform-snapshot.py", host)
         self.assertNotIn("kernel_url=https", host)
+        self.assertNotIn('bash "$vhost/package_$branch.sh"', host)
 
     def test_package_producer_cache_and_source_recipe_contract(self):
         producer = (ROOT / "buildserver/package-platform-develop.sh").read_text()
