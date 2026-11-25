@@ -103,6 +103,23 @@ class PackageOnlyImageTests(unittest.TestCase):
         self.assertIn('stage=signature-preflight', publisher)
         self.assertNotIn('== "700:$(id -u)"', publisher)
 
+    def test_rootless_mmdebstrap_bootstrap(self):
+        rootfs = (ROOT / "image/build-bookworm-rootfs.sh").read_text()
+        container = (ROOT / "buildserver/Containerfile.image").read_text()
+        self.assertIn("mmdebstrap", container)
+        self.assertIn("arch-test", container)
+        self.assertIn("mmdebstrap \\\n", rootfs)
+        self.assertIn("--mode=root", rootfs)
+        self.assertIn("--skip=check/canmount,chroot/mount", rootfs)
+        self.assertIn("--architectures=mipsel", rootfs)
+        self.assertIn("--include=sysvinit-core", rootfs)
+        self.assertIn("--format=tar", rootfs)
+        self.assertIn("--exclude='./dev/*'", rootfs)
+        self.assertNotIn("debootstrap --arch=mipsel", rootfs)
+        self.assertNotIn("debootstrap --second-stage", rootfs)
+        self.assertNotIn("chroot \"$root\" /usr/bin/apt-get install", rootfs)
+        self.assertIn('verify-rootfs.py" "$root"', rootfs)
+
     def test_package_producer_cache_and_source_recipe_contract(self):
         producer = (ROOT / "buildserver/package-platform-develop.sh").read_text()
         self.assertIn("platform-cache.py", producer)
