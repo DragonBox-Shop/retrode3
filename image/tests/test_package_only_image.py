@@ -78,6 +78,21 @@ class PackageOnlyImageTests(unittest.TestCase):
         self.assertIn("publish-platform-develop.sh", package)
         self.assertNotIn('bash /srv/www/vhosts/retrode.com/package_develop.sh', package)
 
+    def test_podman_bare_sha256_builder_id_normalized(self):
+        # Podman's .Id normally has no sha256: prefix. The host must
+        # normalize it before passing the fingerprint to the cache verifier.
+        producer = (ROOT / "buildserver/package-platform-develop.sh").read_text()
+        self.assertIn(
+            'if [[ "$image_id" =~ ^[a-f0-9]{64}$ ]]; then',
+            producer)
+        self.assertIn('image_id="sha256:$image_id"', producer)
+        self.assertIn(
+            '[[ "$image_id" =~ ^sha256:[a-f0-9]{64}$ ]]',
+            producer)
+        self.assertIn('Invalid Podman builder image ID:', producer)
+        self.assertLess(producer.index('image_id="sha256:$image_id"'),
+                        producer.index('platform-cache.py" key'))
+
     def test_package_producer_cache_and_source_recipe_contract(self):
         producer = (ROOT / "buildserver/package-platform-develop.sh").read_text()
         self.assertIn("platform-cache.py", producer)
