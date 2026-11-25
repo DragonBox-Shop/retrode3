@@ -224,7 +224,7 @@ if [[ "$build_only" == 1 ]]; then
   echo "To publish, unlock GPG and run package_$branch.sh again."
   exit 0
 fi
-failure_stage=apt-publication
+failure_stage="apt-publication"
 bash "$checkout/buildserver/publish-debs.sh" "$branch" "$run" 2>&1 | tee -a "$log"
 save_published_manifest "$run/build-manifest.json"
 echo "DONE: $branch -> $suite from tags $os_tag / $oscr_tag; log: $log"
