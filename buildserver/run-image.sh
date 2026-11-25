@@ -3,6 +3,12 @@
 set -euo pipefail
 umask 027
 branch="$1"
+# U-Boot/master still contains an unrelated historical upstream default.
+# Never publish a master image until a separate source/board acceptance.
+[[ "$branch" == develop ]] || {
+  echo "Source-built U-Boot is only wired for develop hardware candidates" >&2
+  exit 1
+}
 case "$branch" in
   develop) suite=testing; checkout_name=retrode3-testing-pr ;;
   master) suite=stable; checkout_name=retrode3-stable-pr ;;
@@ -63,34 +69,31 @@ python3 "$checkout/buildserver/release-changes.py" \
 [[ -d "$private" && ! -L "$private" ]] || {
   echo "Missing private image inputs: $private" >&2; exit 1;
 }
-for name in FULLCONFIG retrode3-archive.gpg apt-fingerprint \
-            preboot.sha256 sd-preboot-1MiB.bin; do
+for name in FULLCONFIG retrode3-archive.gpg apt-fingerprint; do
   [[ -f "$private/$name" && ! -L "$private/$name" ]] || {
     echo "Missing private image input: $name" >&2; exit 1;
   }
 done
-[[ -x "$private/toolchain/bin/mipsel-linux-gcc" ]] || {
-  echo "Bootlin GCC 8.2.0 toolchain not provisioned in $private/toolchain" >&2; exit 1;
-}
 apt_fpr="$(tr -d '[:space:]' < "$private/apt-fingerprint")"
-preboot_hash="$(tr -d '[:space:]' < "$private/preboot.sha256")"
-[[ "$apt_fpr" =~ ^[0-9a-fA-F]{40}$ && "$preboot_hash" =~ ^[0-9a-f]{64}$ ]] || {
-  echo "Invalid trusted APT fingerprint or donor checksum" >&2; exit 1;
-}
-observed="$(sha256sum "$private/sd-preboot-1MiB.bin")"
-[[ "${observed%% *}" == "$preboot_hash" ]] || {
-  echo "Private donor bootloader checksum mismatch" >&2; exit 1;
+[[ "$apt_fpr" =~ ^[0-9a-fA-F]{40}$ ]] || {
+  echo "Invalid trusted APT fingerprint" >&2; exit 1;
 }
 kernel_url=https://github.com/DragonBox-Shop/retrode3-kernel.git
 kernel_ref="refs/heads/$branch"
 kernel_line="$(git ls-remote --exit-code "$kernel_url" "$kernel_ref")"
 kernel_sha="${kernel_line%%[[:space:]]*}"
 [[ "$kernel_sha" =~ ^[a-f0-9]{40}$ ]] || exit 1
+uboot_line="$(git ls-remote --exit-code \
+  https://github.com/DragonBox-Shop/retrode3-uboot.git refs/heads/develop)"
+uboot_sha="${uboot_line%%[[:space:]]*}"
+[[ "$uboot_sha" =~ ^[a-f0-9]{40}$ ]] || {
+  echo "Cannot resolve pinned Retrode3 U-Boot develop" >&2; exit 1;
+}
 
 run="$(mktemp -d "$images/run.XXXXXXXX")"
 cp "$published" "$run/published-packages.json"
 printf '%s\n' "$os_sha" > "$run/image-os-commit"
-echo "Image $branch ($suite); OS $os_sha; packages $published_sha; kernel $kernel_sha"
+echo "Image $branch ($suite); OS $os_sha; packages $published_sha; kernel $kernel_sha; U-Boot $uboot_sha"
 echo "Workspace: $run"
 # All source and private inputs are read-only; only /work is writable.
 # No host /dev, signing secret, website, Maildir or sudo mounts.
@@ -110,13 +113,12 @@ podman --runtime=crun --cgroup-manager=systemd run --rm \
     -v "$checkout:/src:ro" -v "$run:/work:rw" \
     -v /proc/sys/fs/binfmt_misc:/proc/sys/fs/binfmt_misc:ro \
     -v "$private:/private:ro" \
-    -v "$private/toolchain:/toolchain:ro" \
-    -e "RETRODE3_IMAGE_BRANCH=$branch" \
+     -e "RETRODE3_IMAGE_BRANCH=$branch" \
     -e "RETRODE3_IMAGE_SUITE=$suite" \
     -e "RETRODE3_OS_SHA=$published_sha" \
     -e "RETRODE3_KERNEL_SHA=$kernel_sha" \
     -e "RETRODE3_APT_FINGERPRINT=$apt_fpr" \
-    -e "RETRODE3_PREBOOT_SHA256=$preboot_hash" \
+    -e "RETRODE3_UBOOT_SHA=$uboot_sha" \
     "$image" bash /src/buildserver/build-image-container.sh
 (cd "$run" && sha256sum --check --strict FULL-IMAGE-SHA256SUMS)
 echo "Image build complete: $run/retrode3-$branch.img.xz"
