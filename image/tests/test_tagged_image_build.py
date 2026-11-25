@@ -79,6 +79,16 @@ class TaggedImageContractTests(unittest.TestCase):
         self.assertNotIn('--repo "$checkout" --base "$published_sha"', runner)
         self.assertNotIn('-v "$private:/private:ro"', runner)
 
+    def test_image_launcher_accepts_a_git_worktree_without_a_new_clone(self):
+        runner = (ROOT / "buildserver/run-image.sh").read_text()
+        installer = (ROOT / "buildserver/install-image-launcher.sh").read_text()
+        for script in (runner, installer):
+            self.assertIn('-e "$image_checkout/.git"', script)
+            self.assertIn('! -L "$image_checkout/.git"', script)
+            self.assertIn('rev-parse --is-inside-work-tree', script)
+            self.assertNotIn('-d "$image_checkout/.git"', script)
+        self.assertIn('feature/source-built-x1600-uboot-image', installer)
+
     def test_kernel_config_is_checked_in_to_exact_source(self):
         container = (ROOT / "buildserver/build-image-container.sh").read_text()
         self.assertIn('/work/kernel-src/arch/mips/configs/retrode3_full.config', container)
