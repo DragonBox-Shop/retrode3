@@ -24,10 +24,10 @@ for kind in kernel uboot; do
   case "$kind" in
     kernel)
       url=https://github.com/DragonBox-Shop/retrode3-kernel.git
-      ref=refs/heads/feature/retrode3-mipsel-deb-packaging-20261125 ;;
+      ref=refs/heads/develop ;;
     uboot)
       url=https://github.com/DragonBox-Shop/retrode3-uboot.git
-      ref=refs/heads/feature/retrode3-uboot-deb-packaging-20261125 ;;
+      ref=refs/heads/develop ;;
   esac
   line="$(git ls-remote --exit-code "$url" "$ref")"
   sha="${line%%[[:space:]]*}"
