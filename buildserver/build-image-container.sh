@@ -131,8 +131,9 @@ ko="$moddir/kernel/drivers/misc/retrode3/retrode3.ko"
 expected_vermagic="$krel preempt mod_unload modversions MIPS32_R2 32BIT"
 actual_vermagic="$(modinfo -F vermagic "$ko" | sed 's/[[:space:]]*$//')"
 [[ "$actual_vermagic" == "$expected_vermagic" ]] || {
-  printf 'ERROR: Retrode3 vermagic mismatch. Actual: <%s> Expected: <%s>\\n' \\
-    "$actual_vermagic" "$expected_vermagic" >&2
+  echo "ERROR: Retrode3 vermagic mismatch" >&2
+  echo "  actual: <$actual_vermagic>" >&2
+  echo "  expected: <$expected_vermagic>" >&2
   exit 1
 }
 echo "Retrode3 vermagic verified: $actual_vermagic"
