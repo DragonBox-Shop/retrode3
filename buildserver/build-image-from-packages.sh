@@ -28,29 +28,44 @@ for device in null zero random urandom tty; do
     exit 1
   }
 done
-mkdir -p /work/base-rootfs
-bash /src/image/build-bookworm-rootfs.sh /work/base-rootfs
-# The host image launcher pre-created a private /dev subtree with OCI
-# bind mounts for null/zero/random/urandom/tty. We must NOT overwrite it
-# or try mknod, and we must not export these host-backed device nodes.
-[[ -d /work/rootfs/dev ]] || {
-  echo "Missing prepared chroot /dev directory" >&2; exit 1;
+# Resume is explicit, never inferred from an old workspace. The host
+# validates both published snapshots and the original OS commit before
+# accepting the previous package installation.
+resume="${RETRODE3_IMAGE_RESUME:-0}"
+[[ "$resume" == 0 || "$resume" == 1 ]] || {
+  echo "Invalid RETRODE3_IMAGE_RESUME flag" >&2; exit 1;
 }
+if [[ "$resume" == 1 ]]; then
+  [[ -s /work/base-rootfs/retrode3-bookworm-mipsel-rootfs.tar.xz &&
+     -s /work/base-rootfs/SHA256SUMS &&
+     -s /work/rootfs/var/lib/dpkg/status &&
+     -x /work/rootfs/usr/bin/qemu-mipsel-static &&
+     -x /work/rootfs/usr/sbin/policy-rc.d ]] || {
+    echo "Cannot resume: incomplete prior Bookworm build" >&2; exit 1;
+  }
+  (cd /work/base-rootfs && sha256sum --check --strict SHA256SUMS)
+  echo "=== RESUME: existing Bookworm rootfs retained, skipping mmdebstrap and APT bootstrap ==="
+else
+  mkdir -p /work/base-rootfs
+  bash /src/image/build-bookworm-rootfs.sh /work/base-rootfs
+  echo "Chroot APT devices ready (OCI bind mounts, no mknod)."
+  tar --numeric-owner -xJf /work/base-rootfs/retrode3-bookworm-mipsel-rootfs.tar.xz \
+    -C /work/rootfs
+  cp /usr/bin/qemu-mipsel-static /work/rootfs/usr/bin/qemu-mipsel-static
+  cp /etc/resolv.conf /work/rootfs/etc/resolv.conf
+  cat > /work/rootfs/usr/sbin/policy-rc.d <<'EOF'
+#!/bin/sh
+exit 101
+EOF
+  chmod 0755 /work/rootfs/usr/sbin/policy-rc.d
+fi
+# The host launcher bind-mounts only five simple character devices into
+# this disposable foreign-architecture chroot. Never ship these nodes.
 for device in null zero random urandom tty; do
   [[ -c "/work/rootfs/dev/$device" ]] || {
     echo "Missing Podman-bound chroot device: /dev/$device" >&2; exit 1;
   }
 done
-echo "Chroot APT devices ready (OCI bind mounts, no mknod)."
-tar --numeric-owner -xJf /work/base-rootfs/retrode3-bookworm-mipsel-rootfs.tar.xz \
-  -C /work/rootfs
-cp /usr/bin/qemu-mipsel-static /work/rootfs/usr/bin/qemu-mipsel-static
-cp /etc/resolv.conf /work/rootfs/etc/resolv.conf
-cat > /work/rootfs/usr/sbin/policy-rc.d <<'EOF'
-#!/bin/sh
-exit 101
-EOF
-chmod 0755 /work/rootfs/usr/sbin/policy-rc.d
 # Resolve exact versions from the signed published snapshots, not from
 # mutable develop branches or floating APT 'latest' packages.
 mapfile -t packages < <(python3 - <<'PY'
@@ -74,16 +89,21 @@ for p in platform["packages"]:
     print(p["name"]+"="+p["version"])
 PY
 )
-echo "=== Installing OS/OSCR and platform boot packages from signed APT ==="
-chroot /work/rootfs /usr/bin/apt-get update
-chroot /work/rootfs /usr/bin/apt-get -y --no-install-recommends install \
-  "${packages[@]}"
+if [[ "$resume" == 0 ]]; then
+  echo "=== Installing OS/OSCR and platform boot packages from signed APT ==="
+  chroot /work/rootfs /usr/bin/apt-get update
+  chroot /work/rootfs /usr/bin/apt-get -y --no-install-recommends install \
+    "${packages[@]}"
+else
+  echo "=== RESUME: checking already-installed package versions against signed APT snapshot ==="
+fi
 for spec in "${packages[@]}"; do
   pkg="${spec%%=*}"
   ver="${spec#*=}"
   got="$(chroot /work/rootfs dpkg-query -W -f='${Version}' "$pkg")"
-  [[ "$got" == "$ver" ]] || {
-    echo "Wrong APT package version: $pkg actual=$got expected=$ver" >&2; exit 1;
+  state="$(chroot /work/rootfs dpkg-query -W -f='${Status}' "$pkg")"
+  [[ "$got" == "$ver" && "$state" == "install ok installed" ]] || {
+    echo "Wrong or unconfigured APT package: $pkg actual=$got state=<$state> expected=$ver" >&2; exit 1;
   }
 done
 # Debian's libapache2-mod-php8.2 may print transient "No MPM loaded"
