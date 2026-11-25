@@ -67,11 +67,13 @@ compatibility check before deploying any of these packages.
 
 ## One-command build and publish on amaterasu
 
-Once, as the `retrode` user, install the two launchers:
+Once, as the `retrode` user, install **only** the APT launchers, keeping any ongoing SD-image launcher untouched:
 
 ```sh
-bash /srv/www/vhosts/retrode.com/buildserver/src/retrode3-testing-pr/buildserver/install-launchers.sh
+bash /srv/www/vhosts/retrode.com/buildserver/src/retrode3-testing-pr/buildserver/install-launchers.sh --packages-only
 ```
+
+The default `--all` mode additionally installs both image launchers, but should only be used once the image pipeline is synchronized with tag-based package selection. For the current image-building work, use `--packages-only`.
 
 This creates two executable files **outside** the public DocumentRoot:
 
