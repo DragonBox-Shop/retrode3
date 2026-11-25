@@ -6,19 +6,24 @@ export DEBIAN_FRONTEND=noninteractive
 export LC_ALL=C
 
 : "$RETRODE3_IMAGE_BRANCH" "$RETRODE3_IMAGE_SUITE" "$RETRODE3_KERNEL_SHA"
-: "$RETRODE3_OS_SHA" "$RETRODE3_APT_FINGERPRINT" "$RETRODE3_UBOOT_SHA"
+: "$RETRODE3_OS_SHA" "$RETRODE3_OS_TAG" "$RETRODE3_OSCR_TAG" "$RETRODE3_OSCR_SHA"
+: "$RETRODE3_IMAGE_BUILDER_SHA" "$RETRODE3_APT_FINGERPRINT" "$RETRODE3_UBOOT_SHA"
 case "$RETRODE3_IMAGE_BRANCH:$RETRODE3_IMAGE_SUITE" in
   develop:testing|master:stable) ;;
   *) echo "Invalid Git branch/APT suite pairing" >&2; exit 1 ;;
 esac
 [[ "$RETRODE3_KERNEL_SHA" =~ ^[a-f0-9]{40}$ &&
    "$RETRODE3_OS_SHA" =~ ^[a-f0-9]{40}$ &&
+   "$RETRODE3_OSCR_SHA" =~ ^[a-f0-9]{40}$ &&
+   "$RETRODE3_IMAGE_BUILDER_SHA" =~ ^[a-f0-9]{40}$ &&
+   "$RETRODE3_OS_TAG" =~ ^[A-Za-z0-9._-]+$ &&
+   "$RETRODE3_OSCR_TAG" =~ ^[A-Za-z0-9._-]+$ &&
    "$RETRODE3_UBOOT_SHA" =~ ^[a-f0-9]{40}$ &&
    "$RETRODE3_APT_FINGERPRINT" =~ ^[A-Fa-f0-9]{40}$ ]] || {
   echo "Missing or invalid pinned inputs" >&2; exit 1;
 }
 [[ "$(id -u)" = 0 ]] || { echo "Container must run as namespaced root" >&2; exit 1; }
-for file in /private/FULLCONFIG /private/retrode3-archive.gpg \
+for file in /private/retrode3-archive.gpg \
             /work/published-packages.json; do
   [[ -f "$file" && ! -L "$file" ]] || {
     echo "Missing regular private input: $file" >&2; exit 1;
@@ -33,11 +38,17 @@ command -v "mipsel-linux-gnu-gcc" >/dev/null || {
 }
 
 # Validate the package snapshot before even downloading a kernel.
-python3 - "$RETRODE3_IMAGE_SUITE" "$RETRODE3_OS_SHA" <<'PY'
+python3 - "$RETRODE3_IMAGE_SUITE" "$RETRODE3_OS_SHA" \
+          "$RETRODE3_OS_TAG" "$RETRODE3_OSCR_SHA" "$RETRODE3_OSCR_TAG" <<'PY'
 import json, re, sys
 d=json.load(open("/work/published-packages.json"))
-if d.get("release_channel") != sys.argv[1] or d.get("os_commit") != sys.argv[2]:
-    sys.exit("Published package manifest does not match requested OS revision/suite")
+expected = {
+    "release_channel": sys.argv[1], "os_commit": sys.argv[2],
+    "os_tag": sys.argv[3], "oscr_commit": sys.argv[4],
+    "oscr_tag": sys.argv[5],
+}
+if any(d.get(k) != v for k, v in expected.items()):
+    sys.exit("Published package manifest does not match requested exact OS/OSCR tag snapshot")
 records=d.get("packages")
 if not isinstance(records,list) or not records:
     sys.exit("No published packages")
@@ -53,6 +64,31 @@ for key in ("native_version","web_version","oscr_commit","sanni_commit"):
         sys.exit("Unpinned package input: "+key)
 PY
 
+# Clone the exact selected kernel first, before any expensive U-Boot work.
+# The approved FULLCONFIG is checked into the SAME kernel commit as the
+# Retrode3 driver and board DTS. Never silently fall back to private files.
+echo "=== Fetching pinned kernel configuration from Git ==="
+git clone --quiet --depth 1 --single-branch --branch "$RETRODE3_IMAGE_BRANCH" \
+  https://github.com/DragonBox-Shop/retrode3-kernel.git /work/kernel-src
+actual="$(git -C /work/kernel-src rev-parse HEAD)"
+[[ "$actual" == "$RETRODE3_KERNEL_SHA" ]] || {
+  echo "Kernel branch moved during build: $actual" >&2; exit 1;
+}
+kernel_config=/work/kernel-src/arch/mips/configs/retrode3_full.config
+[[ -f "$kernel_config" && ! -L "$kernel_config" && -s "$kernel_config" ]] || {
+  echo "Missing approved kernel Git config: arch/mips/configs/retrode3_full.config in $RETRODE3_KERNEL_SHA" >&2
+  echo "Commit the reviewed FULLCONFIG to retrode3-kernel/develop before building images" >&2
+  exit 1
+}
+for required in CONFIG_CPU_LITTLE_ENDIAN=y CONFIG_CPU_MIPS32_R2=y \
+                CONFIG_MODVERSIONS=y CONFIG_RETRODE3=m; do
+  grep -Fxq "$required" "$kernel_config" || {
+    echo "Incorrect kernel Git FULLCONFIG: missing $required" >&2; exit 1;
+  }
+done
+mkdir -p /work/kernel-build
+cp "$kernel_config" /work/kernel-build/.config
+sha256sum "$kernel_config" | awk '{print $1}' > /work/kernel-config.git.sha256
 # Build U-Boot FIRST, before the expensive full kernel. The only vetted
 # Retrode3 X1600 source branch is uboot/develop; uboot/master is unrelated.
 [[ "$RETRODE3_IMAGE_BRANCH" == develop ]] || {
@@ -89,13 +125,6 @@ PY_UBOOT
 
 mkdir -p /work/kernel-build /work/modules-root /work/stage/boot/ingenic
 echo "=== Linux $RETRODE3_KERNEL_SHA from Retrode3 kernel repository ==="
-git clone --quiet --depth 1 --single-branch --branch "$RETRODE3_IMAGE_BRANCH" \
-  https://github.com/DragonBox-Shop/retrode3-kernel.git /work/kernel-src
-actual="$(git -C /work/kernel-src rev-parse HEAD)"
-[[ "$actual" == "$RETRODE3_KERNEL_SHA" ]] || {
-  echo "Kernel branch moved during build: $actual" >&2; exit 1;
-}
-cp /private/FULLCONFIG /work/kernel-build/.config
 kernel_make() {
   make -C /work/kernel-src O=/work/kernel-build ARCH=mips \
     CROSS_COMPILE="$cross" LOCALVERSION=+ "$@"
@@ -219,8 +248,13 @@ files=["kernel-bundle.tar.gz","retrode3-rootfs.tar.xz",
 manifest={
  "schema":1,"branch":branch,"apt_suite":suite,
  "os_commit":ossha,"kernel_commit":ksha,"kernel_release":krel,
+ "os_tag":open("/work/published-packages.json").read() and json.load(open("/work/published-packages.json"))["os_tag"],
+ "oscr_tag":json.load(open("/work/published-packages.json"))["oscr_tag"],
+ "oscr_commit":json.load(open("/work/published-packages.json"))["oscr_commit"],
+ "image_builder_commit":open("/work/image-builder-commit").read().strip(),
  "image_build_os_commit":open("/work/image-os-commit").read().strip(),
- "kernel_config_sha256":sha("/private/FULLCONFIG"),
+ "kernel_config_source":"retrode3-kernel:"+ksha+":arch/mips/configs/retrode3_full.config",
+ "kernel_config_sha256":sha("/work/kernel-src/arch/mips/configs/retrode3_full.config"),
  "kernel_effective_config_sha256":sha("/work/kernel-build/.config"),
  "kernel_cross_compiler_sha256":sha("/usr/bin/mipsel-linux-gnu-gcc"),
  "kernel_cross_compiler": "Debian Bookworm mipsel-linux-gnu-gcc",
