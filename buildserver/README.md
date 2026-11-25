@@ -81,7 +81,7 @@ This creates two executable files **outside** the public DocumentRoot:
 Each invocation takes a shared nonblocking `flock`, verifies the branch and
 clean tracked files, fetches and fast-forwards its dedicated automation
 checkout, selects the latest **existing, branch-reachable** source tags,
-and builds from a temporary detached OS-tag worktree. Package compilation
+and builds from a temporary self-contained OS-tag checkout. Package compilation
 uses the exact tagged OSCR commit, not a moving branch HEAD. It checks
 whether that specific tag pair is already published, then performs
 the constrained rootless Podman crossbuild. After the build it verifies
@@ -197,7 +197,7 @@ the tag represents a new checkpoint.
 
 `RETRODE3_BUILD_ONLY=1` builds without publishing. A later normal
 invocation reuses a candidate only when both tags and commits match.
-Publisher preflight independently verifies that the OS worktree is the
+Publisher preflight independently verifies that the OS checkout is the
 selected exact tagged commit, that the tag belongs to the selected
 branch, and that both tag names match the package manifest.
 
