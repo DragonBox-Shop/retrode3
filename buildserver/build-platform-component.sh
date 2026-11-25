@@ -9,12 +9,12 @@ set -euo pipefail
 case "$RETRODE3_COMPONENT" in
   kernel)
     url=https://github.com/DragonBox-Shop/retrode3-kernel.git
-    ref=feature/retrode3-mipsel-deb-packaging-20261125
+    ref=develop
     base=7.3.0~rc5
     ;;
   uboot)
     url=https://github.com/DragonBox-Shop/retrode3-uboot.git
-    ref=feature/retrode3-uboot-deb-packaging-20261125
+    ref=develop
     base=2013.07
     ;;
   *) echo "Unsupported build component" >&2; exit 1 ;;
