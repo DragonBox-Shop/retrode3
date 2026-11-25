@@ -34,32 +34,36 @@ It fails if the Git configuration is absent or mismatched. The previous
 private `FULLCONFIG` is not consulted or mounted. Git config and
 effective olddefconfig hashes are recorded in the image manifest.
 
-**One-time prerequisite:** The current approved `FULLCONFIG` on
-Amaterasu at
-`/srv/www/vhosts/retrode.com/buildserver/private/image/develop/FULLCONFIG`
-has NOT been added to the kernel repository yet. Review and commit its
-exact contents to the path above on `retrode3-kernel/develop` before
-attempting a complete image build. No substitute generic defconfig is
-acceptable. This is a source snapshot requirement, not approval to
-overwrite the boot-tested kernel.
+The approved FULLCONFIG is now stored as
+`arch/mips/configs/retrode3_full.config` in `retrode3-kernel/develop`.
+The builder obtains it directly from the pinned kernel source, without
+manually copying a private server config. No substitute generic
+defconfig is acceptable. This does not approve a new kernel for release.
 
-On Amaterasu, as `retrode`, **after** the image-development PR is
-merged into the existing feature branch:
+On Amaterasu, as `retrode`, reuse the **existing** Git object
+store in `buildserver/src/retrode3` and create only a linked Git
+worktree for the image feature branch. **Do not clone a fourth copy**
+of the OS repository or repurpose the APT automation checkout:
 
 ```sh
 BASE=/srv/www/vhosts/retrode.com/buildserver
-git clone --branch feature/source-built-x1600-uboot-image \
-  https://github.com/DragonBox-Shop/retrode3.git \
-  "$BASE/src/retrode3-image-dev"
+git -C "$BASE/src/retrode3" fetch origin feature/source-built-x1600-uboot-image
+git -C "$BASE/src/retrode3" worktree add --track \
+  -b feature/source-built-x1600-uboot-image \
+  "$BASE/src/retrode3-image-dev" \
+  origin/feature/source-built-x1600-uboot-image
 bash "$BASE/src/retrode3-image-dev/buildserver/install-image-launcher.sh"
-# APT is tag-locked and already signed; source-built image remains a candidate:
+# The following command builds a regular .img.xz candidate, never flashes a device:
  /srv/www/vhosts/retrode.com/build_image_develop.sh
 ```
 
-Do not overwrite an existing `retrode3-image-dev` checkout: update it
-with `git fetch` and `git merge --ff-only` instead. The dedicated
-image launcher only replaces `build_image_develop.sh`, never package
-launchers or `build_image_master.sh`.
+If the feature branch was already checked out locally, use an appropriate
+existing worktree rather than creating a duplicate. For subsequent changes,
+`git -C "$BASE/src/retrode3-image-dev" pull --ff-only` keeps the worktree
+on its upstream feature branch. The image launcher installer supports the
+normal Git-worktree `.git` pointer file as well as a full .git directory.
+It replaces only `build_image_develop.sh`, never package launchers or
+`build_image_master.sh`.
 
 Only public keyring/fingerprint files and an optional test SSH public key
 are mounted from private host inputs. Signing secrets and legacy donor
