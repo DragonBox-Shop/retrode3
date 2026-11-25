@@ -62,7 +62,7 @@ class TestPackaging(unittest.TestCase):
             root = Path(tmp)
             stage = self.fixture_stage(root)
             native = pkg.verify_stage(stage, LAYOUT, check_symbols=False)
-            for name in tuple(native) + pkg.BOOKWORM_ALL:
+            for name in tuple(native) + pkg.BOOKWORM_ALL + (pkg.META,):
                 filename, built = pkg.build_one(root, name, LAYOUT, LOCK,
                                                 stage, 1795132800, native)
                 self.assertTrue(filename.endswith(".deb"))
@@ -96,6 +96,14 @@ class TestPackaging(unittest.TestCase):
                 elif name == pkg.UDEV:
                     self.assertIn("./etc/udev/rules.d/70-retrode3-cartridge.rules", contents)
                     self.assertIn("Architecture: all", info)
+                elif name == pkg.META:
+                    self.assertIn("Architecture: mipsel", info)
+                    self.assertIn("./usr/share/doc/retrode3-cores/README", contents)
+                    depends = subprocess.check_output(
+                        ["dpkg-deb", "-f", str(built), "Depends"], text=True).strip()
+                    self.assertEqual(depends, pkg.meta_dependencies(native, LOCK))
+                    self.assertEqual(depends.count("retrode3-core-runtime ("), 1)
+                    self.assertIn("retrode3-core-sms-md (= ", depends)
                 elif name == pkg.RUNTIME:
                     self.assertIn("Provides: retrode3-core-abi-1", info)
                     self.assertIn("./etc/init.d/retrode3-core-runtime", contents)

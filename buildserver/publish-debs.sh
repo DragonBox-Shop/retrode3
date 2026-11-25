@@ -91,11 +91,13 @@ if live:
                 sanni_commit=manifest["sanni_commit"])
 elif manifest.get("oscr_branch"):
     sys.exit("error: live OSCR build requires explicit source branch validation")
-if auto:
+has_meta_recipe = (root / "packaging/core-meta.json").is_file()
+if auto or has_meta_recipe:
     spec = importlib.util.spec_from_file_location(
         "retrode3_package_builder", str(root / "packaging/build-debs.py"))
     builder = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(builder)
+if auto:
     commit_epoch = int(subprocess.check_output(
         ["git", "-C", str(root), "show", "-s", "--format=%ct",
          candidate_commit], text=True).strip())
@@ -116,6 +118,12 @@ if not files or len(files) != len(records):
 expected = {x["filename"]: x for x in records}
 if len(expected) != len(records) or set(expected) != {x.name for x in files}:
     sys.exit("error: manifest package file set differs from build output")
+expected_meta_depends = None
+if has_meta_recipe:
+    builder.validate_meta_recipe()
+    expected_meta_depends = builder.validate_meta_manifest(manifest, lock)
+elif any(record.get("package") == "retrode3-cores" for record in records):
+    sys.exit("error: unexpected meta-package for selected historical OS tag")
 # Refuse a downgrade or same-version rewrite before importing any packages.
 indexed = subprocess.check_output(
     ["reprepro", "--basedir", str(repo_base), "list", suite],
@@ -158,6 +166,11 @@ for file in files:
                    ("retrode3-web-control", "retrode3-tools", "retrode3-udev-rules")
                    else "mipsel"):
         sys.exit("error: architecture mismatch: " + file.name)
+    if info[0] == "retrode3-cores":
+        depends = subprocess.check_output(
+            ["dpkg-deb", "-f", str(file), "Depends"], text=True).strip()
+        if depends != expected_meta_depends:
+            sys.exit("error: meta-package dependency set differs from released cores")
     old = previous.get(info[0])
     if old == info[1]:
         matches = list(pool.rglob(file.name))

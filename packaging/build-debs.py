@@ -27,6 +27,7 @@ CORE_ID = re.compile(r"^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$")
 WEB = "retrode3-web-control"
 TOOLS = "retrode3-tools"
 UDEV = "retrode3-udev-rules"
+META = "retrode3-cores"
 BOOKWORM_ALL = (WEB, TOOLS, UDEV)
 # Fixed executable modes; every complete staged core pair is discovered at build time.
 MODES = {"usr/bin/retrode3-cli": 0o755,
@@ -88,7 +89,8 @@ DESCRIPTIONS = {
     "retrode3-core-nes": "NES NROM and MMC1 ROM reader module for Retrode3",
     WEB: "Retrode3 Web Control v2 with Python backend and SysV service",
     TOOLS: "Retrode3 legacy administrative and WLAN helper scripts",
-    UDEV: "Retrode3 cartridge node permissions for udev and SysV init"
+    UDEV: "Retrode3 cartridge node permissions for udev and SysV init",
+    META: "Meta-package for all released Retrode3 cartridge cores"
 }
 
 
@@ -237,7 +239,7 @@ def discover_native_packages(stage, layout):
                 entry.suffix not in (".so", ".core")):
             error("unapproved staged core file: " + str(entry))
         core = entry.stem
-        if len(core) > 48 or not CORE_ID.fullmatch(core):
+        if core == "runtime" or len(core) > 48 or not CORE_ID.fullmatch(core):
             error("invalid staged core ID: " + core)
         core_ids.add(core)
     native = {RUNTIME: tuple(layout["release_packages"][RUNTIME])}
@@ -326,12 +328,50 @@ def package_arch(package):
     return "all" if package in BOOKWORM_ALL else "mipsel"
 
 
-def control_text(package, lock):
+def validate_meta_recipe():
+    recipe = HERE / "core-meta.json"
+    if not recipe.is_file() or recipe.is_symlink():
+        error("missing or unsafe core meta recipe")
+    if json.loads(recipe.read_text(encoding="utf-8")) != {
+            "schema_version": 1, "name": META,
+            "source": "all-validated-oscr-core-pairs",
+            "depends_on_runtime": True, "new_cores_enabled_on_install": False}:
+        error("unsupported plugin meta-package recipe")
+
+
+def meta_dependencies(native, lock):
+    cores = sorted(name for name in native
+                   if name != RUNTIME and name.startswith(CORE_PREFIX))
+    if RUNTIME not in native or not cores:
+        error("meta-package requires runtime and a nonempty core set")
+    return ", ".join("{} (= {})".format(name, lock["native_version"])
+                     for name in [RUNTIME] + cores)
+
+
+def validate_meta_manifest(manifest, lock):
+    """Require the exact candidate package set before APT publication."""
+    ids = manifest.get("core_ids")
+    if (not isinstance(ids, list) or not ids or
+            any(not isinstance(core, str) or core == "runtime" or
+                len(core) > 48 or not CORE_ID.fullmatch(core) for core in ids) or
+            len(ids) != len(set(ids))):
+        error("invalid or duplicate core IDs in meta-package manifest")
+    native = [RUNTIME] + [CORE_PREFIX + core for core in ids]
+    names = [record.get("package") for record in manifest.get("packages", [])]
+    expected = set(native) | set(BOOKWORM_ALL) | {META}
+    if len(names) != len(expected) or set(names) != expected:
+        error("meta-package manifest does not contain the exact released core set")
+    return meta_dependencies(native, lock)
+
+
+def control_text(package, lock, native=None):
     native_version = lock["native_version"]
     web_version = lock["web_version"]
     version = package_version(package, lock)
     arch = package_arch(package)
-    if package == "retrode3-core-runtime":
+    if package == META:
+        deps = meta_dependencies(native or {}, lock)
+    elif package == "retrode3-core-runtime":
         deps = "libc6, libstdc++6, passwd, adduser, init-system-helpers"
     elif package == WEB:
         deps = ("retrode3-core-runtime (>= " + native_version + "), "
@@ -369,7 +409,7 @@ def control_text(package, lock):
 def build_one(work, package, layout, lock, stage, epoch, native=None):
     if native is None:
         native = discover_native_packages(stage, layout)
-    if package not in native and package not in BOOKWORM_ALL:
+    if package not in native and package not in BOOKWORM_ALL + (META,):
         error("unapproved package: " + package)
     root = work / package
     (root / "DEBIAN").mkdir(parents=True)
@@ -395,7 +435,11 @@ def build_one(work, package, layout, lock, stage, epoch, native=None):
     elif package == UDEV:
         for rel, target, mode in UDEV_FILES:
             put(root, REPO / rel, target, mode)
-    put_text(root, "DEBIAN/control", control_text(package, lock))
+    elif package == META:
+        put_text(root, "usr/share/doc/retrode3-cores/README",
+                 "Install every released Retrode3 cartridge core.\n"
+                 "Core enablement is an independent administrator decision.\n")
+    put_text(root, "DEBIAN/control", control_text(package, lock, native))
     if package in CONFFILES:
         put_text(root, "DEBIAN/conffiles", "\n".join(CONFFILES[package]) + "\n")
     maintainer_scripts(root, package)
@@ -422,6 +466,7 @@ def build_one(work, package, layout, lock, stage, epoch, native=None):
               "etc/init.d/retrode3-web-v2"),
         TOOLS: ("usr/local/bin/retrode3-admin", "usr/local/bin/retrode3-wlan"),
         UDEV: ("etc/udev/rules.d/70-retrode3-cartridge.rules",),
+        META: ("usr/share/doc/retrode3-cores/README",),
     }
     for required in native[package] if package in native else required_files[package]:
         if "./" + required not in names:
@@ -472,6 +517,14 @@ def main():
     stage = Path(args.stage).resolve()
     verify_oscr(oscr, lock)
     native = verify_stage(stage, layout)
+    validate_meta_recipe()
+    recipes = oscr / "packaging/cores"
+    if not recipes.is_dir() or recipes.is_symlink():
+        error("missing or unsafe OSCR core recipes")
+    recipe_ids = {entry.stem for entry in recipes.glob("*.core")}
+    staged_ids = {name[len(CORE_PREFIX):] for name in native if name != RUNTIME}
+    if recipe_ids != staged_ids:
+        error("staged core set differs from pinned OSCR recipes")
     # Metadata for every package must match this exact pinned source checkout.
     for package in native:
         if package == RUNTIME:
@@ -492,7 +545,7 @@ def main():
     with tempfile.TemporaryDirectory(prefix=".retrode3-debs-", dir=str(out)) as temp:
         work = Path(temp)
         records = []
-        for package in tuple(native) + BOOKWORM_ALL:
+        for package in tuple(native) + BOOKWORM_ALL + (META,):
             filename, archive = build_one(work, package, layout, lock,
                                           stage, epoch, native)
             digest = hashlib.sha256(archive.read_bytes()).hexdigest()
@@ -522,6 +575,7 @@ def main():
                     "hardware_accepted": False, "apt_published": False,
                     "target_sysroot_verified": False,
                     "required_symbol_versions": symbol_version_report(stage, native)}
+        validate_meta_manifest(manifest, lock)
         (out / "build-manifest.json").write_text(
             json.dumps(manifest, indent=2, sort_keys=True) + "\n",
             encoding="utf-8")

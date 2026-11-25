@@ -25,7 +25,7 @@ not an accepted package upgrade, APT release or customer SD image.
 `native-source-lock.json` fixes:
 
 - OSCR `DragonBox-Shop/retrode3-oscr` commit
-  `4f61f86b1c21dc5a9c6a386e51648f4abb44866c`
+  `f37e1874b5f1043fd737be3c0b09c9147e580526`
 - Sanni submodule `third_party/oscr-firmware` gitlink
   `e5a08326dfc8fff67193f7fc5a7bc36b5282b28c`
 - Discovery and operation ABI v1, and one development package revision.
@@ -38,7 +38,7 @@ device-compatible artifacts.
 ```sh
 git clone https://github.com/DragonBox-Shop/retrode3-oscr.git
 cd retrode3-oscr
-git checkout 4f61f86b1c21dc5a9c6a386e51648f4abb44866c
+git checkout f37e1874b5f1043fd737be3c0b09c9147e580526
 git submodule update --init third_party/oscr-firmware
 git rev-parse HEAD:third_party/oscr-firmware
 git -C third_party/oscr-firmware rev-parse HEAD
@@ -137,8 +137,8 @@ Only `retrode3-corectl` manages links.
 The packaged Web UI includes the tested Flash writer from master, its
 `rom-upload.php` endpoint and a PHP 8.2 Apache-SAPI upload conffile
 (8 MiB upload / 9 MiB POST; the endpoint limits a ROM to 4 MiB).
-The default OSCR lock is updated to the source used in the first booted
-Bookworm candidate; tag-selected builds still resolve their own exact pin.
+The default OSCR lock includes the reviewed dynamic staging change;
+tag-selected builds still resolve their own exact pin.
 The CLI continues to enforce Flash detection and operation constraints.
 Physical validation on a fresh Bookworm card remains required.
 
@@ -259,3 +259,15 @@ No APT signing key, production repository or SD-image is fabricated
 by these scripts. Existing OS source and QuantumSTEP recipes remain
 for compatibility, but their retired reader deployment path is no
 longer part of the default build.
+
+## All released plugins
+
+The `retrode3-cores` meta-package depends on the shared runtime and every
+validated core package at its exact native package version. Install it once
+on existing devices (`apt install retrode3-cores`); future `apt upgrade`
+can add newly released core packages. `apt-get upgrade` needs
+`--with-new-pkgs` for new dependencies. No core is enabled merely by
+installing a package. New images install the complete signed manifest,
+including the meta-package. The publisher verifies its exact dependency set
+before any APT import. Core recipes are reviewed in the pinned OSCR Git tree;
+temporary test cores must not have a release recipe.

@@ -64,11 +64,7 @@ jobs:
           make -C "$RUNNER_TEMP/retrode3-oscr" -f Makefile.migration \
             CC=mipsel-linux-gnu-gcc CXX=mipsel-linux-gnu-g++ \
             AR=mipsel-linux-gnu-ar test-release-stage
-          if grep -Eq '^stage-sms-md-module:' "$RUNNER_TEMP/retrode3-oscr/Makefile.migration"; then
-            make -C "$RUNNER_TEMP/retrode3-oscr" -f Makefile.migration \
-              CC=mipsel-linux-gnu-gcc CXX=mipsel-linux-gnu-g++ \
-              AR=mipsel-linux-gnu-ar stage-sms-md-module
-          fi
+          bash buildserver/stage-oscr-plugins.sh "$RUNNER_TEMP/retrode3-oscr"
           file "$RUNNER_TEMP/retrode3-oscr/build/migration/stage/usr/bin/retrode3-cli"
           file "$RUNNER_TEMP/retrode3-oscr/build/migration/stage/usr/lib/retrode3/cores-available/"*.so
       - name: Build latest-OSCR MIPSEL Debian package candidates

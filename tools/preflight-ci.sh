@@ -27,6 +27,8 @@ visudo -cf retrode3-tools/etc/sudoers.d/retrode3
 
 python3 -m json.tool packaging/native-source-lock.json >/dev/null
 python3 -m json.tool packaging/retrode3-core-layout.json >/dev/null
+python3 -m json.tool packaging/core-meta.json >/dev/null
+bash -n buildserver/stage-oscr-plugins.sh
 python3 -m py_compile packaging/build-debs.py
 python3 -m py_compile retrode3-web-control/v2/backend/service.py
 python3 -m unittest discover -s packaging/tests -p 'test_*.py' -v

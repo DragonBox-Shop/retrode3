@@ -42,6 +42,15 @@ class StagedPublicationContractTests(unittest.TestCase):
         self.assertNotIn('export apt_passphrase=', self.script)
         self.assertNotIn('cat "$signing_secret"', self.script)
 
+    def test_meta_package_validation_precedes_apt_import(self):
+        check = self.script.index("builder.validate_meta_manifest(manifest, lock)")
+        depends = self.script.index('if depends != expected_meta_depends:')
+        include = self.script.index('includedeb "$suite" "$deb"')
+        self.assertLess(check, depends)
+        self.assertLess(depends, include)
+        self.assertIn("unexpected meta-package for selected historical OS tag",
+                      self.script)
+
     def test_stage_packages_without_export_and_keep_old_pool_files(self):
         include = self.script.index('includedeb "$suite" "$deb"')
         self.assertIn('--export=never --keepunreferencedfiles',

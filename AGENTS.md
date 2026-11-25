@@ -42,14 +42,14 @@ Keine zweite native Reader-Implementierung in diesem Repo anlegen.
   ein erzeugtes .deb, ein signierter APT-Index, ein erfolgreiches Boot und
   ein freigegebenes Kundenimage sind **verschiedene** Meilensteine.
 
-**Wichtig fuer den aktuellen Buildserver:** Die vorhandenen
-`package_develop.sh`/`auto-package.sh` verfolgen derzeit auch
-Branch-HEADs. **Diese Automatik muss auf Tag-/Commit-basierte
-Release-Eingaenge umgestellt werden**, bevor der oben beschriebene
-Tag-only-Veröffentlichungsprozess als implementiert gelten darf.
-Bis dahin keine ungetaggten Entwicklungssnapshots als abgeschlossene
-Release-Kandidaten behandeln. `master`/`stable` nicht versehentlich
-mit der laufenden Image-Entwicklung aktualisieren.
+**Buildserver:** Die OS-/OSCR-Paketautomatik verwendet immutable Tags.
+Kernel und U-Boot werden als getrennte Plattformpakete aus exakt
+fixierten Commits gebaut. Der Image-Bau konsumiert die signierten
+Paket-Snapshots. Keine ungetaggten OS-/OSCR-Snapshots veroeffentlichen;
+`master`/`stable` nicht mit laufender Image-Entwicklung aktualisieren.
+Plugin-Pakete werden aus den validierten OSCR-Core-Rezepten entdeckt.
+`retrode3-cores` zieht saemtliche freigegebenen Core-Pakete nach, ohne
+sie automatisch zu aktivieren. Keine Labor-Plugins als Release-Rezepte.
 
 ## Tests und sichere Entwicklung
 
