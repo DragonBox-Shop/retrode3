@@ -17,6 +17,7 @@ podman --runtime=crun --cgroup-manager=systemd build \
   --network=slirp4netns -f "$src/buildserver/Containerfile.platform" \
   -t "$image" "$src/buildserver"
 image_id="$(podman image inspect --format '{{.Id}}' "$image")"
+recipe_sha="$(sha256sum "$src/buildserver/build-platform-component.sh" | cut -d\x27 \x27 -f1)"
 [[ "$image_id" =~ ^sha256:[a-f0-9]{64}$ ]] || exit 1
 run="$(mktemp -d "$runs/run.XXXXXXXX")"
 for kind in kernel uboot; do
@@ -31,10 +32,10 @@ for kind in kernel uboot; do
   line="$(git ls-remote --exit-code "$url" "$ref")"
   sha="${line%%[[:space:]]*}"
   [[ "$sha" =~ ^[a-f0-9]{40}$ ]] || exit 1
-  key="$(python3 "$src/buildserver/platform-cache.py" key "$kind" "$sha" "$image_id")"
+  key="$(python3 "$src/buildserver/platform-cache.py" key "$kind" "$sha" "$image_id" "$recipe_sha")"
   entry="$cache/$kind/$key"
   if [[ -e "$entry" || -L "$entry" ]]; then
-    python3 "$src/buildserver/platform-cache.py" verify "$kind" "$sha" "$image_id" "$entry"
+    python3 "$src/buildserver/platform-cache.py" verify "$kind" "$sha" "$image_id" "$recipe_sha" "$entry"
     echo "$kind: CACHE HIT $sha"
   else
     echo "$kind: CACHE MISS $sha, building .debs"
@@ -51,6 +52,7 @@ for kind in kernel uboot; do
       -e "RETRODE3_COMPONENT=$kind" -e "RETRODE3_COMPONENT_SHA=$sha" \
       -e "RETRODE3_BUILDER_IMAGE_ID=$image_id" \
       -e "RETRODE3_PLATFORM_KEY=$key" \
+      -e "RETRODE3_PLATFORM_RECIPE_SHA=$recipe_sha" \
       "$image" bash /src/buildserver/build-platform-component.sh
     [[ ! -e "$entry" ]] || exit 1
     mv -T "$temp" "$entry"
