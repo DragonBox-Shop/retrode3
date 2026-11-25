@@ -53,6 +53,40 @@ for key in ("native_version","web_version","oscr_commit","sanni_commit"):
         sys.exit("Unpinned package input: "+key)
 PY
 
+# Build U-Boot FIRST, before the expensive full kernel. The only vetted
+# Retrode3 X1600 source branch is uboot/develop; uboot/master is unrelated.
+[[ "$RETRODE3_IMAGE_BRANCH" == develop ]] || {
+  echo "Retrode3 source-built U-Boot has no approved master release yet" >&2
+  exit 1
+}
+echo "=== Building source-pinned Ingenic X1600 U-Boot ==="
+git clone --quiet --depth 1 --single-branch --branch develop \
+  https://github.com/DragonBox-Shop/retrode3-uboot.git /work/uboot-src
+[[ "$(git -C /work/uboot-src rev-parse HEAD)" == "$RETRODE3_UBOOT_SHA" ]] || {
+  echo "U-Boot branch moved during the source snapshot" >&2
+  exit 1
+}
+printf '%s\n' "$RETRODE3_UBOOT_SHA" > /work/uboot.commit
+make -C /work/uboot-src CROSS_COMPILE="$cross" lx16_uImage_msc0
+make -C /work/uboot-src CROSS_COMPILE="$cross" -j2
+for file in u-boot-with-spl-mbr-gpt.bin spl/u-boot-spl.bin u-boot.bin; do
+  [[ -s "/work/uboot-src/$file" ]] || {
+    echo "Missing source-built U-Boot file: $file" >&2
+    exit 1
+  }
+done
+python3 - \
+  /work/uboot-src/u-boot-with-spl-mbr-gpt.bin \
+  /work/uboot-src/spl/u-boot-spl.bin \
+  /work/uboot-src/u-boot.bin <<'PY_UBOOT'
+import sys
+sys.path.insert(0, "/src/image")
+from source_uboot_layout import source_preboot
+data=source_preboot(*sys.argv[1:])
+assert len(data)==1024*1024
+print("Verified source-built X1600 first MiB; vendor GPT stripped")
+PY_UBOOT
+
 mkdir -p /work/kernel-build /work/modules-root /work/stage/boot/ingenic
 echo "=== Linux $RETRODE3_KERNEL_SHA from Retrode3 kernel repository ==="
 git clone --quiet --depth 1 --single-branch --branch "$RETRODE3_IMAGE_BRANCH" \
@@ -62,7 +96,6 @@ actual="$(git -C /work/kernel-src rev-parse HEAD)"
   echo "Kernel branch moved during build: $actual" >&2; exit 1;
 }
 cp /private/FULLCONFIG /work/kernel-build/.config
-cross=/toolchain/bin/mipsel-linux-
 kernel_make() {
   make -C /work/kernel-src O=/work/kernel-build ARCH=mips \
     CROSS_COMPILE="$cross" LOCALVERSION=+ "$@"
@@ -160,8 +193,10 @@ echo "=== Build regular-file SD image (temporary verified donor SPL) ==="
 args=(--rootfs /work/retrode3-rootfs.tar.xz
       --kernel-bundle /work/kernel-bundle.tar.gz
       --kernel-release "$krel"
-      --sd-preboot /private/sd-preboot-1MiB.bin
-      --migrate-stale-gpt --with-retrode3
+      --uboot-combined /work/uboot-src/u-boot-with-spl-mbr-gpt.bin
+      --uboot-spl /work/uboot-src/spl/u-boot-spl.bin
+      --uboot-binary /work/uboot-src/u-boot.bin
+      --with-retrode3
       --output "/work/retrode3-$RETRODE3_IMAGE_BRANCH.img.xz")
 if [[ -f /private/ssh.pub ]]; then
   args+=(--ssh-authorized-key /private/ssh.pub)
