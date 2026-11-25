@@ -117,6 +117,20 @@ if [[ -e "$private/ssh.pub" || -L "$private/ssh.pub" ]]; then
   private_mounts+=( -v "$private/ssh.pub:/private/ssh.pub:ro" )
 fi
 run="$(mktemp -d "$images/run.XXXXXXXX")"
+# A foreign-arch chroot running APT needs /dev/null and /dev/urandom.
+# Rootless Podman cannot mknod in its writable bind-mounted /work tree.
+# Prepare harmless regular-file mountpoints in the new, private run dir,
+# then let Podman's OCI runtime bind ONLY these host character devices.
+# No block devices, no host /dev directory mount and no host chmod/mknod.
+device_mounts=()
+mkdir -p "$run/rootfs/dev"
+for device in null zero random urandom tty; do
+  [[ -c "/dev/$device" && ! -L "/dev/$device" ]] || {
+    echo "Missing safe host character device: /dev/$device" >&2; exit 1;
+  }
+  : > "$run/rootfs/dev/$device"
+  device_mounts+=( -v "/dev/$device:/work/rootfs/dev/$device:rw" )
+done
 cp "$published" "$run/published-packages.json"
 cp "$platform" "$run/published-platform.json"
 printf '%s\n' "$os_sha" > "$run/image-os-commit"
@@ -124,7 +138,9 @@ printf '%s\n' "$image_builder_sha" > "$run/image-builder-commit"
 echo "Image $branch ($suite); OS $os_tag $os_sha; OSCR $oscr_tag $oscr_sha; kernel $kernel_sha; U-Boot $uboot_sha; image tooling $image_builder_sha"
 echo "Workspace: $run"
 # All source and private inputs are read-only; only /work is writable.
-# No host /dev, signing secret, website, Maildir or sudo mounts.
+# Only the five minimal character devices above are bind-mounted into the
+# disposable foreign-arch chroot. No host /dev DIRECTORY, block devices,
+# signing secret, website, Maildir or sudo mounts.
 image=localhost/retrode3-image-builder:bookworm
 podman --runtime=crun --cgroup-manager=systemd build \
     --network=slirp4netns \
@@ -140,7 +156,7 @@ podman --runtime=crun --cgroup-manager=systemd run --rm \
     --pids-limit "${RETRODE3_IMAGE_PIDS:-512}" \
     -v "$image_checkout:/src:ro" -v "$run:/work:rw" \
     -v /proc/sys/fs/binfmt_misc:/proc/sys/fs/binfmt_misc:ro \
-    "${private_mounts[@]}" \
+    "${device_mounts[@]}" "${private_mounts[@]}" \
     -e "RETRODE3_IMAGE_BRANCH=$branch" \
     -e "RETRODE3_IMAGE_SUITE=$suite" \
     -e "RETRODE3_OS_SHA=$os_sha" \
