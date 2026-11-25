@@ -17,8 +17,17 @@ podman --runtime=crun --cgroup-manager=systemd build \
   --network=slirp4netns -f "$src/buildserver/Containerfile.platform" \
   -t "$image" "$src/buildserver"
 image_id="$(podman image inspect --format '{{.Id}}' "$image")"
+# Podman reports image .Id as 64 hex characters (without "sha256:"),
+# while other runtimes include the digest prefix. Normalize before the
+# content-addressed cache key and before handing the ID to the container.
+if [[ "$image_id" =~ ^[a-f0-9]{64}$ ]]; then
+  image_id="sha256:$image_id"
+fi
+[[ "$image_id" =~ ^sha256:[a-f0-9]{64}$ ]] || {
+  echo "Invalid Podman builder image ID: <$image_id>" >&2
+  exit 1
+}
 recipe_sha="$(sha256sum "$src/buildserver/build-platform-component.sh" | cut -d' ' -f1)"
-[[ "$image_id" =~ ^sha256:[a-f0-9]{64}$ ]] || exit 1
 run="$(mktemp -d "$runs/run.XXXXXXXX")"
 for kind in kernel uboot; do
   case "$kind" in
