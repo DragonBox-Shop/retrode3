@@ -2,9 +2,9 @@
 # Install exactly two small launchers outside the web DocumentRoot.
 set -euo pipefail
 umask 027
-mode="${1:---all}"
+install_mode="${1:---all}"
 [[ "$#" -le 1 ]] || { echo "Usage: $0 [--packages-only|--all]" >&2; exit 2; }
-case "$mode" in
+case "$install_mode" in
   --all|--packages-only) ;;
   *) echo "Usage: $0 [--packages-only|--all]" >&2; exit 2 ;;
 esac
@@ -26,16 +26,16 @@ mkdir -p "$base/cache" "$base/automation"
 exec 9>"$base/cache/package-automation.lock"
 flock -n 9 || { echo "Package build active; reinstall later" >&2; exit 1; }
 source_dir="$base/src/retrode3-testing-pr/buildserver"
-for name in auto-package.sh run-debs.sh publish-debs.sh package-failure-alert.sh; do
+for name in auto-package.sh run-debs.sh publish-debs.sh package-failure-alert.sh unlock-apt-signing.sh; do
   bash -n "$source_dir/$name"
 done
 python3 "$source_dir/select-release-tag.py" --help >/dev/null
-for name in auto-package.sh run-debs.sh publish-debs.sh package-failure-alert.sh select-release-tag.py; do
+for name in auto-package.sh run-debs.sh publish-debs.sh package-failure-alert.sh unlock-apt-signing.sh select-release-tag.py; do
   target="$base/automation/$name"
   [[ ! -L "$target" ]] || { echo "Refusing automation symlink: $target" >&2; exit 1; }
   tmp="$(mktemp "$base/automation/.install.XXXXXXXX")"
-  if [[ "$name" == *.sh ]]; then mode=750; else mode=640; fi
-  install -m "$mode" "$source_dir/$name" "$tmp"
+  if [[ "$name" == *.sh ]]; then file_mode=750; else file_mode=640; fi
+  install -m "$file_mode" "$source_dir/$name" "$tmp"
   mv -f "$tmp" "$target"
 done
 echo "Installed pinned-release APT automation in $base/automation"
@@ -63,7 +63,7 @@ EOF
   echo "Installed: $target"
 done
 echo "Run either $vhost/package_master.sh or $vhost/package_develop.sh"
-if [[ "$mode" == --packages-only ]]; then
+if [[ "$install_mode" == --packages-only ]]; then
   echo "Only APT automation and package launchers installed; image launchers unchanged."
   exit 0
 fi
