@@ -281,8 +281,7 @@ newest tag by creation date (annotated tagger date; lightweight tags
 inherit commit date). Tags must point to commits contained in the
 channel's `develop` or `master` history. Archive/upstream tracking
 tags are ignored. Use annotated, immutable release tags for predictable
-ordering. There are not yet any release tags in the OS/OSCR repositories;
-the first automated tagged build will fail safely until both are tagged.
+ordering. The first automated tagged build fails safely unless both repositories have suitable release tags.
 
 If the exact OS tag, OSCR tag and both source commits are already in the
 last published manifest *and* all expected package versions still exist
@@ -311,99 +310,19 @@ Sanni gitlink is reviewed and integrated into the relevant OSCR branch,
 the next `package_*.sh` invocation automatically builds it.
 
 
-## Full Debian SD image candidates (one command per branch)
+## Full Debian SD image candidates
 
-**Transition note:** The existing `build_image_develop.sh` still checks the
-moving OS branch HEAD against the published package snapshot. The APT
-build is now strictly tag-based, so an image build with newer untagged
-package-affecting OS changes can fail until the image orchestrator is
-updated to consume the same selected release snapshot. Do not bypass
-this check or silently rebuild untagged packages.
+The supported develop pipeline builds and publishes OS/OSCR packages from
+the selected tags and caches the exact kernel/U-Boot packages. The image
+builder installs those signed APT package snapshots; it does not compile
+kernel or bootloader inside the image container. See
+[IMAGE-PIPELINE.md](IMAGE-PIPELINE.md) and
+[the launcher and migration instructions](BOOTABLE-BOOKWORM-FIRST-TEST.md).
 
+The existing dedicated image worktree can be switched to a detached
+origin/develop commit once the merge is accepted. Refresh it only between
+builds. No new full clone is needed. Do not reinstall or overwrite the
+master launchers; stable platform activation remains a separate gate.
 
-
-The image builder **reuses** the existing package launchers and their
-published manifests. It then builds Linux + DTB + modules from
-DragonBox-Shop/retrode3-kernel, bootstraps Bookworm MIPSEL, installs the
-exact published Retrode3 packages from signed packages.retrode.com, and
-assembles a FAT32/ext4 .img.xz regular file.
-
-Install launchers once as the existing unprivileged retrode user:
-
-    bash /srv/www/vhosts/retrode.com/buildserver/src/retrode3-testing-pr/buildserver/install-launchers.sh
-
-Then invoke either:
-
-    /srv/www/vhosts/retrode.com/build_image_develop.sh
-    /srv/www/vhosts/retrode.com/build_image_master.sh
-
-Each command calls the matching package_develop.sh/package_master.sh first.
-The existing automation updates the selected checkout, builds/publishes
-missing .debs and records the package manifest. The image build checks
-its relationship to the OS tree and pins the current kernel branch head.
-It never writes directly to an SD or changes the other Git branch.
-
-### Private one-time inputs, separate per channel
-
-Provision these **non-DocumentRoot** directories:
-
-    /srv/www/vhosts/retrode.com/buildserver/private/image/develop/
-    /srv/www/vhosts/retrode.com/buildserver/private/image/master/
-
-Each directory must contain:
-
-- FULLCONFIG: approved, matching Retrode3 kernel config. The channels
-  can require different configs if master/develop kernel sources differ.
-- toolchain/bin/mipsel-linux-gcc: the full pinned Bootlin MIPS32EL GCC 8.2
-  toolchain including its libraries, mounted read-only, not just gcc.
-- sd-preboot-1MiB.bin: the original donor SD bootloader dump. PRIVATE!
-  This is an explicit temporary fallback until board U-Boot source
-  and raw-sector placement have been verified.
-- preboot.sha256: lowercase 64-character hash of the donor, no filename.
-- retrode3-archive.gpg: public-only GPG export of the APT archive signing key.
-- apt-fingerprint: full 40-character primary signing-key fingerprint.
-- Optional ssh.pub: a PUBLIC developer SSH key for temporary USB NCM access.
-
-For example:
-
-    cd /srv/www/vhosts/retrode.com/buildserver/private/image/develop
-    sha256sum sd-preboot-1MiB.bin | cut -d' ' -f1 > preboot.sha256
-
-The APT administrator can export the PUBLIC archive key using:
-
-    gpg --homedir /srv/www/vhosts/retrode.com/buildserver/repository/gnupg --export YOUR_SIGNING_FINGERPRINT > retrode3-archive.gpg
-
-Copy the public key and its independently verified fingerprint to
-each channel. **Never** mount the signing secret or full repo keyring.
-
-### Host prerequisites and outputs
-
-Rootless Podman with crun/slirp4netns, QEMU MIPSEL binfmt registered
-on the host by the administrator, sufficient disk space and HTTPS to
-GitHub, Debian and the signed Retrode3 APT suites are required.
-The image container has the build programs; the host must provide
-binfmt and the pinned compiler. The container never mounts /dev,
-Maildir, public website or the APT secret keyring; it does not
-request --privileged. The rootless chroot/binfmt interactions still
-require a real Amaterasu integration test.
-
-Every run generates a new output directory, for example:
-
-    buildserver/artifacts/images/develop/run.XXXXXXXX/retrode3-develop.img.xz
-    buildserver/artifacts/images/master/run.XXXXXXXX/retrode3-master.img.xz
-
-It also contains full-image-manifest.json, FULL-IMAGE-SHA256SUMS, the
-published package snapshot and kernel/rootfs bundles.
-The three native cores snes/md/nes are enabled explicitly with the approved
-offline retrode3-corectl during image construction; optional adapter cores
-such as sms-md remain installed but disabled. While donor U-Boot
-is used, the manifests mark bootloader_source_built=false,
-hardware_accepted=false and customer_releasable=false.
-
-**Expected blockers:** The Web .deb currently depends on letux-httpd,
-retrode3-tools, retrode3-udev-rules and PHP/Python. Their full Debian 12
-dependency chain must be present in trusted signed APT sources; if not,
-the image build fails visibly. Similarly, stable cannot be claimed
-successful if the master kernel source/config is not yet approved.
-Kernel/USB/regression hardware tests and customer release authorization
-remain separate gates.
+The package image does not accept developer SSH keys. USB networking,
+serial and the read-only welcome disk are independent of SSH.

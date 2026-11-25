@@ -8,6 +8,7 @@ import tarfile
 import tempfile
 import sys
 import unittest
+from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 script = Path(__file__).resolve().parents[1] / "assemble-sd-image.py"
@@ -98,6 +99,29 @@ class ImageSafety(unittest.TestCase):
                          "--dhcp-option=3", "--dhcp-option=6",
                          "--port=0", "ADDR=172.31.255.1/29"):
             self.assertIn(expected, service)
+
+    def test_normal_usb_gadget_has_no_developer_ssh_dependency(self):
+        root = self.base / "root"
+        (root / "etc/init.d").mkdir(parents=True)
+        (root / "etc/inittab").write_text("id:2:initdefault:\n")
+        (root / "usr/sbin").mkdir(parents=True)
+        (root / "usr/sbin/dnsmasq").touch()
+        def fake_call(*args, **kwargs):
+            if args[0] == "truncate":
+                Path(args[-1]).touch()
+        with mock.patch.object(module, "call", side_effect=fake_call) as commands:
+            module.provision_usb_gadget(root)
+        self.assertFalse((root / "root/.ssh").exists())
+        self.assertFalse((root / "etc/init.d/retrode3-bringup-usb").exists())
+        self.assertTrue((root / "etc/rc2.d/S02retrode3-usb-gadget").is_symlink())
+        service = (root / "etc/init.d/retrode3-usb-gadget").read_text()
+        for name in ("ncm.usb0", "acm.GS0", "mass_storage.usb0", "/lun.0/ro"):
+            self.assertIn(name, service)
+        self.assertNotIn("authorized_keys", service)
+        copied = [str(x.args) for x in commands.call_args_list if x.args[0] == "mcopy"]
+        self.assertEqual(len(copied), 2)
+        self.assertTrue(any("START.de.html" in x for x in copied))
+        self.assertTrue(any("::/START.html" in x for x in copied))
 
     def test_invalid_test_ssh_key_rejected(self):
         root = self.base / "root"

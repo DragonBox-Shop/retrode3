@@ -6,7 +6,7 @@ umask 022
   echo "Usage: $0 /absolute/output/directory" >&2
   exit 2
 }
-for executable in debootstrap chroot qemu-mipsel-static tar sha256sum python3; do
+for executable in mmdebstrap arch-test chroot qemu-mipsel-static tar sha256sum python3; do
   command -v "$executable" >/dev/null || { echo "Missing $executable" >&2; exit 1; }
 done
 [[ "$(id -u)" == 0 ]] || {
@@ -36,12 +36,31 @@ trap 'rm -rf -- "$scratch"' EXIT
 root="$scratch/rootfs"
 mkdir -p "$root"
 export DEBIAN_FRONTEND=noninteractive
-# Foreign first stage is host-native; second stage requires QEMU+binfmt.
-debootstrap --arch=mipsel --foreign --variant=minbase --components=main \
-  bookworm "$root" https://deb.debian.org/debian
-install -m 0755 "$(command -v qemu-mipsel-static)" "$root/usr/bin/qemu-mipsel-static"
-cp /etc/resolv.conf "$root/etc/resolv.conf"
-chroot "$root" /debootstrap/debootstrap --second-stage
+# mmdebstrap root mode is verified on the rootless Amaterasu Podman setup.
+# It does not require mknod or mount in the nested container, unlike
+# debootstrap's initial device-node test. Install the entire minimal SysV
+# package set INSIDE mmdebstrap while it manages the foreign QEMU chroot.
+# Debian Bookworm mmdebstrap 1.3.5 does NOT support --skip=output/mknod.
+echo "=== Creating Bookworm MIPSEL SysV base with mmdebstrap (rootless Podman) ==="
+mmdebstrap \
+  --mode=root \
+  --skip=check/canmount,chroot/mount \
+  --architectures=mipsel \
+  --variant=minbase \
+  --include=sysvinit-core,sysv-rc,initscripts,udev,kmod,ifupdown,iproute2,isc-dhcp-client,e2fsprogs,dosfstools,ca-certificates,dropbear-bin,dnsmasq-base \
+  --aptopt='APT::Install-Recommends "false"' \
+  --format=tar \
+  bookworm "$scratch/mmdebstrap-rootfs.tar" https://deb.debian.org/debian
+# Never try mknod when expanding an archive into the rootless bind-mounted
+# workspace. Linux DEVTMPFS_MOUNT populates /dev on a real Retrode3 boot.
+# We keep an empty /dev directory in the offline image candidate.
+tar --numeric-owner --exclude='./dev/*' --exclude='dev/*' \
+    -xf "$scratch/mmdebstrap-rootfs.tar" -C "$root"
+mkdir -p "$root/dev"
+[[ -f "$root/etc/debian_version" && -f "$root/var/lib/dpkg/status" ]] || {
+  echo "Incomplete mmdebstrap rootfs" >&2; exit 1;
+}
+# No second-stage needed: mmdebstrap has already configured the base packages.
 cat > "$root/etc/apt/sources.list" <<'EOF'
 deb https://deb.debian.org/debian bookworm main
 EOF
@@ -68,12 +87,7 @@ cat > "$root/usr/sbin/policy-rc.d" <<'EOF'
 exit 101
 EOF
 chmod 0755 "$root/usr/sbin/policy-rc.d"
-# This is a minimal userspace, not a customer image or a network login.
-chroot "$root" /usr/bin/apt-get update
-chroot "$root" /usr/bin/apt-get install -y --no-install-recommends \
-  sysvinit-core sysv-rc initscripts udev kmod \
-  ifupdown iproute2 isc-dhcp-client e2fsprogs dosfstools ca-certificates \
-  dropbear-bin dnsmasq-base
+# The SysV base set was installed and configured by mmdebstrap above.
 cat > "$root/etc/fstab" <<'EOF'
 # Planned Retrode3 SD partition layout, validated later with a test card.
 /dev/mmcblk0p2 / ext4 defaults,noatime,errors=remount-ro 0 1
@@ -101,7 +115,7 @@ EOF
 : > "$root/etc/init.d/.legacy-bootordering"
 rm -f "$root/usr/sbin/policy-rc.d" "$root/usr/bin/qemu-mipsel-static"
 rm -f "$root/etc/resolv.conf"
-rm -rf "$root/debootstrap" "$root/var/lib/apt/lists/"*
+rm -rf "$root/var/lib/apt/lists/"*
 mkdir -p "$root/var/lib/apt/lists" "$root/boot"
 python3 "$(dirname "$0")/verify-rootfs.py" "$root"
 python3 "$(dirname "$0")/manifest-rootfs.py" "$root" > "$scratch/manifest.json"

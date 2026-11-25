@@ -15,6 +15,7 @@ import tarfile
 import tempfile
 
 from preboot_layout import prepare_preboot
+from source_uboot_layout import source_preboot
 
 SECTOR_SIZE = 512
 BOOT_START = 2048
@@ -157,6 +158,46 @@ def provision_test_access(root, key_file):
                        encoding="utf-8")
 
 
+def provision_usb_gadget(root):
+    """Install normal USB services independently of SSH or developer keys."""
+    assets = Path(__file__).with_name("assets")
+    if not (root / "usr/sbin/dnsmasq").is_file():
+        fail("USB DHCP requires dnsmasq-base")
+    inittab = root / "etc/inittab"
+    if not inittab.is_file() or inittab.is_symlink():
+        fail("missing or unsafe SysV inittab for USB ACM")
+    table = inittab.read_text(encoding="utf-8")
+    if "ttyGS0" in table or re.search(r"^g0:", table, flags=re.MULTILINE):
+        fail("USB ACM getty already configured")
+    old_service = root / "etc/init.d/retrode3-bringup-usb"
+    if old_service.exists() or old_service.is_symlink():
+        fail("legacy SSH bring-up service not permitted in package image")
+    authorized = root / "root/.ssh/authorized_keys"
+    if authorized.exists() or authorized.is_symlink():
+        fail("unexpected embedded SSH developer key in package image")
+    service = root / "etc/init.d/retrode3-usb-gadget"
+    link = root / "etc/rc2.d/S02retrode3-usb-gadget"
+    disk = root / "usr/share/retrode3/usb-welcome.img"
+    for path in (service, link, disk):
+        if path.exists() or path.is_symlink():
+            fail("unexpected preexisting USB gadget payload: " + str(path))
+    disk.parent.mkdir(parents=True, exist_ok=True)
+    call("truncate", "-s", "4M", str(disk))
+    call("mkfs.fat", "-F", "12", "-n", "RETRODE3", str(disk))
+    for name in ("START.html", "START.de.html"):
+        call("mcopy", "-i", str(disk), str(assets / "usb-welcome" / name),
+             "::/" + name)
+    call("fsck.fat", "-n", str(disk))
+    os.chmod(disk, 0o644)
+    shutil.copyfile(assets / "retrode3-usb-gadget.init", service)
+    os.chmod(service, 0o755)
+    link.parent.mkdir(parents=True, exist_ok=True)
+    link.symlink_to("../init.d/retrode3-usb-gadget")
+    inittab.write_text(table.rstrip("\n") +
+                       "\ng0:2:respawn:/sbin/getty -L 115200 ttyGS0 vt102\n",
+                       encoding="utf-8")
+
+
 def compose(args):
     if not RELEASE.fullmatch(args.kernel_release):
         fail("invalid kernel release name")
@@ -164,7 +205,17 @@ def compose(args):
         fail("run inside a disposable build container/runner as root to preserve filesystem ownership")
     source = args.rootfs.resolve(strict=True)
     kernel = args.kernel_bundle.resolve(strict=True)
-    preboot = check_preboot(args.sd_preboot.resolve(strict=True), args.migrate_stale_gpt)
+    if args.uboot_combined:
+        if args.migrate_stale_gpt:
+            fail("--migrate-stale-gpt is valid only for legacy donor snapshots")
+        preboot = source_preboot(args.uboot_combined, args.uboot_spl,
+                                args.uboot_binary)
+        loader_source = "source-built Ingenic X1600 MMC0, legacy GPT stripped"
+        loader_digest = digest(args.uboot_combined)
+    else:
+        preboot = check_preboot(args.sd_preboot.resolve(strict=True), args.migrate_stale_gpt)
+        loader_source = "temporary reviewed 1 MiB donor; not source-built"
+        loader_digest = digest(args.sd_preboot)
     output = args.output.absolute()
     if output.suffix != ".xz" or not output.name.endswith(".img.xz"):
         fail("output must have .img.xz extension")
@@ -206,7 +257,12 @@ def compose(args):
             fail("rootfs already has this kernel's modules")
         call("cp", "-a", str(boot / "lib/modules" / args.kernel_release),
              str(rootmodules / args.kernel_release))
-        if args.ssh_authorized_key:
+        if args.with_retrode3:
+            if args.ssh_authorized_key:
+                fail("developer SSH keys are not supported in package images")
+            provision_usb_gadget(root)
+        elif args.ssh_authorized_key:
+            # Explicit historical donor-image test only, not the normal pipeline.
             provision_test_access(root, args.ssh_authorized_key.resolve(strict=True))
 
         bootfs = work / "boot.fat"
@@ -228,9 +284,9 @@ def compose(args):
              "-d", str(root), str(rootfs))
         call("e2fsck", "-fn", str(rootfs))
         call("truncate", "-s", str(TOTAL_SECTORS * SECTOR_SIZE), str(disk))
-        # X1600 may boot its SPL from raw SD sectors, not FAT files.
-        # First generate a valid MBR on a blank image; then overlay the
-        # known-working raw bootstrap without reusing its old partition sizes.
+        # X1600 boots its SPL from raw SD sectors. The validated 1 MiB
+        # preboot contains source-built SPL/U-Boot, not the old vendor GPT.
+        # The legacy donor route remains opt-in for historical boot tests.
         layout = (
             "label: dos\nunit: sectors\n"
             "start={}, size={}, type=c\n"
@@ -239,8 +295,8 @@ def compose(args):
         call("sfdisk", "--wipe", "never", str(disk), input_data=layout)
         with disk.open("r+b") as stream:
             new_mbr = stream.read(SECTOR_SIZE)
-            # Keep the original SPL/boot code and disk signature (bytes 0..445).
-            # Only the four DOS partition entries and 0x55aa are replaced.
+            # Keep the X1600 ROM header (bytes 0..445), but always use
+            # the new DOS partition entries and 0x55aa generated by sfdisk.
             stream.seek(0)
             stream.write(preboot[:446] + new_mbr[446:512] + preboot[512:])
             stream.seek(SECTOR_SIZE)
@@ -270,20 +326,25 @@ def compose(args):
             "kernel_dtb_sha256": digest(boot / "boot/ingenic" / DTB_NAME),
             "rootfs_archive_sha256": digest(source),
             "kernel_bundle_sha256": digest(kernel),
-            "sd_preboot_sha256": digest(args.sd_preboot),
+            "sd_preboot_sha256": loader_digest,
             "legacy_gpt_migrated": bool(args.migrate_stale_gpt),
-            "raw_loader_source": "temporary reviewed 1 MiB donor; no source-built U-Boot yet",
+            "bootloader_source_built": bool(args.uboot_combined),
+            "raw_loader_source": loader_source,
             "image_sha256": digest(compressed),
             "partition_table": "dos",
             "sector_size": SECTOR_SIZE,
             "boot": {"start_sector": BOOT_START, "sectors": BOOT_SECTORS, "filesystem": "FAT32"},
             "root": {"start_sector": ROOT_START, "sectors": ROOT_SECTORS, "filesystem": "ext4"},
-            "userland_access": ("ttyS2, USB NCM DHCP 172.31.255.1/29, "
-                                "USB ACM ttyGS0 and SSH-key-only Dropbear"
-                                if args.ssh_authorized_key else "ttyS2 serial console only"),
+            "userland_access": (
+                "ttyS2, USB NCM DHCP 172.31.255.1/29, USB ACM ttyGS0, read-only welcome disk"
+                if args.with_retrode3 else
+                ("ttyS2, USB NCM, ACM and SSH-key-only Dropbear"
+                 if args.ssh_authorized_key else "ttyS2 serial console only")),
+            "usb_gadget_functions": (["ncm", "acm", "mass_storage"]
+                                     if args.with_retrode3 else []),
             "sysv_boot_order": "legacy numeric runlevel order (hardware bring-up workaround)",
             "test_ssh_enabled": bool(args.ssh_authorized_key),
-            "bootloader_note": "Existing board U-Boot is assumed; boot path not yet physically validated",
+            "bootloader_note": "Source-built X1600 U-Boot still requires separate SD hardware boot test",
         }
         manifest_path = output.with_name(output.name[:-7] + ".manifest.json")
         checksum_path = output.with_name(output.name[:-7] + ".SHA256SUMS")
@@ -306,8 +367,15 @@ def main():
     parser.add_argument("--rootfs", type=Path, required=True)
     parser.add_argument("--kernel-bundle", type=Path, required=True)
     parser.add_argument("--kernel-release", required=True)
-    parser.add_argument("--sd-preboot", type=Path, required=True,
-                        help="read-only 1MiB snapshot of original boot SD, required to preserve X1600 SPL")
+    inputs = parser.add_mutually_exclusive_group(required=True)
+    inputs.add_argument("--sd-preboot", type=Path,
+                        help="legacy read-only 1MiB donor snapshot, for old test images only")
+    inputs.add_argument("--uboot-combined", type=Path,
+                        help="source-built lx16_uImage_msc0/u-boot-with-spl-mbr-gpt.bin")
+    parser.add_argument("--uboot-spl", type=Path,
+                        help="matching source-built spl/u-boot-spl.bin")
+    parser.add_argument("--uboot-binary", type=Path,
+                        help="matching source-built u-boot.bin")
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--with-retrode3", action="store_true",
                         help="assemble a rootfs with Retrode3 packages already installed")
@@ -316,6 +384,12 @@ def main():
     parser.add_argument("--ssh-authorized-key", type=Path,
                         help="public key to enable SSH over USB NCM in FIRST-BOOT TEST IMAGE ONLY")
     args = parser.parse_args()
+    if args.with_retrode3 and args.ssh_authorized_key:
+        parser.error("package images must not contain developer SSH keys")
+    if args.uboot_combined and (not args.uboot_spl or not args.uboot_binary):
+        parser.error("--uboot-combined requires --uboot-spl and --uboot-binary")
+    if args.sd_preboot and (args.uboot_spl or args.uboot_binary):
+        parser.error("legacy donor snapshots cannot be combined with source-built U-Boot")
     try:
         compose(args)
     except (OSError, ValueError, subprocess.CalledProcessError, tarfile.TarError) as exc:

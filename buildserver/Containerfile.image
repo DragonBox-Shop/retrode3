@@ -4,8 +4,9 @@ FROM debian:bookworm
 ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update && apt-get install -y --no-install-recommends \
     bash ca-certificates git make gcc g++ binutils bc bison flex \
+    gcc-mipsel-linux-gnu binutils-mipsel-linux-gnu \
     libssl-dev libelf-dev libncurses-dev rsync kmod u-boot-tools \
-    debootstrap qemu-user-static binfmt-support python3 gnupg \
+    mmdebstrap arch-test qemu-user-static binfmt-support python3 gnupg \
     dpkg-dev apt-transport-https file tar xz-utils coreutils \
     util-linux fdisk mtools dosfstools e2fsprogs \
  && rm -rf /var/lib/apt/lists/*

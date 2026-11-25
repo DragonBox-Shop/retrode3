@@ -1,0 +1,10 @@
+# Pinned MIPS32EL cross-build tools for Retrode3 kernel / X1600 U-Boot candidates.
+# No private key, /dev block disk or APT publisher is exposed here.
+FROM debian:bookworm
+ENV DEBIAN_FRONTEND=noninteractive
+RUN apt-get update && apt-get install -y --no-install-recommends \
+  bash ca-certificates git make gcc g++ bc bison flex \
+  gcc-mipsel-linux-gnu binutils-mipsel-linux-gnu \
+  libssl-dev libelf-dev libncurses-dev rsync kmod u-boot-tools \
+  dpkg-dev python3 xz-utils coreutils file \
+  && rm -rf /var/lib/apt/lists/*
