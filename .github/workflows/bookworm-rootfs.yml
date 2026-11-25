@@ -28,11 +28,11 @@ jobs:
         run: |
           set -eu
           bash -n image/build-bookworm-rootfs.sh
-          bash -n buildserver/run-image.sh buildserver/build-image-container.sh buildserver/install-launchers.sh
+          bash -n buildserver/run-image.sh buildserver/build-image-container.sh buildserver/install-launchers.sh buildserver/install-image-launcher.sh
           test -f buildserver/Containerfile.image
           test -f image/assets/retrode3-bootargs.txt
           sh -n image/capture-current-kernel.sh image/capture-sd-preboot.sh image/assets/retrode3-bringup-usb.init
-          python3 -m py_compile image/verify-rootfs.py image/manifest-rootfs.py image/assemble-sd-image.py image/configure-apt-source.py
+          python3 -m py_compile image/verify-rootfs.py image/manifest-rootfs.py image/assemble-sd-image.py image/configure-apt-source.py buildserver/verify-image-snapshot.py
           command -v gpg
           python3 -m unittest discover -s image/tests -p 'test_*.py' -v
 

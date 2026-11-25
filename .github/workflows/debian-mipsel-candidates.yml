@@ -38,7 +38,11 @@ jobs:
         run: |
           set -eu
           OSCR_BRANCH="${{ github.base_ref || github.ref_name }}"
-          case "$OSCR_BRANCH" in master|develop) ;; *) exit 1 ;; esac
+          case "$OSCR_BRANCH" in
+            master|develop) ;;
+            feature/source-built-x1600-uboot-image) OSCR_BRANCH=develop ;;
+            *) echo "Unsupported OSCR branch for this PR: $OSCR_BRANCH" >&2; exit 1 ;;
+          esac
           git clone https://github.com/DragonBox-Shop/retrode3-oscr.git "$RUNNER_TEMP/retrode3-oscr"
           OSCR_COMMIT="$(git ls-remote --exit-code             https://github.com/DragonBox-Shop/retrode3-oscr.git "refs/heads/$OSCR_BRANCH" | cut -f1)"
           git -C "$RUNNER_TEMP/retrode3-oscr" checkout --detach "$OSCR_COMMIT"

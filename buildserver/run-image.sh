@@ -2,7 +2,8 @@
 # One-command image build on Amaterasu (retrode user), without writing SD disks.
 set -euo pipefail
 umask 027
-branch="$1"
+branch="${1:-}"
+[[ "$#" == 1 ]] || { echo "Usage: $0 develop" >&2; exit 2; }
 # U-Boot/master still contains an unrelated historical upstream default.
 # Never publish a master image until a separate source/board acceptance.
 [[ "$branch" == develop ]] || {
@@ -17,6 +18,9 @@ esac
 base=/srv/www/vhosts/retrode.com/buildserver
 vhost=/srv/www/vhosts/retrode.com
 checkout="$base/src/$checkout_name"
+# Image tooling is tested separately from moving OS develop; userland binaries
+# come exclusively from the published, immutable tagged APT snapshot.
+image_checkout="$(cd "$(dirname "$0")/.." && pwd)"
 private="$base/private/image/$branch"
 images="$base/artifacts/images/$branch"
 [[ "$(id -un)" == retrode ]] || {
@@ -30,6 +34,15 @@ done
 [[ -d "$checkout/.git" ]] || {
   echo "Missing branch checkout: $checkout" >&2; exit 1;
 }
+[[ -d "$image_checkout/.git" && "$image_checkout" != "$checkout" ]] || {
+  echo "Image builder requires its own dedicated Git checkout, separate from the APT automation checkout" >&2
+  exit 1
+}
+[[ -z "$(git -C "$image_checkout" status --porcelain --untracked-files=no)" ]] || {
+  echo "Image builder checkout has modified tracked files" >&2; exit 1;
+}
+image_builder_sha="$(git -C "$image_checkout" rev-parse HEAD)"
+[[ "$image_builder_sha" =~ ^[a-f0-9]{40}$ ]] || exit 1
 [[ -x "$vhost/package_$branch.sh" ]] || {
   echo "Missing existing package launcher: $vhost/package_$branch.sh" >&2; exit 1;
 }
@@ -41,27 +54,25 @@ flock -n 8 || { echo "An image build for $branch is running" >&2; exit 1; }
 bash "$vhost/package_$branch.sh"
 [[ "$(git -C "$checkout" symbolic-ref --short HEAD)" == "$branch" ]] || exit 1
 [[ -z "$(git -C "$checkout" status --porcelain --untracked-files=no)" ]] || exit 1
-os_sha="$(git -C "$checkout" rev-parse HEAD)"
 published="$base/cache/last-published-$branch.json"
-[[ -r "$published" ]] || {
+[[ -r "$published" && ! -L "$published" ]] || {
   echo "No completed published package snapshot for $branch" >&2; exit 1;
 }
-published_sha="$(python3 - "$published" "$suite" <<'PY'
-import json, re, sys
-d=json.load(open(sys.argv[1]))
-sha=d.get("os_commit","")
-if d.get("release_channel")!=sys.argv[2] or not re.fullmatch(r"[0-9a-f]{40}",sha):
-    sys.exit("Bad published package manifest")
-print(sha)
-PY
-)"
-# A docs-only commit may not produce .deb changes. Validate that it cannot
-# affect the image's package binaries before reusing the published snapshot.
-python3 "$checkout/buildserver/release-changes.py" \
-    --repo "$checkout" --base "$published_sha" --head "$os_sha" || {
-  echo "Published packages don't correspond to current OS checkout" >&2; exit 1;
+selector="$base/automation/select-release-tag.py"
+[[ -r "$selector" ]] || {
+  echo "Missing installed APT tag selector: $selector" >&2; exit 1;
 }
-
+# The package launcher just fetched and published (or found) these exact tags.
+# Do not reuse an older published snapshot for a newer tag pair.
+selection="$(python3 "$selector" "$checkout" "$branch")"
+IFS=$'\t' read -r os_tag os_sha <<< "$selection"
+oscr_history="$base/cache/oscr-git-history.git"
+[[ -d "$oscr_history" ]] || { echo "Missing OSCR Git history cache" >&2; exit 1; }
+selection="$(python3 "$selector" "$oscr_history" "$branch")"
+IFS=$'\t' read -r oscr_tag oscr_sha <<< "$selection"
+[[ "$os_sha" =~ ^[a-f0-9]{40}$ && "$oscr_sha" =~ ^[a-f0-9]{40}$ ]] || exit 1
+python3 "$image_checkout/buildserver/verify-image-snapshot.py" \
+  "$published" "$suite" "$branch" "$os_tag" "$os_sha" "$oscr_tag" "$oscr_sha"
 [[ -r /proc/sys/fs/binfmt_misc/qemu-mipsel ]] &&
   grep -qx enabled /proc/sys/fs/binfmt_misc/qemu-mipsel || {
     echo "Host QEMU MIPSEL binfmt_misc registration is missing" >&2; exit 1;
@@ -69,7 +80,7 @@ python3 "$checkout/buildserver/release-changes.py" \
 [[ -d "$private" && ! -L "$private" ]] || {
   echo "Missing private image inputs: $private" >&2; exit 1;
 }
-for name in FULLCONFIG retrode3-archive.gpg apt-fingerprint; do
+for name in retrode3-archive.gpg apt-fingerprint; do
   [[ -f "$private/$name" && ! -L "$private/$name" ]] || {
     echo "Missing private image input: $name" >&2; exit 1;
   }
@@ -90,18 +101,31 @@ uboot_sha="${uboot_line%%[[:space:]]*}"
   echo "Cannot resolve pinned Retrode3 U-Boot develop" >&2; exit 1;
 }
 
+# Mount only the public APT trust material and optional public test SSH key.
+# Do not expose the whole private image input directory to Podman.
+private_mounts=(
+  -v "$private/retrode3-archive.gpg:/private/retrode3-archive.gpg:ro"
+  -v "$private/apt-fingerprint:/private/apt-fingerprint:ro"
+)
+if [[ -e "$private/ssh.pub" || -L "$private/ssh.pub" ]]; then
+  [[ -f "$private/ssh.pub" && ! -L "$private/ssh.pub" ]] || {
+    echo "Unsafe optional SSH public key path" >&2; exit 1;
+  }
+  private_mounts+=( -v "$private/ssh.pub:/private/ssh.pub:ro" )
+fi
 run="$(mktemp -d "$images/run.XXXXXXXX")"
 cp "$published" "$run/published-packages.json"
 printf '%s\n' "$os_sha" > "$run/image-os-commit"
-echo "Image $branch ($suite); OS $os_sha; packages $published_sha; kernel $kernel_sha; U-Boot $uboot_sha"
+printf '%s\n' "$image_builder_sha" > "$run/image-builder-commit"
+echo "Image $branch ($suite); OS $os_tag $os_sha; OSCR $oscr_tag $oscr_sha; kernel $kernel_sha; U-Boot $uboot_sha; image tooling $image_builder_sha"
 echo "Workspace: $run"
 # All source and private inputs are read-only; only /work is writable.
 # No host /dev, signing secret, website, Maildir or sudo mounts.
 image=localhost/retrode3-image-builder:bookworm
 podman --runtime=crun --cgroup-manager=systemd build \
     --network=slirp4netns \
-    -f "$checkout/buildserver/Containerfile.image" -t "$image" \
-    "$checkout/buildserver"
+    -f "$image_checkout/buildserver/Containerfile.image" -t "$image" \
+    "$image_checkout/buildserver"
 podman --runtime=crun --cgroup-manager=systemd run --rm \
     --network=slirp4netns --cap-drop=all \
     --cap-add=CHOWN --cap-add=FOWNER --cap-add=SETUID \
@@ -110,12 +134,16 @@ podman --runtime=crun --cgroup-manager=systemd run --rm \
     --cpus "${RETRODE3_IMAGE_CPUS:-2}" \
     --memory "${RETRODE3_IMAGE_MEMORY:-3g}" \
     --pids-limit "${RETRODE3_IMAGE_PIDS:-512}" \
-    -v "$checkout:/src:ro" -v "$run:/work:rw" \
+    -v "$image_checkout:/src:ro" -v "$run:/work:rw" \
     -v /proc/sys/fs/binfmt_misc:/proc/sys/fs/binfmt_misc:ro \
-    -v "$private:/private:ro" \
+    "${private_mounts[@]}" \
     -e "RETRODE3_IMAGE_BRANCH=$branch" \
     -e "RETRODE3_IMAGE_SUITE=$suite" \
-    -e "RETRODE3_OS_SHA=$published_sha" \
+    -e "RETRODE3_OS_SHA=$os_sha" \
+    -e "RETRODE3_OS_TAG=$os_tag" \
+    -e "RETRODE3_OSCR_TAG=$oscr_tag" \
+    -e "RETRODE3_OSCR_SHA=$oscr_sha" \
+    -e "RETRODE3_IMAGE_BUILDER_SHA=$image_builder_sha" \
     -e "RETRODE3_KERNEL_SHA=$kernel_sha" \
     -e "RETRODE3_APT_FINGERPRINT=$apt_fpr" \
     -e "RETRODE3_UBOOT_SHA=$uboot_sha" \
