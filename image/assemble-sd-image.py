@@ -168,9 +168,8 @@ def compose(args):
     if args.uboot_combined:
         if args.migrate_stale_gpt:
             fail("--migrate-stale-gpt is valid only for legacy donor snapshots")
-        preboot = source_preboot(args.uboot_combined.resolve(strict=True),
-                                args.uboot_spl.resolve(strict=True),
-                                args.uboot_binary.resolve(strict=True))
+        preboot = source_preboot(args.uboot_combined, args.uboot_spl,
+                                args.uboot_binary)
         loader_source = "source-built Ingenic X1600 MMC0, legacy GPT stripped"
         loader_digest = digest(args.uboot_combined)
     else:
