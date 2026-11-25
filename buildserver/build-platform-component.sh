@@ -26,6 +26,7 @@ key="$(python3 /src/buildserver/platform-cache.py key \
 [[ -d /out && -z "$(ls -A /out)" ]] || {
   echo "Output directory must be empty" >&2; exit 1;
 }
+mkdir -p /work
 git clone --quiet --depth 1 --single-branch --branch "$ref" "$url" /work/source
 sha="$(git -C /work/source rev-parse HEAD)"
 [[ "$sha" == "$RETRODE3_COMPONENT_SHA" ]] || {
