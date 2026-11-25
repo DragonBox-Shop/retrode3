@@ -57,10 +57,10 @@ class BuildOnlyContractTests(unittest.TestCase):
         publish = self.script.index('failure_stage="apt-publication"', built)
         self.assertLess(build_only, publish)
         self.assertIn('exit 0', self.script[build_only:publish])
-        self.assertIn('BUILD ONLY: candidate ready', self.script[build_only:publish])
+        self.assertIn('BUILD ONLY: tagged candidate ready', self.script[build_only:publish])
 
     def test_build_only_reuses_existing_candidate_without_publishing(self):
-        match = self.script.index('echo "Resuming already built candidate: $run"')
+        match = self.script.index('echo "Resuming exact tagged candidate: $run"')
         build_only = self.script.index('if [[ "$build_only" == 1 ]]', match)
         publish = self.script.index(
             'bash "$checkout/buildserver/publish-debs.sh" "$branch" "$run"',
@@ -68,6 +68,23 @@ class BuildOnlyContractTests(unittest.TestCase):
         )
         self.assertLess(build_only, publish)
         self.assertIn('exit 0', self.script[build_only:publish])
+
+
+    def test_release_tag_is_mandatory_for_publication(self):
+        self.assertIn('APT publication requires selected OS and OSCR release tags',
+                      PUBLISHER.read_text())
+        self.assertIn('source worktree is not the selected release tag',
+                      PUBLISHER.read_text())
+        self.assertIn('package manifest source tags do not match selected tags',
+                      PUBLISHER.read_text())
+
+    def test_automation_builds_exact_tagged_snapshot(self):
+        self.assertIn('select-release-tag.py', self.script)
+        self.assertIn('worktree add --quiet --detach', self.script)
+        self.assertIn('RETRODE3_PACKAGE_SOURCE_ROOT="$tag_worktree"', self.script)
+        self.assertIn('RETRODE3_RELEASE_TAG="$os_tag"', self.script)
+        self.assertIn('RETRODE3_OSCR_TAG="$oscr_tag"', self.script)
+        self.assertNotIn('git ls-remote --exit-code "$oscr_url" "$oscr_ref"', self.script)
 
     def test_build_only_default_is_normal_auto_publication(self):
         self.assertIn('build_only="${RETRODE3_BUILD_ONLY:-0}"', self.script)
