@@ -200,6 +200,34 @@ PY_SIGN
 sign_dir="$(mktemp -d)"
 trap 'rm -rf "$sign_dir"' EXIT
 printf 'Retrode3 APT signing preflight\n' > "$sign_dir/test.txt"
+# Optional unattended authorization for the local, passphrase-protected key.
+# The secret is NEVER tracked in Git, passed via argv, environment variables,
+# or mounted in the cross-build container. A missing file preserves the
+# interactive-unlock workflow. An unsafe or unreadable file fails closed.
+signing_secret_dir="$(dirname "$base")/private/signing"
+signing_secret="$signing_secret_dir/apt-signing-passphrase"
+if [[ -e "$signing_secret" || -L "$signing_secret" ]]; then
+  if [[ -L "$signing_secret_dir" || ! -d "$signing_secret_dir" ||
+        "$(stat -c '%a:%u' -- "$signing_secret_dir")" != "700:$(id -u)" ||
+        -L "$signing_secret" || ! -f "$signing_secret" || ! -s "$signing_secret" ||
+        ! -r "$signing_secret" ||
+        "$(stat -c '%a:%u:%h' -- "$signing_secret")" != "600:$(id -u):1" ]]; then
+    echo "ERROR: APT signing secret must be a non-symlink 0600 single-link file owned by retrode under an owned 0700 directory" >&2
+    exit 1
+  fi
+  # A loopback signature warms the user's GPG agent just before reprepro,
+  # which still signs through its normal GPGME/GnuPG agent integration.
+  # Never reveal the secret's contents to the shell or the process list.
+  if ! timeout 20s gpg --homedir "$GNUPGHOME" \
+      --batch --no-tty --pinentry-mode loopback \
+      --passphrase-file "$signing_secret" \
+      --local-user "$sign_fpr" --detach-sign \
+      --output "$sign_dir/unlock.sig" "$sign_dir/test.txt"; then
+    echo "ERROR: stored APT passphrase could not unlock the signing key; no packages imported" >&2
+    exit 1
+  fi
+fi
+# Preserve the independent no-prompt check even after unlocking.
 if ! timeout 20s gpg --homedir "$GNUPGHOME" \
     --batch --no-tty --pinentry-mode error \
     --local-user "$sign_fpr" --detach-sign \
