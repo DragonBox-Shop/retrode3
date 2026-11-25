@@ -50,8 +50,11 @@ image_builder_sha="$(git -C "$image_checkout" rev-parse HEAD)"
 mkdir -p "$images"
 exec 8>"$base/cache/image-$branch.lock"
 flock -n 8 || { echo "An image build for $branch is running" >&2; exit 1; }
-# Image assembly must NEVER trigger package builds or APT publication.
-# The separately run package command prepared the tagged checkout/cache.
+# The public image launcher first refreshes all package sources through
+# the matching package launcher. Compilation belongs there, NEVER in the
+# image container. The package launcher returns only after signed APT export.
+echo "=== Updating fix/four-launcher-package-first-flow-20261125 packages (OS, OSCR, kernel, U-Boot) ==="
+bash "$vhost/package_$branch.sh"
 [[ "$(git -C "$checkout" symbolic-ref --short HEAD)" == "$branch" ]] || exit 1
 [[ -z "$(git -C "$checkout" status --porcelain --untracked-files=no)" ]] || exit 1
 published="$base/cache/last-published-$branch.json"
