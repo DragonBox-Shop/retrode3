@@ -10,6 +10,9 @@ case "$build_only" in
   *) echo "ERROR: RETRODE3_BUILD_ONLY must be 0 or 1" >&2; exit 2 ;;
 esac
 base=/srv/www/vhosts/retrode.com/buildserver
+# Deployed launchers use an independently installed, tested automation copy.
+# Never execute untagged develop automation files just because HEAD advanced.
+script_dir="$(cd "$(dirname "$0")" && pwd)"
 case "$branch" in
   develop) suite=testing; checkout="$base/src/retrode3-testing-pr" ;;
   master)  suite=stable;  checkout="$base/src/retrode3-stable-pr" ;;
@@ -31,7 +34,7 @@ on_exit() {
     rmdir "$tag_workspace" 2>/dev/null || true
   fi
   if (( code != 0 )); then
-    local reporter="$checkout/buildserver/package-failure-alert.sh"
+    local reporter="$script_dir/package-failure-alert.sh"
     if [[ -f "$reporter" ]]; then
       bash "$reporter" "$branch" "$code" "$failure_stage" "$log" ||
         echo "WARNING: could not save Retrode3 package failure report" >&2
@@ -76,13 +79,13 @@ if [[ "$phase" == update ]]; then
   git -C "$checkout" fetch --tags --prune --prune-tags origin "$branch"
   git -C "$checkout" merge --ff-only FETCH_HEAD
   # Use the updated automation implementation while holding the same lock.
-  exec bash "$checkout/buildserver/auto-package.sh" "$branch" updated
+  exec bash "$script_dir/auto-package.sh" "$branch" updated
 elif [[ "$phase" != updated ]]; then
   echo "ERROR: invalid automation stage" >&2; exit 2
 fi
 
 failure_stage=tag-selection
-selector="$checkout/buildserver/select-release-tag.py"
+selector="$script_dir/select-release-tag.py"
 [[ -f "$selector" ]] || { echo "Missing release tag selector" >&2; exit 1; }
 selection="$(python3 "$selector" "$checkout" "$branch")"
 IFS=$'\t' read -r os_tag os_sha <<< "$selection"
@@ -205,7 +208,7 @@ PY
     echo "BUILD ONLY: existing candidate $run; APT unchanged."
     exit 0
   fi
-  bash "$checkout/buildserver/publish-debs.sh" "$branch" "$run"
+  bash "$script_dir/publish-debs.sh" "$branch" "$run"
   save_published_manifest "$manifest"
   echo "DONE: resumed $branch -> $suite from $os_tag / $oscr_tag"
   exit 0
@@ -214,7 +217,7 @@ done
 log="$base/artifacts/logs/$branch-$(date -u +%Y%m%dT%H%M%SZ)-${os_sha:0:12}.log"
 failure_stage=package-build
 echo "Building tagged packages. Log: $log"
-bash "$checkout/buildserver/run-debs.sh" 2>&1 | tee "$log"
+bash "$script_dir/run-debs.sh" 2>&1 | tee "$log"
 run="$(sed -n 's/^Unpublished packages: //p' "$log" | tail -n 1)"
 [[ -n "$run" && -f "$run/build-manifest.json" ]] || {
   echo "ERROR: package build did not produce a valid manifest" >&2; exit 1;
@@ -225,6 +228,6 @@ if [[ "$build_only" == 1 ]]; then
   exit 0
 fi
 failure_stage="apt-publication"
-bash "$checkout/buildserver/publish-debs.sh" "$branch" "$run" 2>&1 | tee -a "$log"
+bash "$script_dir/publish-debs.sh" "$branch" "$run" 2>&1 | tee -a "$log"
 save_published_manifest "$run/build-manifest.json"
 echo "DONE: $branch -> $suite from tags $os_tag / $oscr_tag; log: $log"
