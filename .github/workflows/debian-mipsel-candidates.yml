@@ -109,7 +109,7 @@ jobs:
           set -eux
           sudo apt-get update
           sudo DEBIAN_FRONTEND=noninteractive apt-get install -y \
-            debootstrap qemu-user-static binfmt-support debian-archive-keyring xz-utils
+            mmdebstrap arch-test qemu-user-static binfmt-support debian-archive-keyring xz-utils
           sudo update-binfmts --enable qemu-mipsel
           test -r /proc/sys/fs/binfmt_misc/qemu-mipsel
           grep -x enabled /proc/sys/fs/binfmt_misc/qemu-mipsel
@@ -123,6 +123,25 @@ jobs:
             build/ci-rootfs-artifacts/retrode3-bookworm-mipsel-rootfs.tar.xz \
             -C build/ci-mipsel-rootfs
           ROOT="$PWD/build/ci-mipsel-rootfs"
+          # The regular rootfs archive intentionally contains no device nodes.
+          # Provide only the same five safe character devices used by the
+          # rootless package image builder; remove every bind mount on exit.
+          mounted=()
+          cleanup_devices() {
+            for ((i=${#mounted[@]}-1; i>=0; i--)); do
+              sudo umount "${mounted[i]}"
+              sudo rm -f "${mounted[i]}"
+            done
+          }
+          trap cleanup_devices EXIT
+          sudo mkdir -p "$ROOT/dev"
+          for device in null zero random urandom tty; do
+            target="$ROOT/dev/$device"
+            test ! -e "$target" && test ! -L "$target"
+            sudo touch "$target"
+            sudo mount --bind "/dev/$device" "$target"
+            mounted+=("$target")
+          done
           sudo install -m 0755 /usr/bin/qemu-mipsel-static "$ROOT/usr/bin/qemu-mipsel-static"
           sudo cp /etc/resolv.conf "$ROOT/etc/resolv.conf"
           sudo mkdir -p "$ROOT/tmp/retrode3-debs"
