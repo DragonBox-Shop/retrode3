@@ -120,6 +120,20 @@ class PackageOnlyImageTests(unittest.TestCase):
         self.assertNotIn("chroot \"$root\" /usr/bin/apt-get install", rootfs)
         self.assertIn('verify-rootfs.py" "$root"', rootfs)
 
+    def test_apt_chroot_only_binds_five_safe_character_devices(self):
+        host = (ROOT / "buildserver/run-image.sh").read_text()
+        assembler = (ROOT / "buildserver/build-image-from-packages.sh").read_text()
+        self.assertIn('device_mounts=()', host)
+        self.assertIn('for device in null zero random urandom tty; do', host)
+        self.assertIn('[[ -c "/dev/$device" && ! -L "/dev/$device" ]]', host)
+        self.assertIn('device_mounts+=( -v "/dev/$device:/work/rootfs/dev/$device:rw" )', host)
+        self.assertIn('"''${device_mounts[@]}''"', host)
+        self.assertIn('Chroot APT devices ready', assembler)
+        self.assertIn('[[ -c "/work/rootfs/dev/$device" ]]', assembler)
+        self.assertIn('--exclude=\'./dev/*\'', assembler)
+        self.assertIn('--exclude=\'dev/*\'', assembler)
+        self.assertNotIn('mknod ', assembler)
+
     def test_package_producer_cache_and_source_recipe_contract(self):
         producer = (ROOT / "buildserver/package-platform-develop.sh").read_text()
         self.assertIn("platform-cache.py", producer)
