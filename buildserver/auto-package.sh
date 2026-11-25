@@ -24,8 +24,8 @@ on_exit() {
   local code=$?
   trap - EXIT
   if [[ -n "$tag_worktree" && -d "$tag_worktree" ]]; then
-    git -C "$checkout" worktree remove --force "$tag_worktree" >&2 ||
-      echo "WARNING: could not remove temporary release worktree $tag_worktree" >&2
+    rm -rf -- "$tag_worktree" ||
+      echo "WARNING: could not remove temporary release checkout $tag_worktree" >&2
   fi
   if [[ -n "$tag_workspace" ]]; then
     rmdir "$tag_workspace" 2>/dev/null || true
@@ -104,10 +104,13 @@ echo "Tagged APT snapshot: OS $os_tag ($os_sha); OSCR $oscr_tag ($oscr_sha); $su
 failure_stage=release-worktree
 tag_workspace="$(mktemp -d "$base/cache/.apt-tag-$branch.XXXXXXXX")"
 tag_worktree="$tag_workspace/source"
-git -C "$checkout" worktree add --quiet --detach "$tag_worktree" "$os_sha"
+# A linked Git worktree has a .git pointer outside the Podman source mount.
+# Use a self-contained local clone so Git provenance checks work inside /src.
+git clone --quiet --no-local "$checkout" "$tag_worktree"
+git -C "$tag_worktree" checkout --quiet --detach "$os_sha"
 [[ "$(git -C "$tag_worktree" rev-parse HEAD)" == "$os_sha" ]] || exit 1
 # The automation runs from the updated branch, but ALL package source files
-# are mounted from the immutable detached tag worktree.
+# are mounted from the immutable detached tag checkout.
 export RETRODE3_PACKAGE_SOURCE_ROOT="$tag_worktree"
 export RETRODE3_RELEASE_TAG="$os_tag"
 export RETRODE3_RELEASE_COMMIT="$os_sha"
