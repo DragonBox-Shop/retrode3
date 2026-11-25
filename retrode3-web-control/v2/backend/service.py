@@ -29,6 +29,7 @@ SENSE_ROOT = os.environ.get("RETRODE3_SYSFS_ROOT", "/sys/class/retrode3")
 
 CLI_BIN = "/usr/bin/retrode3-cli"
 CORECTL_BIN = "/usr/sbin/retrode3-corectl"
+CORES_ENABLED_DIR = "/etc/retrode3/cores-enabled"
 CORE_CONTROL_ENABLED = os.environ.get("RETRODE3_CORE_CONTROL_ENABLED", "0") == "1"
 CORECTL_SUDO = os.environ.get("RETRODE3_CORECTL_SUDO", "1") == "1"
 CORE_ID = re.compile(r"^[a-z0-9_-]{1,48}$")
@@ -850,6 +851,8 @@ class AutomaticDetection(object):
         self.lock = threading.RLock()
         self.records = {}
         self.running = False
+        self.registry_stamp = self._registry_stamp()
+        self.registry_revision = 0
 
     def start(self):
         if self.running:
@@ -859,9 +862,28 @@ class AutomaticDetection(object):
         worker.daemon = True
         worker.start()
 
-    def reset(self):
-        """Re-evaluate installed/disabled cores after a registry change."""
+    @staticmethod
+    def _registry_stamp():
+        # corectl creates/removes enablement symlinks atomically. One stat
+        # per reconciliation tick suffices; never poll the CLI for this.
+        try:
+            info = os.stat(CORES_ENABLED_DIR)
+            return (info.st_dev, info.st_ino, info.st_mtime_ns, info.st_ctime_ns)
+        except OSError:
+            return None
+
+    def refresh_registry(self):
+        """Observe enable/disable via both the HTTP API and shell corectl."""
         with self.lock:
+            stamp = self._registry_stamp()
+            if stamp != self.registry_stamp:
+                self.registry_stamp = stamp
+                self.reset()
+
+    def reset(self):
+        """Re-evaluate occupied slots after a registry change."""
+        with self.lock:
+            self.registry_revision += 1
             for slot_id, record in list(self.records.items()):
                 if record["state"] == "detecting":
                     try:
@@ -953,6 +975,7 @@ class AutomaticDetection(object):
         now = time.time() if now is None else now
         slots = slot_snapshot()["slots"]
         with self.lock:
+            self.refresh_registry()
             for slot in slots:
                 slot_id = slot["id"]
                 status = slot["status"]
@@ -1081,6 +1104,7 @@ class AutomaticDetection(object):
         # watcher processes a removal. Never show a title for a stale sense.
         result = slot_snapshot()
         with self.lock:
+            result["registry_revision"] = self.registry_revision
             for slot in result["slots"]:
                 record = self.records.get(slot["id"])
                 if record is not None and record["presence"] == slot["status"]:
@@ -1235,7 +1259,7 @@ class Handler(BaseHTTPRequestHandler):
                 self._json(202, MANAGER.submit(data))
             elif path == "/api/cores/toggle":
                 changed = toggle_core(data)
-                AUTO.reset()
+                AUTO.refresh_registry()
                 self._json(200, changed)
             elif re.match(r"^/api/jobs/[0-9a-f]{32}/cancel$", path):
                 job = MANAGER.get(path.split("/")[-2])

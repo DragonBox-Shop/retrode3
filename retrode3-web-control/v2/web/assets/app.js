@@ -6,7 +6,7 @@
   var selectedReader = "";
   var detectedBySlot = {}, probeTarget = null, autoNames = {};
   var manualReaderBySlot = {};
-  var coreState = null, corePending = false;
+  var coreState = null, corePending = false, registryRevision = null;
   var readerOptions = null, readerOptionsLoading = false, readerOptionsRequest = 0;
   var genericWidget = null;
   var csrf = document.querySelector('meta[name="csrf-token"]').content;
@@ -372,6 +372,25 @@
   function refreshSlots() {
     return api("/api/slots").then(function (data) {
       if (!data || !Array.isArray(data.slots)) return;
+      if (typeof data.registry_revision === "number") {
+        var changed = registryRevision !== null && registryRevision !== data.registry_revision;
+        registryRevision = data.registry_revision;
+        if (changed) {
+          var oldSlot = selectedSlotId();
+          if (oldSlot && autoNames[oldSlot] && $("filename").value === autoNames[oldSlot])
+            $("filename").value = selectedReader.toUpperCase() + "-Dump";
+          detectedBySlot = {};
+          manualReaderBySlot = {};
+          autoNames = {};
+          if (!activeJob) probeTarget = null;
+          if (genericWidget) genericWidget.reset();
+          slotData = data;
+          slotFingerprint = null;
+          renderSelectedProbe();
+          loadCores();
+          return loadCapabilities();
+        }
+      }
       var previousSlots = slotData && slotData.slots || [];
       data.slots.forEach(function (slot) {
         var previous = previousSlots.filter(function (entry) { return entry.id === slot.id; })[0];

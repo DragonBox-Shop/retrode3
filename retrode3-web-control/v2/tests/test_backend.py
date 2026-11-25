@@ -591,6 +591,105 @@ for line in sys.stdin:
             MODULE.slot_snapshot = old_snapshot
             MODULE.capability_probe = old_capabilities
 
+    def test_registry_change_reprobes_all_occupied_slots_without_reinsertion(self):
+        old = (MODULE.CORES_ENABLED_DIR, MODULE.slot_snapshot,
+               MODULE.capability_probe)
+        directory = os.path.join(self.temp, "enabled")
+        os.mkdir(directory)
+        md_link = os.path.join(directory, "md.so")
+        snes_link = os.path.join(directory, "snes.so")
+        sms_link = os.path.join(directory, "sms-md.so")
+        os.symlink("/unused/md.so", md_link)
+        os.symlink("/unused/snes.so", snes_link)
+
+        class FakeJob(object):
+            def __init__(self, result):
+                self.result = result
+            def snapshot(self):
+                return {"status": "done", "result": self.result}
+
+        class FakeManager(object):
+            def __init__(self):
+                self.lock = MODULE.threading.RLock()
+                self.active = None
+                self.calls = []
+                self.jobs = {}
+            def add(self, slot, result):
+                self.calls.append(slot)
+                key = str(len(self.calls))
+                self.jobs[key] = FakeJob(result)
+                return {"id": key}
+            def submit(self, data, automatic=False):
+                return self.add(data["system"], {
+                    "event": "probe_result", "system": data["system"],
+                    "title": data["system"]})
+            def submit_slot_probe(self, slot):
+                return self.add(slot, {
+                    "event": "slot_probe_result", "slot": slot,
+                    "detection": "detected", "core": "sms-md",
+                    "probe_result": {"system": "sms-md", "slot": slot,
+                                     "title": "SONIC"}})
+            def get(self, key):
+                return self.jobs[key]
+
+        def capabilities():
+            return {"systems": [
+                {"id": core, "slot": "md" if core == "sms-md" else core,
+                 "available": True, "capabilities": {"commands": ["probe"]}}
+                for core in ("md", "snes", "sms-md")
+                if os.path.lexists(os.path.join(directory, core + ".so"))]}
+
+        try:
+            MODULE.CORES_ENABLED_DIR = directory
+            MODULE.slot_snapshot = lambda: {"slots": [
+                {"id": slot, "status": status}
+                for slot, status in (("md", "occupied"), ("snes", "occupied"),
+                                     ("nes", "empty"))]}
+            MODULE.capability_probe = capabilities
+            manager = FakeManager()
+            watcher = MODULE.AutomaticDetection(manager)
+            watcher.tick(now=1.0)
+            watcher.tick(now=1.4)
+            watcher.tick(now=1.5)
+            self.assertEqual(manager.calls, ["md", "snes"])
+            self.assertEqual(watcher.snapshot()["registry_revision"], 0)
+
+            # Shell corectl changes the links without an API request or uevent.
+            os.symlink("/unused/sms-md.so", sms_link)
+            os.utime(directory, (100, 100))
+            manager.active = object()
+            watcher.tick(now=2.0)
+            self.assertEqual(watcher.snapshot()["registry_revision"], 1)
+            self.assertEqual([s["detection"]["state"] for s in
+                              watcher.snapshot()["slots"]],
+                             ["pending", "pending", "idle"])
+            watcher.tick(now=2.4)
+            self.assertEqual(manager.calls, ["md", "snes"])
+            manager.active = None
+            watcher.tick(now=2.5)
+            watcher.tick(now=2.6)
+            self.assertEqual(manager.calls, ["md", "snes", "md", "snes"])
+            self.assertEqual(watcher.snapshot()["slots"][0]["detection"]["core_id"],
+                             "sms-md")
+
+            # API refresh and the next worker tick must not invalidate twice.
+            os.unlink(sms_link)
+            os.utime(directory, (200, 200))
+            watcher.refresh_registry()
+            watcher.tick(now=3.0)
+            watcher.tick(now=3.4)
+            watcher.tick(now=3.5)
+            self.assertEqual(watcher.snapshot()["registry_revision"], 2)
+            self.assertEqual(manager.calls,
+                             ["md", "snes", "md", "snes", "md", "snes"])
+            self.assertEqual(watcher.snapshot()["slots"][0]["detection"]["core_id"],
+                             "md")
+            watcher.tick(now=4.0)
+            self.assertEqual(len(manager.calls), 6)
+        finally:
+            (MODULE.CORES_ENABLED_DIR, MODULE.slot_snapshot,
+             MODULE.capability_probe) = old
+
     def test_multi_core_slot_uses_cli_slot_probe_and_resolves_core(self):
         old_snapshot, old_capabilities = MODULE.slot_snapshot, MODULE.capability_probe
         class FakeJob(object):
