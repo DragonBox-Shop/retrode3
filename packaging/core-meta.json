@@ -1,0 +1,7 @@
+{
+  "schema_version": 1,
+  "name": "retrode3-cores",
+  "source": "all-validated-oscr-core-pairs",
+  "depends_on_runtime": true,
+  "new_cores_enabled_on_install": false
+}
