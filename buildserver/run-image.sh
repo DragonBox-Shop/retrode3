@@ -90,17 +90,75 @@ apt_fpr="$(tr -d '[:space:]' < "$private/apt-fingerprint")"
 [[ "$apt_fpr" =~ ^[0-9a-fA-F]{40}$ ]] || {
   echo "Invalid trusted APT fingerprint" >&2; exit 1;
 }
-kernel_url=https://github.com/DragonBox-Shop/retrode3-kernel.git
-kernel_ref="refs/heads/$branch"
-kernel_line="$(git ls-remote --exit-code "$kernel_url" "$kernel_ref")"
-kernel_sha="${kernel_line%%[[:space:]]*}"
-[[ "$kernel_sha" =~ ^[a-f0-9]{40}$ ]] || exit 1
-uboot_line="$(git ls-remote --exit-code \
-  https://github.com/DragonBox-Shop/retrode3-uboot.git refs/heads/develop)"
-uboot_sha="${uboot_line%%[[:space:]]*}"
-[[ "$uboot_sha" =~ ^[a-f0-9]{40}$ ]] || {
-  echo "Cannot resolve pinned Retrode3 U-Boot develop" >&2; exit 1;
+# Kernel and U-Boot must ALREADY be published as signed testing .debs.
+# This image launcher never invokes compilers or source-package builders.
+platform="$base/cache/last-published-platform-develop.json"
+[[ -f "$platform" && ! -L "$platform" ]] || {
+  echo "Missing signed platform package release. Build/publish platform .debs first." >&2
+  exit 1
 }
+python3 "$image_checkout/buildserver/verify-platform-snapshot.py" \
+  "$platform" "$base/repository"
+IFS=
+
+# Mount only the public APT trust material and optional public test SSH key.
+# Do not expose the whole private image input directory to Podman.
+private_mounts=(
+  -v "$private/retrode3-archive.gpg:/private/retrode3-archive.gpg:ro"
+  -v "$private/apt-fingerprint:/private/apt-fingerprint:ro"
+)
+if [[ -e "$private/ssh.pub" || -L "$private/ssh.pub" ]]; then
+  [[ -f "$private/ssh.pub" && ! -L "$private/ssh.pub" ]] || {
+    echo "Unsafe optional SSH public key path" >&2; exit 1;
+  }
+  private_mounts+=( -v "$private/ssh.pub:/private/ssh.pub:ro" )
+fi
+run="$(mktemp -d "$images/run.XXXXXXXX")"
+cp "$published" "$run/published-packages.json"
+cp "$platform" "$run/published-platform.json"
+printf '%s\n' "$os_sha" > "$run/image-os-commit"
+printf '%s\n' "$image_builder_sha" > "$run/image-builder-commit"
+echo "Image $branch ($suite); OS $os_tag $os_sha; OSCR $oscr_tag $oscr_sha; kernel $kernel_sha; U-Boot $uboot_sha; image tooling $image_builder_sha"
+echo "Workspace: $run"
+# All source and private inputs are read-only; only /work is writable.
+# No host /dev, signing secret, website, Maildir or sudo mounts.
+image=localhost/retrode3-image-builder:bookworm
+podman --runtime=crun --cgroup-manager=systemd build \
+    --network=slirp4netns \
+    -f "$image_checkout/buildserver/Containerfile.image" -t "$image" \
+    "$image_checkout/buildserver"
+podman --runtime=crun --cgroup-manager=systemd run --rm \
+    --network=slirp4netns --cap-drop=all \
+    --cap-add=CHOWN --cap-add=FOWNER --cap-add=SETUID \
+    --cap-add=SETGID --cap-add=SYS_CHROOT --cap-add=MKNOD \
+    --cap-add=DAC_OVERRIDE --security-opt=no-new-privileges \
+    --cpus "${RETRODE3_IMAGE_CPUS:-2}" \
+    --memory "${RETRODE3_IMAGE_MEMORY:-3g}" \
+    --pids-limit "${RETRODE3_IMAGE_PIDS:-512}" \
+    -v "$image_checkout:/src:ro" -v "$run:/work:rw" \
+    -v /proc/sys/fs/binfmt_misc:/proc/sys/fs/binfmt_misc:ro \
+    "${private_mounts[@]}" \
+    -e "RETRODE3_IMAGE_BRANCH=$branch" \
+    -e "RETRODE3_IMAGE_SUITE=$suite" \
+    -e "RETRODE3_OS_SHA=$os_sha" \
+    -e "RETRODE3_OS_TAG=$os_tag" \
+    -e "RETRODE3_OSCR_TAG=$oscr_tag" \
+    -e "RETRODE3_OSCR_SHA=$oscr_sha" \
+    -e "RETRODE3_IMAGE_BUILDER_SHA=$image_builder_sha" \
+    -e "RETRODE3_KERNEL_SHA=$kernel_sha" \
+    -e "RETRODE3_APT_FINGERPRINT=$apt_fpr" \
+    -e "RETRODE3_UBOOT_SHA=$uboot_sha" \
+    "$image" bash /src/buildserver/build-image-from-packages.sh
+(cd "$run" && sha256sum --check --strict FULL-IMAGE-SHA256SUMS)
+echo "Image build complete: $run/retrode3-$branch.img.xz"
+echo "NOT RELEASED: source-built U-Boot and kernel require physical boot acceptance."
+\t' read -r kernel_sha uboot_sha <<< "$(python3 - "$platform" <<'PY'
+import json,sys
+d=json.load(open(sys.argv[1]))
+print(d["sources"]["kernel"]+"\t"+d["sources"]["uboot"])
+PY
+)"
+[[ "$kernel_sha" =~ ^[a-f0-9]{40}$ && "$uboot_sha" =~ ^[a-f0-9]{40}$ ]] || exit 1
 
 # Mount only the public APT trust material and optional public test SSH key.
 # Do not expose the whole private image input directory to Podman.
