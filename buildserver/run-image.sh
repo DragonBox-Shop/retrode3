@@ -3,7 +3,14 @@
 set -euo pipefail
 umask 027
 branch="${1:-}"
-[[ "$#" == 1 ]] || { echo "Usage: $0 develop" >&2; exit 2; }
+# Optional INTERNAL resume: caller must identify an existing run directory.
+# The four public entrypoints and their regular build behavior are unchanged.
+[[ "$#" == 1 || ( "$#" == 3 && "$2" == --resume && "$3" == /* ) ]] || {
+  echo "Usage: $0 develop [--resume /absolute/previous-run]" >&2; exit 2;
+}
+resume=0
+resume_dir=
+if [[ "$#" == 3 ]]; then resume=1; resume_dir="$3"; fi
 # U-Boot/master still contains an unrelated historical upstream default.
 # Never publish a master image until a separate source/board acceptance.
 [[ "$branch" == develop ]] || {
@@ -53,8 +60,12 @@ flock -n 8 || { echo "An image build for $branch is running" >&2; exit 1; }
 # The public image launcher first refreshes all package sources through
 # the matching package launcher. Compilation belongs there, NEVER in the
 # image container. The package launcher returns only after signed APT export.
-echo "=== Updating ${branch} packages (OS, OSCR, kernel, U-Boot) ==="
-bash "$vhost/package_$branch.sh"
+if [[ "$resume" == 0 ]]; then
+  echo "=== Updating ${branch} packages (OS, OSCR, kernel, U-Boot) ==="
+  bash "$vhost/package_$branch.sh"
+else
+  echo "=== RESUME: no package rebuild or APT publication; checking existing signed snapshots ==="
+fi
 [[ "$(git -C "$checkout" symbolic-ref --short HEAD)" == "$branch" ]] || exit 1
 [[ -z "$(git -C "$checkout" status --porcelain --untracked-files=no)" ]] || exit 1
 published="$base/cache/last-published-$branch.json"
@@ -116,7 +127,32 @@ if [[ -e "$private/ssh.pub" || -L "$private/ssh.pub" ]]; then
   }
   private_mounts+=( -v "$private/ssh.pub:/private/ssh.pub:ro" )
 fi
-run="$(mktemp -d "$images/run.XXXXXXXX")"
+if [[ "$resume" == 1 ]]; then
+  run="$(realpath -e -- "$resume_dir")"
+  [[ -d "$run" && ! -L "$resume_dir" &&
+     "$(dirname -- "$run")" == "$images" &&
+     "$(basename -- "$run")" == run.* ]] || {
+    echo "Refusing unsafe/outside image resume workspace: $resume_dir" >&2; exit 1;
+  }
+  for item in published-packages.json published-platform.json image-os-commit image-builder-commit; do
+    [[ -s "$run/$item" && -f "$run/$item" && ! -L "$run/$item" ]] || {
+      echo "Incomplete or unsafe resume metadata: $item" >&2; exit 1;
+    }
+  done
+  cmp -s "$run/published-packages.json" "$published" &&
+    cmp -s "$run/published-platform.json" "$platform" &&
+    [[ "$(cat "$run/image-os-commit")" == "$os_sha" ]] || {
+      echo "RESUME REFUSED: published package set or OS source changed; use a clean build" >&2
+      exit 1
+    }
+  [[ -s "$run/rootfs/var/lib/dpkg/status" &&
+     -s "$run/base-rootfs/SHA256SUMS" ]] || {
+    echo "RESUME REFUSED: prior rootfs or bootstrap checksum missing" >&2; exit 1;
+  }
+  echo "Resuming existing signed package image workspace: $run"
+else
+  run="$(mktemp -d "$images/run.XXXXXXXX")"
+fi
 # A foreign-arch chroot running APT needs /dev/null and /dev/urandom.
 # Rootless Podman cannot mknod in its writable bind-mounted /work tree.
 # Prepare harmless regular-file mountpoints in the new, private run dir,
@@ -128,13 +164,21 @@ for device in null zero random urandom tty; do
   [[ -c "/dev/$device" && ! -L "/dev/$device" ]] || {
     echo "Missing safe host character device: /dev/$device" >&2; exit 1;
   }
-  : > "$run/rootfs/dev/$device"
+  if [[ "$resume" == 1 ]]; then
+    [[ -f "$run/rootfs/dev/$device" && ! -L "$run/rootfs/dev/$device" ]] || {
+      echo "Missing or unsafe previous device mountpoint: $device" >&2; exit 1;
+    }
+  else
+    : > "$run/rootfs/dev/$device"
+  fi
   device_mounts+=( -v "/dev/$device:/work/rootfs/dev/$device:rw" )
 done
-cp "$published" "$run/published-packages.json"
-cp "$platform" "$run/published-platform.json"
-printf '%s\n' "$os_sha" > "$run/image-os-commit"
-printf '%s\n' "$image_builder_sha" > "$run/image-builder-commit"
+if [[ "$resume" == 0 ]]; then
+  cp "$published" "$run/published-packages.json"
+  cp "$platform" "$run/published-platform.json"
+  printf '%s\n' "$os_sha" > "$run/image-os-commit"
+  printf '%s\n' "$image_builder_sha" > "$run/image-builder-commit"
+fi
 echo "Image $branch ($suite); OS $os_tag $os_sha; OSCR $oscr_tag $oscr_sha; kernel $kernel_sha; U-Boot $uboot_sha; image tooling $image_builder_sha"
 echo "Workspace: $run"
 # All source and private inputs are read-only; only /work is writable.
@@ -158,6 +202,7 @@ podman --runtime=crun --cgroup-manager=systemd run --rm \
     -v /proc/sys/fs/binfmt_misc:/proc/sys/fs/binfmt_misc:ro \
     "${device_mounts[@]}" "${private_mounts[@]}" \
     -e "RETRODE3_IMAGE_BRANCH=$branch" \
+    -e "RETRODE3_IMAGE_RESUME=$resume" \
     -e "RETRODE3_IMAGE_SUITE=$suite" \
     -e "RETRODE3_OS_SHA=$os_sha" \
     -e "RETRODE3_OS_TAG=$os_tag" \
