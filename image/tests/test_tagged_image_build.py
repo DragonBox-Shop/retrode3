@@ -1,6 +1,7 @@
 """Image build release-gate tests: no moving userland, no private kernel config."""
 import copy
 import importlib.util
+import subprocess
 from pathlib import Path
 import unittest
 
@@ -98,6 +99,27 @@ class TaggedImageContractTests(unittest.TestCase):
         self.assertIn('CONFIG_CPU_LITTLE_ENDIAN=y', container)
         self.assertNotIn('/private/FULLCONFIG', container)
         self.assertIn('"kernel_config_source":', container)
+
+    def test_mips_module_vermagic_keeps_abi_validation_but_ignores_trailing_space(self):
+        container = (ROOT / "buildserver/build-image-container.sh").read_text()
+        self.assertIn(
+            'expected_vermagic="$krel preempt mod_unload modversions MIPS32_R2 32BIT"',
+            container)
+        self.assertIn(
+            """actual_vermagic="$(modinfo -F vermagic "$ko" | sed 's/[[:space:]]*$//')""",
+            container)
+        self.assertIn(
+            '[[ "$actual_vermagic" == "$expected_vermagic" ]]', container)
+        expected = "7.3.0-rc5-letux-mips-retrode3+ preempt mod_unload modversions MIPS32_R2 32BIT"
+        actual = expected + " \\n"
+        normalized = subprocess.run(
+            ["sed", "s/[[:space:]]*$//"], input=actual,
+            text=True, capture_output=True, check=True).stdout.rstrip("\\n")
+        self.assertEqual(normalized, expected)
+        for incorrect in (expected.replace("modversions ", ""),
+                          expected.replace("preempt ", ""),
+                          expected.replace("MIPS32_R2", "MIPS32_R1")):
+            self.assertNotEqual(incorrect, normalized)
 
     def test_installer_does_not_rewrite_package_launchers(self):
         installer = (ROOT / "buildserver/install-image-launcher.sh").read_text()
