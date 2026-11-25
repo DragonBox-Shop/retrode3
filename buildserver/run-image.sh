@@ -71,26 +71,8 @@ oscr_history="$base/cache/oscr-git-history.git"
 selection="$(python3 "$selector" "$oscr_history" "$branch")"
 IFS=$'\t' read -r oscr_tag oscr_sha <<< "$selection"
 [[ "$os_sha" =~ ^[a-f0-9]{40}$ && "$oscr_sha" =~ ^[a-f0-9]{40}$ ]] || exit 1
-python3 - "$published" "$suite" "$branch" "$os_tag" "$os_sha" "$oscr_tag" "$oscr_sha" <<'PY'
-import json, re, sys
-manifest, suite, branch, os_tag, os_sha, oscr_tag, oscr_sha = sys.argv[1:]
-with open(manifest, encoding="utf-8") as stream:
-    data = json.load(stream)
-expected = {
-    "release_channel": suite, "oscr_branch": branch,
-    "os_tag": os_tag, "os_commit": os_sha,
-    "oscr_tag": oscr_tag, "oscr_commit": oscr_sha,
-}
-for key, value in expected.items():
-    if data.get(key) != value:
-        sys.exit("Published APT snapshot does not match latest selected tag: " + key)
-if not data.get("auto_versioned") or not data.get("packages"):
-    sys.exit("Published APT snapshot is not a verified tagged release")
-if not re.fullmatch(r"[0-9a-f]{40}", data.get("sanni_commit", "")):
-    sys.exit("Missing pinned Sanni gitlink")
-print("Image source locked to published OS/OSCR tags:", os_tag, oscr_tag)
-PY
-
+python3 "$image_checkout/buildserver/verify-image-snapshot.py" \
+  "$published" "$suite" "$branch" "$os_tag" "$os_sha" "$oscr_tag" "$oscr_sha"
 [[ -r /proc/sys/fs/binfmt_misc/qemu-mipsel ]] &&
   grep -qx enabled /proc/sys/fs/binfmt_misc/qemu-mipsel || {
     echo "Host QEMU MIPSEL binfmt_misc registration is missing" >&2; exit 1;
