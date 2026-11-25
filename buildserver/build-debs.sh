@@ -75,12 +75,7 @@ make -C "$work/oscr" -f Makefile.migration clean-migration
 make -C "$work/oscr" -f Makefile.migration \
     CC=mipsel-linux-gnu-gcc CXX=mipsel-linux-gnu-g++ \
     AR=mipsel-linux-gnu-ar test-release-stage
-# Master has three cores; develop additionally stages SMS-MD.
-if grep -Eq '^stage-sms-md-module:' "$work/oscr/Makefile.migration"; then
-  make -C "$work/oscr" -f Makefile.migration \
-    CC=mipsel-linux-gnu-gcc CXX=mipsel-linux-gnu-g++ \
-    AR=mipsel-linux-gnu-ar stage-sms-md-module
-fi
+bash "$src/buildserver/stage-oscr-plugins.sh" "$work/oscr"
 stage="$work/oscr/build/migration/stage"
 file "$stage/usr/bin/retrode3-cli" "$stage/usr/lib/retrode3/cores-available/"*.so
 python3 "$src/packaging/build-debs.py" \
