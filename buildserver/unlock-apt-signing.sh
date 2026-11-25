@@ -67,6 +67,7 @@ PY
 # The GPG agent may be alive from an older SSH session. Retarget its pinentry
 # terminal, without killing the agent or losing unrelated cached credentials.
 gpgconf --homedir "$GNUPGHOME" --launch gpg-agent
+gpgconf --homedir "$GNUPGHOME" --reload gpg-agent
 gpg-connect-agent --homedir "$GNUPGHOME" updatestartuptty /bye >/dev/null
 work="$(mktemp -d)"
 trap 'rm -rf -- "$work"' EXIT
