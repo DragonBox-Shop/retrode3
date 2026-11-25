@@ -146,9 +146,24 @@ class PackageOnlyImageTests(unittest.TestCase):
     def test_final_apache_mpm_checked_after_apt(self):
         image = (ROOT / "buildserver/build-image-from-packages.sh").read_text()
         self.assertIn('for module in mpm_prefork.load php8.2.load; do', image)
-        self.assertIn('chroot /work/rootfs /usr/sbin/apache2ctl configtest', image)
+        self.assertIn('python3 /src/image/verify-apache-offline.py /work/rootfs', image)
+        self.assertNotIn('chroot /work/rootfs /usr/sbin/apache2ctl configtest', image)
         self.assertLess(image.index('apt-get -y --no-install-recommends install'),
-                        image.index('apache2ctl configtest'))
+                        image.index('verify-apache-offline.py'))
+
+    def test_resume_skips_bootstrap_and_apt_but_verifies_packages(self):
+        host = (ROOT / "buildserver/run-image.sh").read_text()
+        image = (ROOT / "buildserver/build-image-from-packages.sh").read_text()
+        self.assertIn('"$2" == --resume', host)
+        self.assertIn('cmp -s "$run/published-packages.json" "$published"', host)
+        self.assertIn('cmp -s "$run/published-platform.json" "$platform"', host)
+        self.assertIn('RETRODE3_IMAGE_RESUME=$resume', host)
+        self.assertIn('if [[ "$resume" == 0 ]]; then', image)
+        self.assertIn('=== RESUME: existing Bookworm rootfs retained', image)
+        self.assertIn('=== RESUME: checking already-installed package versions', image)
+        self.assertIn('"$state" == "install ok installed"', image)
+        self.assertIn('sha256sum --check --strict SHA256SUMS', image)
+        self.assertIn('rm -rf -- /work/stage', image)
 
     def test_package_producer_cache_and_source_recipe_contract(self):
         producer = (ROOT / "buildserver/package-platform-develop.sh").read_text()
