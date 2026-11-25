@@ -6,6 +6,67 @@ Amaterasu**. See buildserver/README.md for private inputs and launchers.
 The new development candidate uses source-built X1600 SPL/U-Boot. The saved
 donor 1 MiB stays a private comparison/rollback reference, not a build input.
 
+## Tag-locked development image pipeline (2026-11-25)
+
+The development image script now lives in a **dedicated checkout** of
+`feature/source-built-x1600-uboot-image`, separate from the
+`retrode3-testing-pr` APT automation checkout. It is experimental image
+builder tooling and MUST NOT be merged into `master` until a device boot
+has been proven.
+
+An image build first runs the installed `package_develop.sh` wrapper,
+which builds/publishes **only the latest matching OS and OSCR tags** (or
+detects the already-published tag pair). The image runner then selects
+those same tags from the APT automation caches and requires the exact
+OS tag, OSCR tag, commits, Sanni gitlink, channel and package set in
+`cache/last-published-develop.json`. A floating OS develop HEAD is never
+used as the image userland source. Build tooling uses the separately
+pinned image-builder Git commit, recorded in the final manifest.
+
+Kernel source remains a deliberately frozen **exact SHA of the kernel
+`develop` branch at image launch**, not yet a hardware-approved release
+tag. The kernel configuration MUST be committed alongside that source as
+`arch/mips/configs/retrode3_full.config` in
+`DragonBox-Shop/retrode3-kernel`. The container clones that exact
+commit, requires MIPS32 R2 little-endian, `CONFIG_MODVERSIONS=y` and
+`CONFIG_RETRODE3=m`, and builds the complete kernel, DTB and modules.
+It fails if the Git configuration is absent or mismatched. The previous
+private `FULLCONFIG` is not consulted or mounted. Git config and
+effective olddefconfig hashes are recorded in the image manifest.
+
+**One-time prerequisite:** The current approved `FULLCONFIG` on
+Amaterasu at
+`/srv/www/vhosts/retrode.com/buildserver/private/image/develop/FULLCONFIG`
+has NOT been added to the kernel repository yet. Review and commit its
+exact contents to the path above on `retrode3-kernel/develop` before
+attempting a complete image build. No substitute generic defconfig is
+acceptable. This is a source snapshot requirement, not approval to
+overwrite the boot-tested kernel.
+
+On Amaterasu, as `retrode`, **after** the image-development PR is
+merged into the existing feature branch:
+
+```sh
+BASE=/srv/www/vhosts/retrode.com/buildserver
+git clone --branch feature/source-built-x1600-uboot-image \
+  https://github.com/DragonBox-Shop/retrode3.git \
+  "$BASE/src/retrode3-image-dev"
+bash "$BASE/src/retrode3-image-dev/buildserver/install-image-launcher.sh"
+# APT is tag-locked and already signed; source-built image remains a candidate:
+ /srv/www/vhosts/retrode.com/build_image_develop.sh
+```
+
+Do not overwrite an existing `retrode3-image-dev` checkout: update it
+with `git fetch` and `git merge --ff-only` instead. The dedicated
+image launcher only replaces `build_image_develop.sh`, never package
+launchers or `build_image_master.sh`.
+
+Only public keyring/fingerprint files and an optional test SSH public key
+are mounted from private host inputs. Signing secrets and legacy donor
+SPL files remain unavailable inside the image container.
+The generated `*.img.xz` is **never** written directly to an SD device.
+Cold-boot testing on a spare SD is a separate required milestone.
+
 ## Target: one command on Amaterasu
 
 The eventual buildserver/auto-image.sh develop|master must:
@@ -86,8 +147,8 @@ without these settings remains a plain Debian rootfs.
   bootloader/DDR/board configuration before a release.
 - Use Debian Bookworm's MIPSEL cross GCC for kernel and U-Boot. The exact
   compiler executable SHA256 is recorded in each candidate manifest.
-  FULLCONFIG is still a private prerequisite; its compatibility with the
-  kernel/develop source must be checked before the full build.
+  FULLCONFIG must be imported into the kernel Git revision as described
+  above. Its compatibility with the source still needs a complete build.
 - Bookworm development package candidates now include `retrode3-tools` and
   `retrode3-udev-rules`; Web depends on Debian 12 Apache/PHP rather than
   `letux-httpd`. Verify signed publication and test the entire APT
@@ -110,9 +171,9 @@ non-reproducible bootloader snapshots.
 
 ## Current implementation boundary
 
-The server scripts now launch the existing package pipeline first and
-produce a kernel build, staged rootfs and image candidate for a selected
-channel. They reject unverified donor checksums and unsigned/unavailable
+The separate image builder now invokes the tag-based APT package publisher
+first, then uses only that exact published OS/OSCR source snapshot for the
+rootfs, and builds a kernel, rootfs and image candidate for develop. They reject unverified donor checksums and unsigned/unavailable
 APT packages. The old donor-GPT migration remains only for historical assembler tests.
 The new development pipeline instead builds and checks X1600 SPL/U-Boot from
 Git, strips vendor GPT sectors and writes a fresh DOS partition table. It
