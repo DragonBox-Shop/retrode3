@@ -113,7 +113,7 @@ podman --runtime=crun --cgroup-manager=systemd run --rm \
     -v "$checkout:/src:ro" -v "$run:/work:rw" \
     -v /proc/sys/fs/binfmt_misc:/proc/sys/fs/binfmt_misc:ro \
     -v "$private:/private:ro" \
-     -e "RETRODE3_IMAGE_BRANCH=$branch" \
+    -e "RETRODE3_IMAGE_BRANCH=$branch" \
     -e "RETRODE3_IMAGE_SUITE=$suite" \
     -e "RETRODE3_OS_SHA=$published_sha" \
     -e "RETRODE3_KERNEL_SHA=$kernel_sha" \
@@ -122,4 +122,4 @@ podman --runtime=crun --cgroup-manager=systemd run --rm \
     "$image" bash /src/buildserver/build-image-container.sh
 (cd "$run" && sha256sum --check --strict FULL-IMAGE-SHA256SUMS)
 echo "Image build complete: $run/retrode3-$branch.img.xz"
-echo "NOT RELEASED: donor U-Boot and device acceptance remain unverified."
+echo "NOT RELEASED: source-built U-Boot and kernel require physical boot acceptance."
