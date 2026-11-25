@@ -1,132 +1,99 @@
-# Retrode3 OS and Web: instructions for contributors and assistant chats
+# Retrode3 OS: verbindliche Entwicklungs- und Release-Regeln
 
-**Current Web v2 documentation:**
-- [German developer guide](retrode3-web-control/v2/docs/developer-guide.de.md)
-  or [English developer guide](retrode3-web-control/v2/docs/developer-guide.en.md)
-- [Web v2 / shared CLI implementation contract](retrode3-web-control/v2/docs/cli-integration.md)
-- [Debian packaging / image status](docs/DEBIAN-PACKAGING-TODO.md) and
-  [packaging candidate instructions](packaging/README.md) on `develop`.
+Dieses Repository enthaelt Debian-OS, Web Control v2, SysV-Dienste,
+Paketrezepte, APT-Veröffentlichung und SD-Image-Bau. Native CLI-/Core-Quellen
+liegen in [retrode3-oscr](https://github.com/DragonBox-Shop/retrode3-oscr),
+Kernel/Treiber/DTB/Config in `retrode3-kernel`, SPL/U-Boot in
+`retrode3-uboot`, Schaltplaene in `retrode3-hardware`.
+Keine zweite native Reader-Implementierung in diesem Repo anlegen.
 
-The older `docs/WEB-V2-HANDOFF.md` records the **historical migration**
-from Web v1 and the feature branch. Do not treat its former TODOs,
-feature-branch references or obsolete reader paths as active instructions.
-Always inspect the current branch and installed CLI before changing code.
+## Branches, Tags und Freigaben (verbindlich)
 
-## Verbindliche Vorabpruefung vor GitHub-Pushes
+- **`develop` ist die gemeinsame Werkstatt.** Hier werden neue und
+  experimentelle Funktionen direkt entwickelt, auch wenn sie unfertig sind,
+  Tests scheitern oder der aktuelle HEAD nicht funktioniert. Niemand darf
+  annehmen, dass ein beliebiger `develop`-Commit lauffaehig ist.
+- **Ein feststehender, moeglichst annotierter Git-Tag auf `develop` markiert
+  einen bewusst abgeschlossenen, grundlegend geprueften Gesamtstand.**
+  Ein Tag bezeichnet den *gesamten* Repository-Snapshot, nicht nur eine
+  einzelne Funktion. Bei diesem Stand sollen die vorgesehenen Funktionen
+  laufen; noch moegliche Bugs und fehlende Langzeittests sind erlaubt.
+  Nicht fertiggestellte Risiken muessen nachweislich deaktiviert/abgesichert
+  sein. Tags niemals verschieben oder wiederverwenden.
+- **Erst aus genau einem solchen Tag bzw. dessen unveraenderlichem Commit**
+  werden neue Debian-Paketkandidaten fuer den passenden APT-Kanal gebaut.
+  Das Build-Manifest fixiert ausserdem die verwendeten OSCR-, Sanni-,
+  Kernel- und gegebenenfalls U-Boot-Revisionen sowie Paketpruefsummen.
+  Der neueste `develop`-HEAD ist **kein** automatischer Release-Input.
+- Danach folgen Paketinstallation, Updates, Rollback und Hardwaretests.
+  **Erst nach ausfuehrlicher Abnahme kommt genau der getaggte Stand in
+  `master`**, nicht der inzwischen weitergewanderte `develop`-HEAD.
+  `master` muss stets ein funktionsfaehiger, getesteter Release-Stand sein.
+  Wenn der Tag in der Master-Historie vorwaerts integrierbar ist,
+  Fast-Forward bevorzugen, damit Master-Commit und Tag identisch bleiben.
+  Bei abweichender Historie zuerst explizit aufloesen, niemals blind
+  zusammenfuehren, squaschen oder force-pushen.
+- **Keine dauerhaften Feature-/Plugin-Branches.** Kurzlebige Branches nur
+  fuer technisch notwendige Isolation (z. B. grosse Kernel-Upgrades,
+  riskante Hardwareversuche, fremde PRs), anschliessend in `develop`
+  integrieren und aufraeumen. Vor Branch-Loeschungen einzigartige Commits
+  und offene PRs pruefen.
+- Keine automatische Promotion `develop` -> `master`. Ein Git-Tag,
+  ein erzeugtes .deb, ein signierter APT-Index, ein erfolgreiches Boot und
+  ein freigegebenes Kundenimage sind **verschiedene** Meilensteine.
 
-Vor einem Push, der Web v2, Debian-Paketierung, Init-Dienste oder Build-
-Metadaten aendert, im vollstaendigen lokalen Checkout zuerst
-`./tools/preflight-ci.sh` ausfuehren. Das Skript reproduziert die
-hardwarefreien Python-/JavaScript-/PHP-/Shell-/Paket-Mock-Pruefungen
-aus den beiden CI-Workflows. Bei Fehlern nicht pushen, sondern lokal
-reparieren und erneut testen. MIPS-Crossbuild und echte Hardwaretests
-sind zusaetzliche, separate Freigabeschritte.
+**Wichtig fuer den aktuellen Buildserver:** Die vorhandenen
+`package_develop.sh`/`auto-package.sh` verfolgen derzeit auch
+Branch-HEADs. **Diese Automatik muss auf Tag-/Commit-basierte
+Release-Eingaenge umgestellt werden**, bevor der oben beschriebene
+Tag-only-Veröffentlichungsprozess als implementiert gelten darf.
+Bis dahin keine ungetaggten Entwicklungssnapshots als abgeschlossene
+Release-Kandidaten behandeln. `master`/`stable` nicht versehentlich
+mit der laufenden Image-Entwicklung aktualisieren.
 
-Ungetestete Zwischenstaende nicht direkt auf `develop` pushen. Werden
-nur GitHub-Connector-Aktionen ohne lokalen Checkout angeboten, fuer
-riskante Aenderungen einen kurzlebigen PR-Branch gegen `develop` nutzen
-und erst nach gruener CI squash-mergen. Fehlerhafte CI-Checks niemals
-mit `continue-on-error` oder abgeschalteten Tests kaschieren.
-## Repository responsibilities (preserve Nikolaus' original structure)
+## Tests und sichere Entwicklung
 
-- `DragonBox-Shop/retrode3-oscr` owns native cartridge-reader **source**:
-  common `retrode3-cli`, `retrode3-corectl`, typed HAL/ABI,
-  source-derived Sanni SNES/MD/NES `.so` cores and staging.
-  The original OSCR/retrode3-lib source stays there.
-- **This repository**, `DragonBox-Shop/retrode3`, is Nikolaus'
-  existing Debian OS/package repository: original
-  `make-all`, QuantumSTEP `.qcodeproj` package files,
-  OS init services and Web UI. Do not duplicate native CLI source here.
-  The new Web v2 source is `retrode3-web-control/v2/`.
-- `retrode3-kernel` owns slot drivers and timing.
-  `retrode3-hardware` owns boards, plugins and pinouts.
-- Development **Debian package recipes and candidate builds** exist on
-  `develop` under `packaging/`, but native package installation,
-  rollback, APT publication and a complete customer SD-image are **not yet
-  hardware accepted or released**. The package layout is specified at
-  `packaging/retrode3-core-layout.json`.
+- Unfertiger Code darf auf `develop` liegen; ein Release-Tag darf nur
+  bewusst nach fuer den Umfang angemessenen Build-/CI-/Smoke-Tests gesetzt
+  werden. Bei fehlgeschlagenen Tests niemals eine Freigabe vortaeuschen.
+- Fuer Aenderungen an Web, Debian-Paketierung, Init oder Build-Metadaten
+  vor einem **Release-/Tag-Kandidaten** im vollstaendigen lokalen Checkout
+  `./tools/preflight-ci.sh` ausfuehren. Hardwareunabhaengige CI ist nicht
+  gleichbedeutend mit MIPS-Hardwaretests. Bei direkten Experimenten auf
+  `develop` sind rote Checks zulaessig und als unfertig zu kennzeichnen;
+  CI-Pruefungen nicht durch `continue-on-error` oder Deaktivieren kaschieren.
+- Kein unkontrolliertes `make-all` auf der Retrode: Legacy-Bausteine
+  koennen Pakete installieren. Keine Produktiv-SD oder installierte Kernel-/
+  Modulkopie ohne Backup ueberschreiben. Image-Builder schreiben nur
+  normale Image-Dateien, niemals direkt Blockgeraete.
+- ROMs, Spielstaende, Core-Aktivierung, USB-Services und bestehende
+  `/run/lock/retrode3/bus.lock`-Inode nicht beschaedigen. Fuer Hardware-
+  IO, Cartridge-Writes, Spannung und Timing gelten eigene Freigabe-Gates.
 
-## Verified installed runtime contract (real Retrode3 2.9.5)
+## Laufzeitvertraege
 
-- Shared CLI: **`/usr/bin/retrode3-cli`**, not
-  `/usr/local/bin/retrode3-cli`.
-- Administrative core toggle: **`/usr/sbin/retrode3-corectl`**.
-- Cores + static manifests:
-  **`/usr/lib/retrode3/cores-available/{snes,md,nes}.{so,core}`**.
-- Root-owned enablement symlinks:
-  **`/etc/retrode3/cores-enabled/{snes,md,nes}.so`**.
-- Bus lock: **`/run/lock/retrode3/bus.lock`**.
-- Boot system: **SysV init, no systemd or systemd-tmpfiles**.
-  The tested OS init script is
-  `retrode3-core-runtime/etc/init.d/retrode3-core-runtime`
-  (installed destination `/etc/init.d/retrode3-core-runtime`).
-  Ensure deployment and reboot persistence separately.
+- Gemeinsame CLI: `/usr/bin/retrode3-cli`; administrativer Schalter:
+  `/usr/sbin/retrode3-corectl`.
+- Core-Paare: `/usr/lib/retrode3/cores-available/<id>.{so,core}`;
+  Aktivierung: `/etc/retrode3/cores-enabled/<id>.so`.
+- Bus-Lock: `/run/lock/retrode3/bus.lock`; Bootsystem: **SysV init**
+  (nicht systemd oder systemd-tmpfiles).
+- Die Weboberflaeche nutzt nur das gemeinsame CLI und dynamisch gemeldete
+  Core-Capabilities; keine systemspezifischen Reader oder Hardcoded-Mapper-
+  Logik im Frontend. Ein Browser-Refresh darf keine Cartridge-Operation
+  ausloesen. Privilegierte Aktionen nur ueber streng begrenzte Helfer,
+  niemals den gesamten Webserver als root starten.
+- Entfernte Legacy-Binaries unter `/usr/local/bin/oscr`,
+  `retrode3-read`, `retrode3-dump`, `retrode3-info` nicht wiederbeleben.
 
-User verified all SNES/MD/NES cores enabled and ready using
-`/usr/bin/retrode3-cli --list-cores`. Physical CRCs through shared
-CLI: SNES Terranigma `6FB8A4DF`, MD Snake Rattle n Roll
-`543BED30`, NES Excitebike `F749E780`. Stage-1 only:
-no unspecified mappers, special chips, SRAM save or flash writes.
+## Aktueller technischer Stand: nicht in AGENTS.md einfrieren
 
-**Do not restore the removed legacy reader binaries** at
-`/usr/local/bin/oscr`, `/usr/local/bin/retrode3-read`,
-`/usr/local/bin/retrode3-dump`,
-`/usr/local/bin/retrode3-info`. The old web's dependencies
-must be migrated to the central CLI rather than resurrected.
-
-## Current release status (2026-11-20)
-
-Web Control v2 source **has been tested and squash-promoted into OS
-`master`**, then `develop` was aligned to the same release commit
-`5b2b5f6`. The old `feature/web-control-v2` branch may contain
-later experimental changes; do not assume those are automatically in
-the release. The older section below records its prior migration
-requirements, **not its current release status**.
-
-The package implementation on `develop` now generates
-**development candidates** for the native runtime/cores and Web v2.
-Physical package acceptance, APT publication and the complete customer
-SD-image remain unfinished. See
-[`docs/DEBIAN-PACKAGING-TODO.md`](docs/DEBIAN-PACKAGING-TODO.md).
-Source merged into `master` is not a published Debian package.
-
-## Current develop: generic Core ABI v3, Web v2-only read protocol (2026-11-20)
-
-`retrode3-oscr/develop` provides versioned `retrode3_core_get_operations_v3`
-for **NES, MegaDrive and SNES**. The common CLI now emits
-`get_capabilities.selection_schema`, `probe_result.candidates`/
-`read_layouts`, `selection_required` and a physical `slot`.
-NES MMC1 support is present in the standard core build, with physical
-safety limitations described in the CLI repository. Battery-backed
-MMC1 and unapproved mapper writes must remain blocked.
-
-Web v2 on `develop` now drives **only** the generic v3 `selection`
-object in `read_rom`. It contains no NES-v2-specific controls,
-manual `mapper`/`prg_kib` handling or old SNES/MD mapping/size fields.
-`get_capabilities` without a valid v3 schema is rejected for Web
-reads. Candidate/layout selection and the explicitly enabled Override
-come from schema metadata, not a list of consoles hardcoded into JS/Python.
-
-The central CLI may retain ABI v1/v2 for other clients. Web
-legacy reader binaries must never be resurrected. The Web's cached
-event-triggered probes, shared bus lock and SysV boot model remain.
-The v3 Web migration and its CI mocks are **not a real-device or
-Debian-package acceptance**; do not promote it to `master` prematurely.
-See [generic v3 Web specification](retrode3-web-control/v2/docs/generic-selection-v3.md)
-and [CLI v3 contract](https://github.com/DragonBox-Shop/retrode3-oscr/blob/develop/docs/generic-cartridge-selection-v3.md).
-
-## Current Web v2 development rules
-
-- Read `retrode3-web-control/v2/docs/developer-guide.de.md` and the
-  actual installed `/usr/bin/retrode3-cli` core registry before making
-  reader, UI or integration changes. No independent console reader commands.
-- Web v2 on `master` was verified with manual MegaDrive/NES flows and
-  mock regressions; real package upgrade/reboot verification is separate.
-- `master` is the stable Web-v2 source, `develop` is ongoing integration.
-  **Do not promote unfinished Debian package candidates to `master`**
-  merely as a side effect of a Web documentation change.
-- The Web UI should never issue hardware operations on browser refresh.
-  The Python backend serializes safe auto-probes and manual CLI reads.
-- Check code and CI, verify against real hardware where a change affects
-  cartridge IO, and keep users' ROMs, core enablement, USB services and
-  shared `bus.lock` intact.
+- [Buildserver und Image-Bau](buildserver/README.md) und
+  [Image-Release-Gates](buildserver/IMAGE-PIPELINE.md)
+- [Paketlayout und Testanleitung](packaging/README.md)
+- [Web-v2-Entwickleranleitung](retrode3-web-control/v2/docs/developer-guide.de.md)
+  und [CLI-Integration](retrode3-web-control/v2/docs/cli-integration.md)
+- Historische Arbeits- und Testberichte bleiben in den jeweiligen
+  `docs/`-Dateien; deren alte TODO-Abschnitte nicht mit dem aktuellen
+  HEAD verwechseln. Vor Aenderungen stets aktuelle Git-Quellen,
+  CI-Ergebnisse und Hardware-Abnahmestand pruefen.
