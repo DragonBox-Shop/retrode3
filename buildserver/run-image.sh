@@ -45,14 +45,13 @@ done
 image_builder_sha="$(git -C "$image_checkout" rev-parse HEAD)"
 [[ "$image_builder_sha" =~ ^[a-f0-9]{40}$ ]] || exit 1
 [[ -x "$vhost/package_$branch.sh" ]] || {
-  echo "Missing existing package launcher: $vhost/package_$branch.sh" >&2; exit 1;
+  echo "Missing package publisher; prepare the package server first" >&2; exit 1;
 }
 mkdir -p "$images"
 exec 8>"$base/cache/image-$branch.lock"
 flock -n 8 || { echo "An image build for $branch is running" >&2; exit 1; }
-# Reuse exactly the existing automatic branch-aware package build/publisher.
-# It also fast-forwards the selected OS checkout.
-bash "$vhost/package_$branch.sh"
+# Image assembly must NEVER trigger package builds or APT publication.
+# The separately run package command prepared the tagged checkout/cache.
 [[ "$(git -C "$checkout" symbolic-ref --short HEAD)" == "$branch" ]] || exit 1
 [[ -z "$(git -C "$checkout" status --porcelain --untracked-files=no)" ]] || exit 1
 published="$base/cache/last-published-$branch.json"
@@ -90,17 +89,17 @@ apt_fpr="$(tr -d '[:space:]' < "$private/apt-fingerprint")"
 [[ "$apt_fpr" =~ ^[0-9a-fA-F]{40}$ ]] || {
   echo "Invalid trusted APT fingerprint" >&2; exit 1;
 }
-kernel_url=https://github.com/DragonBox-Shop/retrode3-kernel.git
-kernel_ref="refs/heads/$branch"
-kernel_line="$(git ls-remote --exit-code "$kernel_url" "$kernel_ref")"
-kernel_sha="${kernel_line%%[[:space:]]*}"
-[[ "$kernel_sha" =~ ^[a-f0-9]{40}$ ]] || exit 1
-uboot_line="$(git ls-remote --exit-code \
-  https://github.com/DragonBox-Shop/retrode3-uboot.git refs/heads/develop)"
-uboot_sha="${uboot_line%%[[:space:]]*}"
-[[ "$uboot_sha" =~ ^[a-f0-9]{40}$ ]] || {
-  echo "Cannot resolve pinned Retrode3 U-Boot develop" >&2; exit 1;
+# Kernel and U-Boot must already be present as published signed testing .debs.
+platform="$base/cache/last-published-platform-develop.json"
+[[ -s "$platform" && -f "$platform" && ! -L "$platform" ]] || {
+  echo "Missing published platform packages. Run package-develop-all first." >&2
+  exit 1
 }
+python3 "$image_checkout/buildserver/verify-platform-snapshot.py" \
+  "$platform" "$base/repository"
+kernel_sha="$(python3 -c 'import json,sys;print(json.load(open(sys.argv[1]))["sources"]["kernel"])' "$platform")"
+uboot_sha="$(python3 -c 'import json,sys;print(json.load(open(sys.argv[1]))["sources"]["uboot"])' "$platform")"
+[[ "$kernel_sha" =~ ^[a-f0-9]{40}$ && "$uboot_sha" =~ ^[a-f0-9]{40}$ ]] || exit 1
 
 # Mount only the public APT trust material and optional public test SSH key.
 # Do not expose the whole private image input directory to Podman.
@@ -116,6 +115,7 @@ if [[ -e "$private/ssh.pub" || -L "$private/ssh.pub" ]]; then
 fi
 run="$(mktemp -d "$images/run.XXXXXXXX")"
 cp "$published" "$run/published-packages.json"
+cp "$platform" "$run/published-platform.json"
 printf '%s\n' "$os_sha" > "$run/image-os-commit"
 printf '%s\n' "$image_builder_sha" > "$run/image-builder-commit"
 echo "Image $branch ($suite); OS $os_tag $os_sha; OSCR $oscr_tag $oscr_sha; kernel $kernel_sha; U-Boot $uboot_sha; image tooling $image_builder_sha"
@@ -148,7 +148,7 @@ podman --runtime=crun --cgroup-manager=systemd run --rm \
     -e "RETRODE3_KERNEL_SHA=$kernel_sha" \
     -e "RETRODE3_APT_FINGERPRINT=$apt_fpr" \
     -e "RETRODE3_UBOOT_SHA=$uboot_sha" \
-    "$image" bash /src/buildserver/build-image-container.sh
+    "$image" bash /src/buildserver/build-image-from-packages.sh
 (cd "$run" && sha256sum --check --strict FULL-IMAGE-SHA256SUMS)
 echo "Image build complete: $run/retrode3-$branch.img.xz"
 echo "NOT RELEASED: source-built U-Boot and kernel require physical boot acceptance."
