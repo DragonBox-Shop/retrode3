@@ -496,6 +496,8 @@ def main():
             os.replace(str(work / record["filename"]), str(out / record["filename"]))
         manifest = {"release_channel": release_channel,
                     "auto_versioned": auto_version,
+                    "os_tag": (os.environ.get("RETRODE3_RELEASE_TAG") or None),
+                    "oscr_tag": (os.environ.get("RETRODE3_OSCR_TAG") or None),
                     "oscr_branch": (os.environ.get("RETRODE3_OSCR_BRANCH")
                                     if os.environ.get("RETRODE3_FOLLOW_OSCR_BRANCH") == "1"
                                     else None),

@@ -13,6 +13,26 @@ base="$vhost/buildserver"
 [[ -d "$base/src/retrode3-stable-pr/.git" ]] || {
   echo "Missing stable Git checkout" >&2; exit 1;
 }
+# Keep the release orchestrator independent of the moving develop HEAD.
+# The developer intentionally allows broken scripts between release tags.
+# Install/reinstall this verified copy explicitly; never auto-run a new HEAD.
+mkdir -p "$base/cache" "$base/automation"
+exec 9>"$base/cache/package-automation.lock"
+flock -n 9 || { echo "Package build active; reinstall later" >&2; exit 1; }
+source_dir="$base/src/retrode3-testing-pr/buildserver"
+for name in auto-package.sh run-debs.sh publish-debs.sh package-failure-alert.sh; do
+  bash -n "$source_dir/$name"
+done
+python3 "$source_dir/select-release-tag.py" --help >/dev/null
+for name in auto-package.sh run-debs.sh publish-debs.sh package-failure-alert.sh select-release-tag.py; do
+  target="$base/automation/$name"
+  [[ ! -L "$target" ]] || { echo "Refusing automation symlink: $target" >&2; exit 1; }
+  tmp="$(mktemp "$base/automation/.install.XXXXXXXX")"
+  if [[ "$name" == *.sh ]]; then mode=750; else mode=640; fi
+  install -m "$mode" "$source_dir/$name" "$tmp"
+  mv -f "$tmp" "$target"
+done
+echo "Installed pinned-release APT automation in $base/automation"
 for spec in "master:retrode3-stable-pr" "develop:retrode3-testing-pr"; do
   branch="${spec%%:*}"
   checkout="${spec#*:}"
@@ -30,7 +50,7 @@ for spec in "master:retrode3-stable-pr" "develop:retrode3-testing-pr"; do
 #!/usr/bin/env bash
 # Managed by Retrode3 buildserver/install-launchers.sh
 set -euo pipefail
-exec bash "$base/src/$checkout/buildserver/auto-package.sh" "$branch"
+exec bash "$base/automation/auto-package.sh" "$branch"
 EOF
   install -m 750 "$tmp" "$target"
   rm -f "$tmp"

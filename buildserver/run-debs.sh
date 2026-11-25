@@ -2,7 +2,17 @@
 # Rootless host wrapper. Explicit limits, no repository publication.
 set -euo pipefail
 umask 027
-root="$(cd "$(dirname "$0")/.." && pwd)"
+root="${RETRODE3_PACKAGE_SOURCE_ROOT:-$(cd "$(dirname "$0")/.." && pwd)}"
+[[ -d "$root/.git" || -f "$root/.git" ]] || {
+  echo "Missing source Git checkout: $root" >&2; exit 1;
+}
+if [[ -n "${RETRODE3_RELEASE_TAG:-}" ]]; then
+  [[ "$(git -C "$root" rev-parse "refs/tags/$RETRODE3_RELEASE_TAG^{commit}")" == \
+     "${RETRODE3_RELEASE_COMMIT:-}" ]] || {
+    echo "Selected source tag/commit mismatch" >&2; exit 1;
+  }
+  [[ "$(git -C "$root" rev-parse HEAD)" == "$RETRODE3_RELEASE_COMMIT" ]] || exit 1
+fi
 test -f "$root/packaging/native-source-lock.json"
 test -z "$(git -C "$root" status --porcelain --untracked-files=no)" || {
   echo "Refusing build with modified tracked files" >&2; exit 1;
@@ -29,5 +39,8 @@ podman --runtime=crun --cgroup-manager=systemd run --rm \
     -e "RETRODE3_OSCR_BRANCH=${RETRODE3_OSCR_BRANCH:-}" \
     -e "RETRODE3_OSCR_COMMIT=${RETRODE3_OSCR_COMMIT:-}" \
     -e "RETRODE3_VERSION_STAMP=${RETRODE3_VERSION_STAMP:-}" \
+    -e "RETRODE3_RELEASE_TAG=${RETRODE3_RELEASE_TAG:-}" \
+    -e "RETRODE3_RELEASE_COMMIT=${RETRODE3_RELEASE_COMMIT:-}" \
+    -e "RETRODE3_OSCR_TAG=${RETRODE3_OSCR_TAG:-}" \
     "$image" bash /src/buildserver/build-debs.sh
 echo "Unpublished packages: $out"

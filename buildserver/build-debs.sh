@@ -36,6 +36,13 @@ work="$(mktemp -d /tmp/retrode3-build.XXXXXXXX)"
 trap 'rm -rf "$work"' EXIT
 git clone --quiet "https://github.com/$repo.git" "$work/oscr"
 git -C "$work/oscr" checkout --quiet --detach "$commit"
+if [[ -n "${RETRODE3_OSCR_TAG:-}" ]]; then
+  git -C "$work/oscr" check-ref-format "refs/tags/$RETRODE3_OSCR_TAG" || exit 1
+  [[ "$(git -C "$work/oscr" rev-parse --verify "refs/tags/$RETRODE3_OSCR_TAG^{commit}")" == "$commit" ]] || {
+    echo "OSCR selected tag does not resolve to the pinned commit" >&2
+    exit 1
+  }
+fi
 if [[ "$follow" == 1 ]]; then
   # Re-check that the requested commit belongs to the selected branch.
   git -C "$work/oscr" merge-base --is-ancestor "$commit" \

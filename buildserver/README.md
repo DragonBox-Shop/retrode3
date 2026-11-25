@@ -1,10 +1,13 @@
 # Retrode3 MIPSEL package build server
 
-The manual `package_master.sh` and `package_develop.sh` launchers follow
-**both** the current OS branch and the matching current `retrode3-oscr`
-branch. No fixed OSCR commit must be edited before a routine release.
-Each run resolves and freezes one exact OSCR commit and the exact Sanni
-gitlink recorded in that commit; all are written to the build manifest.
+The `package_master.sh` and `package_develop.sh` launchers update
+their own automation checkout but build **only the newest reachable Git tag**
+of the matching OS branch and the matching `retrode3-oscr` branch.
+`develop` can be broken between tags; untagged HEAD changes are never
+packaged. A tag is a completed checkpoint, not yet a hardware approval.
+The selected OS/OSCR tag names, their exact commits and the Sanni gitlink
+are recorded in the build manifest. Missing tags mean a clear failure,
+**never a fallback to branch HEAD**.
 The tracked `packaging/native-source-lock.json` remains a deliberate
 fallback for offline, pinned/manual candidate builds and tests, **not**
 the source selector for automated APT releases.
@@ -76,8 +79,11 @@ This creates two executable files **outside** the public DocumentRoot:
 - `/srv/www/vhosts/retrode.com/package_master.sh` (Git `master` -> APT `stable`)
 
 Each invocation takes a shared nonblocking `flock`, verifies the branch and
-clean tracked files, fetches and fast-forwards its dedicated Git checkout,
-checks whether the exact source commit is already published, then performs
+clean tracked files, fetches and fast-forwards its dedicated automation
+checkout, selects the latest **existing, branch-reachable** source tags,
+and builds from a temporary self-contained OS-tag checkout. Package compilation
+uses the exact tagged OSCR commit, not a moving branch HEAD. It checks
+whether that specific tag pair is already published, then performs
 the constrained rootless Podman crossbuild. After the build it verifies
 the manifest, all SHA256 sums, source commit, expected package versions and
 the pool/installed-suite versions, publishes explicitly with `reprepro`,
@@ -106,8 +112,9 @@ candidate and manifest. A valid existing candidate is reused even in
 build-only mode. The second invocation uses the ordinary
 `candidate-resume` path: it verifies exact source commits and checksums,
 then imports the candidate and makes one signed `reprepro export`.
-If a source changed in between, the new build must pass again; an old
-candidate is never silently published against unrelated source changes.
+If either selected release tag changes in between, the new tag pair must
+be built; an old candidate is never silently published as a different tag.
+New untagged development commits alone do not invalidate the candidate.
 The GPG passphrase must **not** be stored in Git, shell scripts, or public
 images. Build-only does not modify APT or the last-published marker.
 
@@ -152,7 +159,9 @@ the complete candidate/suite before retrying; neither the failure
 reporter nor the automatic wrapper silently rolls back or republishes.
 
 Automatic runs set `RETRODE3_AUTO_VERSION=1` and
-`RETRODE3_FOLLOW_OSCR_BRANCH=1`. Every package revision includes the
+`RETRODE3_FOLLOW_OSCR_BRANCH=1`, but the latter now refers to the
+branch used to **validate the selected OSCR tag's ancestry**, not to a
+floating HEAD source. Every package revision includes the
 UTC build timestamp (with nanoseconds) and the exact OS plus OSCR
 commit prefixes. This avoids reusing a version when only OSCR changes.
 The build manifest keeps the full Git revision IDs, exact Sanni submodule
@@ -169,33 +178,32 @@ after invocation. It does not update firmware, kernel modules, rootfs images
 or customer devices. The build is deliberately cross-compiled against
 Debian Bookworm, not a verified legacy-device sysroot.
 
-## Avoiding empty package updates
+## Skipping repeated tagged releases
 
-The launchers compare the last successfully published build-manifest commit
-with the freshly fetched Git HEAD, but **only after confirming** every package
-listed in that manifest is still present in the APT suite. The conservative
-`buildserver/release-changes.py` classifier then ignores changes solely in:
+The wrapper uses `buildserver/select-release-tag.py` to select the
+newest tag by creation date (annotated tagger date; lightweight tags
+inherit commit date). Tags must point to commits contained in the
+channel's `develop` or `master` history. Archive/upstream tracking
+tags are ignored. Use annotated, immutable release tags for predictable
+ordering. There are not yet any release tags in the OS/OSCR repositories;
+the first automated tagged build will fail safely until both are tagged.
 
-- Markdown documentation, `docs/`, `AGENTS.md`, GitHub workflows
-- local unit tests, and publisher/launcher implementation files
-- `tools/preflight-ci.sh` (a host-only test runner)
+If the exact OS tag, OSCR tag and both source commits are already in the
+last published manifest *and* all expected package versions still exist
+in the target APT suite, nothing is built or published. An untagged
+`develop` change alone never triggers new Debian packages. A genuinely
+new tag triggers a new candidate even if only documentation changed;
+the tag represents a new checkpoint.
 
-For these changes the scripts print **"Nothing to build or publish"**;
-no Podman run, no new package version, and no APT publication occur.
+`RETRODE3_BUILD_ONLY=1` builds without publishing. A later normal
+invocation reuses a candidate only when both tags and commits match.
+Publisher preflight independently verifies that the OS checkout is the
+selected exact tagged commit, that the tag belongs to the selected
+branch, and that both tag names match the package manifest.
 
-The source lock, `packaging/` recipes and maintainer scripts, Web
-source/assets, SysV runtime init files, `buildserver/build-debs.sh`,
-`buildserver/run-debs.sh`, `buildserver/Containerfile` and all unknown
-new files remain **build-affecting**. Multiple documentation-only commits
-are compared against the original published commit: a later genuine source
-change cannot be hidden by an intervening docs-only update.
-
-The classifier also gates resume/publication of already built candidates.
-If the cache manifest is missing, incomplete or the published suite does
-not contain the expected versions, the normal safe build path is used.
-To extend the non-package allowlist, add regression cases to
-`packaging/tests/test_release_changes.py` and verify the file never ships
-in a Debian package before doing so.
+The selected tags must be handled as immutable Git references; never
+force-move or reuse a release tag. For a changed build, create a
+new tag with a different name.
 
 ## Upstream firmware handling
 
@@ -208,6 +216,15 @@ the next `package_*.sh` invocation automatically builds it.
 
 
 ## Full Debian SD image candidates (one command per branch)
+
+**Transition note:** The existing `build_image_develop.sh` still checks the
+moving OS branch HEAD against the published package snapshot. The APT
+build is now strictly tag-based, so an image build with newer untagged
+package-affecting OS changes can fail until the image orchestrator is
+updated to consume the same selected release snapshot. Do not bypass
+this check or silently rebuild untagged packages.
+
+
 
 The image builder **reuses** the existing package launchers and their
 published manifests. It then builds Linux + DTB + modules from
