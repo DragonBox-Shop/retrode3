@@ -20,6 +20,14 @@ python3 /src/buildserver/verify-image-snapshot.py \
 python3 /src/buildserver/verify-platform-snapshot.py /work/published-platform.json
 export RETRODE3_APT_PUBLIC_KEY=/private/retrode3-archive.gpg
 export RETRODE3_APT_SUITE=testing
+# Validate OCI bind-mounted devices BEFORE the multi-minute Debian
+# bootstrap, so a Podman host limitation fails immediately.
+for device in null zero random urandom tty; do
+  [[ -c "/work/rootfs/dev/$device" ]] || {
+    echo "Missing Podman-bound chroot device before mmdebstrap: /dev/$device" >&2
+    exit 1
+  }
+done
 mkdir -p /work/base-rootfs
 bash /src/image/build-bookworm-rootfs.sh /work/base-rootfs
 # The host image launcher pre-created a private /dev subtree with OCI
