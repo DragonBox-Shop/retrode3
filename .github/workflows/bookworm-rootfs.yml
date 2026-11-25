@@ -39,15 +39,18 @@ jobs:
   source-uboot-crossbuild:
     # Only compile/inspect U-Boot. Never create or flash a deployable SD card.
     runs-on: ubuntu-24.04
+    container:
+      image: debian:bookworm
     timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
-      - name: Install Bookworm-compatible MIPSEL compiler
+      - name: Install Debian 12 MIPSEL compiler
         run: |
-          sudo apt-get update
-          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y \
-            git make gcc-mipsel-linux-gnu binutils-mipsel-linux-gnu \
-            bison flex python3
+          apt-get update
+          DEBIAN_FRONTEND=noninteractive apt-get install -y \
+            ca-certificates git make gcc-mipsel-linux-gnu \
+            binutils-mipsel-linux-gnu bison flex python3
+          mipsel-linux-gnu-gcc -dumpfullversion
       - name: Compile reviewed X1600-v5 source and validate preboot offsets
         run: |
           set -eux
