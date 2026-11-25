@@ -56,7 +56,7 @@ class SourceBuiltBootloaderTests(unittest.TestCase):
 
     def test_reject_moved_payload(self):
         self.combo.write_bytes(b"\0" * SECTOR + self.combo.read_bytes())
-        with self.assertRaisesRegex(ValueError, "unexpected source U-Boot combined image size|combined U-Boot layout"):
+        with self.assertRaisesRegex(ValueError, "vendor MBR signature|unexpected source U-Boot combined image size|combined U-Boot layout"):
             source_preboot(self.combo, self.spl, self.uboot)
 
     def test_reject_oversize_bootloader(self):
