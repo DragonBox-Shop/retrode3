@@ -37,32 +37,12 @@ command -v "mipsel-linux-gnu-gcc" >/dev/null || {
   echo "Cross compiler target is not mipsel-linux-gnu" >&2; exit 1;
 }
 
-# Validate the package snapshot before even downloading a kernel.
-python3 - "$RETRODE3_IMAGE_SUITE" "$RETRODE3_OS_SHA" \
-          "$RETRODE3_OS_TAG" "$RETRODE3_OSCR_SHA" "$RETRODE3_OSCR_TAG" <<'PY'
-import json, re, sys
-d=json.load(open("/work/published-packages.json"))
-expected = {
-    "release_channel": sys.argv[1], "os_commit": sys.argv[2],
-    "os_tag": sys.argv[3], "oscr_commit": sys.argv[4],
-    "oscr_tag": sys.argv[5],
-}
-if any(d.get(k) != v for k, v in expected.items()):
-    sys.exit("Published package manifest does not match requested exact OS/OSCR tag snapshot")
-records=d.get("packages")
-if not isinstance(records,list) or not records:
-    sys.exit("No published packages")
-names={x["package"] for x in records}
-if len(names)!=len(records) or not {"retrode3-core-runtime","retrode3-web-control",
-                                 "retrode3-tools","retrode3-udev-rules"}.issubset(names):
-    sys.exit("Required Retrode3 packages missing from snapshot")
-for x in records:
-    if not re.fullmatch(r"retrode3-[a-z0-9-]+", x["package"]):
-        sys.exit("Unsafe package name")
-for key in ("native_version","web_version","oscr_commit","sanni_commit"):
-    if not d.get(key):
-        sys.exit("Unpinned package input: "+key)
-PY
+# Revalidate source snapshot inside the disposable container before
+# downloading/building boot components (host verification is not sufficient).
+python3 /src/buildserver/verify-image-snapshot.py \
+  /work/published-packages.json "$RETRODE3_IMAGE_SUITE" \
+  "$RETRODE3_IMAGE_BRANCH" "$RETRODE3_OS_TAG" "$RETRODE3_OS_SHA" \
+  "$RETRODE3_OSCR_TAG" "$RETRODE3_OSCR_SHA"
 
 # Clone the exact selected kernel first, before any expensive U-Boot work.
 # The approved FULLCONFIG is checked into the SAME kernel commit as the
