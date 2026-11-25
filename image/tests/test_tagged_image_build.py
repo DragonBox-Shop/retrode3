@@ -121,10 +121,13 @@ class TaggedImageContractTests(unittest.TestCase):
                           expected.replace("MIPS32_R2", "MIPS32_R1")):
             self.assertNotEqual(incorrect, normalized)
 
-    def test_installer_does_not_rewrite_package_launchers(self):
+    def test_installer_wires_both_develop_launchers_without_master_changes(self):
         installer = (ROOT / "buildserver/install-image-launcher.sh").read_text()
+        self.assertIn('package_target="$vhost/package_develop.sh"', installer)
         self.assertIn('target="$vhost/build_image_develop.sh"', installer)
-        self.assertNotIn('target="$vhost/package_develop.sh"', installer)
+        self.assertIn('package-develop-all.sh" --publish-testing', installer)
+        self.assertIn('run-image.sh" develop', installer)
+        self.assertNotIn('target="$vhost/package_master.sh"', installer)
         self.assertNotIn('target="$vhost/build_image_master.sh"', installer)
         self.assertIn("feature/source-built-x1600-uboot-image", installer)
 

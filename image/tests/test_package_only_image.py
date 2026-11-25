@@ -71,7 +71,12 @@ class PackageOnlyImageTests(unittest.TestCase):
         self.assertIn("build-image-from-packages.sh", host)
         self.assertIn("verify-platform-snapshot.py", host)
         self.assertNotIn("kernel_url=https", host)
-        self.assertNotIn('bash "$vhost/package_$branch.sh"', host)
+        self.assertIn('bash "$vhost/package_$branch.sh"', host)
+        package = (ROOT / "buildserver/package-develop-all.sh").read_text()
+        self.assertIn('bash "$automation" develop', package)
+        self.assertIn("package-platform-develop.sh", package)
+        self.assertIn("publish-platform-develop.sh", package)
+        self.assertNotIn('bash /srv/www/vhosts/retrode.com/package_develop.sh', package)
 
     def test_package_producer_cache_and_source_recipe_contract(self):
         producer = (ROOT / "buildserver/package-platform-develop.sh").read_text()

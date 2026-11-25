@@ -27,9 +27,9 @@ import json, subprocess, sys
 d=json.load(open(sys.argv[1]))
 refs={
 "kernel":("https://github.com/DragonBox-Shop/retrode3-kernel.git",
-          "refs/heads/feature/retrode3-mipsel-deb-packaging-20261125"),
+          "refs/heads/develop"),
 "uboot":("https://github.com/DragonBox-Shop/retrode3-uboot.git",
-         "refs/heads/feature/retrode3-uboot-deb-packaging-20261125")}
+         "refs/heads/develop")}
 for kind,(url,ref) in refs.items():
     row=subprocess.check_output(["git","ls-remote","--exit-code",url,ref],text=True).strip()
     if row.split()[0]!=d["sources"][kind]:
