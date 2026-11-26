@@ -57,6 +57,7 @@ def apt_base():
             "-o", "Dir::Etc::sourceparts=-", "-o", "APT::Get::AllowUnauthenticated=false",
             "-o", "Acquire::AllowInsecureRepositories=false", "-o", "Acquire::Retries=1",
             "-o", "Acquire::https::Timeout=20", "-o", "DPkg::Lock::Timeout=10",
+            "-o", "Dir::Log::Planner=/dev/null",
             "-o", "DPkg::Options::=--force-confold", "--no-install-recommends", "--no-remove"]
 
 

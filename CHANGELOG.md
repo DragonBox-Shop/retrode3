@@ -3,6 +3,10 @@
 These are user-facing changes, not a list of Git commits. Development images
 are experimental until hardware testing is complete.
 
+## Unreleased
+
+- Software updates now tolerate temporary web server interruptions, pause background cartridge polling during installation, and clearly display a green success message instead of leaving the package list visible. Unnecessary APT planner logging is disabled during web updates.
+
 ## 2026.11.26-rc5
 
 - Advanced settings now clearly use the developer password, which also serves as the root password. SSH root password login can be enabled or disabled at any time, independently of installed public keys, without losing access to developer settings or the local recovery console.

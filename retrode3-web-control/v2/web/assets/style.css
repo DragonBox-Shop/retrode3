@@ -114,3 +114,5 @@
 #developer-feedback:empty{visibility:hidden}
 
 #update-packages{max-height:12rem;overflow:auto;overflow-wrap:anywhere}#update-packages p{margin:6px 0}#update-status{min-height:2.8em}
+
+#update-packages[hidden]{display:none}#update-status.update-success{color:#72d6a0;font-weight:700;font-size:1.1rem}#update-status.update-failure{color:var(--danger);font-weight:700}

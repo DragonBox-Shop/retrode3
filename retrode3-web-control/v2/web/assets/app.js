@@ -11,7 +11,7 @@
   var wifiOperation = null, wifiStatusSerial = 0;
   var pluginSlotFilter = "";
   var toastTimer = null, developerPending = false, developerState = null, developerSerial = 0;
-  var updateState = null, updatePending = false, updateTimer = null, updatePolling = false;
+  var updateState = null, updatePending = false, updateTimer = null, updatePolling = false, updateSerial = 0;
   var readerOptions = null, readerOptionsLoading = false, readerOptionsRequest = 0;
   var genericWidget = null;
   var writerIdentified = null;
@@ -52,15 +52,28 @@
       options.headers = {"Content-Type": "application/json", "X-CSRF-Token": csrf};
       options.body = JSON.stringify(data);
     }
-    return fetch(url, options).then(function (response) {
-      return response.json().catch(function () { throw new Error(t("error_generic")); })
-        .then(function (body) {
-          if (!response.ok) throw new Error(body.message || body.error || t("error_generic"));
-          return body;
-        });
+    return fetch(url, options).catch(function (err) {
+      err.transport = true;
+      throw err;
+    }).then(function (response) {
+      return response.json().catch(function () {
+        var err = new Error(t("error_generic"));
+        err.transport = true;
+        throw err;
+      }).then(function (body) {
+        if (!response.ok) {
+          var err = new Error(body.message || body.error || t("error_generic"));
+          err.transport = [502, 503, 504].indexOf(response.status) !== -1;
+          throw err;
+        }
+        return body;
+      });
     });
   }
-  function fail(err) { notify(err && err.message ? err.message : t("error_generic")); }
+  function fail(err) {
+    if (err && err.transport && (updatePending || updateInProgress(updateState))) return;
+    notify(err && err.message ? err.message : t("error_generic"));
+  }
   function humanSize(n) {
     if (n === null || n === undefined) return "—";
     if (n >= 1048576) return (n / 1048576).toFixed(2) + " MiB";
@@ -549,6 +562,7 @@
     });
   }
   function refreshSlots() {
+    if (typeof updateState !== "undefined" && (updatePending || updateInProgress(updateState))) return Promise.resolve();
     var serial = ++slotPollSerial;
     return api("/api/slots").then(function (data) {
       if (!data || !Array.isArray(data.slots) || serial < slotAppliedSerial) return;
@@ -668,6 +682,7 @@
       }
       renderSelectedProbe();
     }).catch(function (error) {
+      if (typeof updateState !== "undefined" && (updatePending || updateInProgress(updateState))) return;
       text($("slots-summary"), t("slot_unavailable"));
       fail(error);
     });
@@ -1323,10 +1338,13 @@
     updateState = data;
     var status = t("update_" + data.phase);
     if (data.message) status += " " + data.message;
-    text($("update-status"), status);
+    var statusNode = $("update-status");
+    statusNode.className = data.phase === "done" ? "update-success" : data.phase === "failed" ? "update-failure" : "muted small";
+    text(statusNode, status);
     var list = $("update-packages");
     list.textContent = "";
-    (data.packages || []).forEach(function (pkg) {
+    list.hidden = data.phase === "done" || !(data.packages || []).length;
+    (list.hidden ? [] : data.packages).forEach(function (pkg) {
       var row = document.createElement("p");
       text(row, pkg.name + ": " + (pkg.installed || t("update_new_package")) + " → " + pkg.candidate);
       list.appendChild(row);
@@ -1344,15 +1362,19 @@
   function pollUpdate() {
     if (!direct || !$("update-panel") || updatePolling || updatePending) return;
     updatePolling = true;
+    var serial = updateSerial;
     return api("/api/update").then(function (data) {
+      if (serial !== updateSerial || updatePending) return;
       var wasInstalling = updateInProgress(updateState) && updateState.phase !== "checking";
       renderUpdate(data);
+      if (data.phase === "done") dismissToast();
       if (wasInstalling && data.phase === "done") {
         // Reload new frontend after its backend and assets were replaced.
         try { sessionStorage.setItem("retrode3-update-complete", "1"); } catch (_) {}
         window.location.reload();
       }
     }).catch(function (err) {
+      if (serial !== updateSerial || updatePending) return;
       if (updateInProgress(updateState)) {
         text($("update-status"), t("update_reconnecting"));
       } else if (currentPage === "settings") {
@@ -1367,19 +1389,31 @@
     if (updatePending || updateInProgress(updateState)) return;
     if (hardwareBusy() || (action === "install" && !confirm(t("update_confirm")))) return;
     updatePending = true;
+    ++updateSerial;
     if (updateTimer !== null) { clearTimeout(updateTimer); updateTimer = null; }
     $("update-check").disabled = $("update-install").disabled = true;
+    $("update-status").className = "muted small";
     text($("update-status"), t(action === "check" ? "update_checking" : "update_downloading"));
     return api("/api/update", {action: action}).then(function (data) {
       updatePending = false;
       renderUpdate(data);
     }).catch(function (err) {
       updatePending = false;
-      fail(err);
+      if (err.transport) {
+        // A lost response is not evidence that the update failed. Never
+        // resubmit a mutation automatically; read the authoritative status.
+        renderUpdate({phase: action === "check" ? "checking" : "downloading",
+                      packages: updateState && updateState.packages || []});
+        text($("update-status"), t("update_reconnecting"));
+      } else {
+        if (updateState) renderUpdate(updateState);
+        fail(err);
+      }
     }).then(pollUpdate);
   }
   function loadSettings() {
     pollUpdate();
+    if (updatePending || updateInProgress(updateState)) return;
     loadDeveloper();
     loadCores();
     api("/api/settings").then(function (data) {
