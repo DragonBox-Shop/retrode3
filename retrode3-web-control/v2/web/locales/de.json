@@ -216,7 +216,7 @@
   "ssh_enable": "SSH aktivieren",
   "ssh_disable": "SSH deaktivieren",
   "developer_setup_note": "Hier setzt Du das gemeinsame Root- und Entwicklerpasswort. SSH bleibt bis zur ausdrücklichen Aktivierung aus. Nur an einem vertrauenswürdigen USB-Rechner einrichten.",
-  "developer_new": "Neues Root-Passwort (12-72 Bytes)",
+  "developer_new": "Neues Root-Passwort",
   "developer_repeat": "Neues Passwort wiederholen",
   "developer_save": "Root-Passwort setzen",
   "developer_change": "Root-Passwort ändern",
@@ -231,5 +231,13 @@
   "read_verification": "Verifizierung",
   "read_layout": "ROM-Layout",
   "read_checksum_compare": "Erwartet / tatsächlich",
-  "read_configuration": "Lesekonfiguration"
+  "read_configuration": "Lesekonfiguration",
+  "ssh_keys": "Öffentliche SSH-Schlüssel",
+  "ssh_keys_note": "Public Key einfügen oder eine .pub-Datei auswählen. Niemals den privaten Schlüssel hochladen. Zum Hinzufügen oder Entfernen oben das Root-Passwort bestätigen.",
+  "ssh_key_file": "Public-Key-Datei",
+  "ssh_key_text": "Public Key",
+  "ssh_key_add": "Public Key hinzufügen",
+  "ssh_key_list": "Autorisierte Public Keys",
+  "ssh_key_remove": "Ausgewählten Schlüssel entfernen",
+  "ssh_key_invalid": "Bitte eine öffentliche SSH-Schlüsseldatei auswählen."
 }

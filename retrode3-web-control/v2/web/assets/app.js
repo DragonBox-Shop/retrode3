@@ -1134,6 +1134,17 @@
       text($("ssh-status"), data.running ? t("status_connected") : t("status_disconnected"));
       $("ssh-enable").disabled = data.running;
       $("ssh-disable").disabled = !data.enabled && !data.running;
+      if ($("ssh-key-list")) {
+        var list = $("ssh-key-list");
+        list.textContent = "";
+        (data.keys || []).forEach(function (key) {
+          var option = document.createElement("option");
+          option.value = key.fingerprint;
+          text(option, key.type + " " + key.fingerprint + (key.comment ? " " + key.comment : ""));
+          list.appendChild(option);
+        });
+        $("ssh-key-remove").disabled = !(data.keys || []).length;
+      }
     }).catch(fail);
   }
   function saveDeveloperPassword(initial) {
@@ -1151,6 +1162,19 @@
     var data = {action: action, developer_password: $("developer-password").value};
     $("developer-password").value = "";
     api("/api/developer/ssh", data).then(loadDeveloper).catch(fail);
+  }
+  function changeSSHKey(action) {
+    var data = {action: action, developer_password: $("developer-password").value};
+    if (action === "add_key") data.public_key = $("ssh-key-text").value;
+    else {
+      data.fingerprint = $("ssh-key-list").value;
+      if (!data.fingerprint) return;
+    }
+    $("developer-password").value = "";
+    api("/api/developer/ssh", data).then(function () {
+      $("ssh-key-text").value = ""; $("ssh-key-file").value = "";
+      loadDeveloper();
+    }).catch(fail);
   }
   function loadSettings() {
     loadDeveloper();
@@ -1177,6 +1201,19 @@
       $("developer-change-save").addEventListener("click", function () { saveDeveloperPassword(false); });
       $("ssh-enable").addEventListener("click", function () { changeSSH("enable"); });
       $("ssh-disable").addEventListener("click", function () { changeSSH("disable"); });
+      if ($("ssh-key-file")) {
+        $("ssh-key-file").addEventListener("change", function () {
+          var file = this.files[0];
+          if (!file) return;
+          if (file.size > 4096) { this.value = ""; fail(new Error(t("ssh_key_invalid"))); return; }
+          file.text().then(function (value) {
+            if (/PRIVATE KEY/.test(value)) throw new Error(t("ssh_key_invalid"));
+            $("ssh-key-text").value = value;
+          }).catch(fail);
+        });
+        $("ssh-key-add").addEventListener("click", function () { changeSSHKey("add_key"); });
+        $("ssh-key-remove").addEventListener("click", function () { changeSSHKey("remove_key"); });
+      }
     }
     $("locale").addEventListener("change", function () { setLocale(this.value); });
     $("refresh-cores").addEventListener("click", loadCores);

@@ -216,7 +216,7 @@
   "ssh_enable": "Enable SSH",
   "ssh_disable": "Disable SSH",
   "developer_setup_note": "Set the shared root/developer password here. SSH stays off until explicitly enabled. Use a trusted USB-connected computer.",
-  "developer_new": "New root password (12-72 bytes)",
+  "developer_new": "New root password",
   "developer_repeat": "Repeat new password",
   "developer_save": "Set root password",
   "developer_change": "Change root password",
@@ -231,5 +231,13 @@
   "read_verification": "Verification",
   "read_layout": "ROM layout",
   "read_checksum_compare": "Expected / actual",
-  "read_configuration": "Read configuration"
+  "read_configuration": "Read configuration",
+  "ssh_keys": "SSH public keys",
+  "ssh_keys_note": "Paste a public key or select a .pub file. Never upload your private key. Confirm the root password above to add or remove a key.",
+  "ssh_key_file": "Public key file",
+  "ssh_key_text": "Public key",
+  "ssh_key_add": "Add public key",
+  "ssh_key_list": "Authorized public keys",
+  "ssh_key_remove": "Remove selected key",
+  "ssh_key_invalid": "Select an SSH public key file."
 }

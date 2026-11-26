@@ -1,6 +1,9 @@
 #!/usr/bin/python3
 """Root-only developer control. The sole developer credential is root's shadow hash."""
+import base64
+import binascii
 import crypt
+import hashlib
 import fcntl
 import hmac
 import json
@@ -10,12 +13,14 @@ import spwd
 import stat
 import subprocess
 import sys
+import tempfile
 import time
 from pathlib import Path
 
 MARKER = Path("/etc/retrode3/ssh-enabled")
 SERVICE = "/etc/init.d/retrode3-ssh"
 LEGACY = Path("/etc/retrode3-developer.auth")
+KEY_FILE = Path("/root/.ssh/authorized_keys")
 
 def root_hash():
     return spwd.getspnam("root").sp_pwdp
@@ -32,20 +37,141 @@ def run(action):
     return subprocess.run([SERVICE, action], stdout=subprocess.DEVNULL,
                           stderr=subprocess.DEVNULL, timeout=20).returncode
 
+def parse_key(line):
+    """Accept one plain OpenSSH public key, never options or private keys."""
+    if not isinstance(line, str) or len(line.encode("utf-8")) > 4096:
+        raise ValueError("Invalid public key size")
+    line = line.strip()
+    if any(c in line for c in "\r\n\0"):
+        raise ValueError("Upload exactly one public key")
+    fields = line.split(None, 2)
+    if len(fields) < 2:
+        raise ValueError("Invalid OpenSSH public key")
+    kind, encoded = fields[:2]
+    curves = {"ecdsa-sha2-nistp256": (b"nistp256", 65),
+              "ecdsa-sha2-nistp384": (b"nistp384", 97),
+              "ecdsa-sha2-nistp521": (b"nistp521", 133)}
+    if kind not in ("ssh-ed25519", "ssh-rsa") and kind not in curves:
+        raise ValueError("Unsupported public key type")
+    try:
+        blob = base64.b64decode(encoded, validate=True)
+        parts = []
+        pos = 0
+        while pos < len(blob):
+            if len(parts) >= 3 or pos + 4 > len(blob):
+                raise ValueError()
+            n = int.from_bytes(blob[pos:pos+4], "big")
+            pos += 4
+            if n == 0 or pos + n > len(blob):
+                raise ValueError()
+            parts.append(blob[pos:pos+n])
+            pos += n
+        if not parts or parts[0] != kind.encode("ascii"):
+            raise ValueError()
+        if kind == "ssh-ed25519":
+            if len(parts) != 2 or len(parts[1]) != 32:
+                raise ValueError()
+        elif kind == "ssh-rsa":
+            if len(parts) != 3 or any(p[0] & 128 for p in parts[1:]):
+                raise ValueError()
+            if int.from_bytes(parts[1], "big") < 3 or int.from_bytes(parts[2], "big").bit_length() < 1024:
+                raise ValueError()
+        else:
+            curve, size = curves[kind]
+            if len(parts) != 3 or parts[1] != curve or len(parts[2]) != size or parts[2][0] != 4:
+                raise ValueError()
+    except (ValueError, binascii.Error):
+        raise ValueError("Invalid OpenSSH public key data") from None
+    fingerprint = "SHA256:" + base64.b64encode(hashlib.sha256(blob).digest()).decode("ascii").rstrip("=")
+    comment = fields[2] if len(fields) == 3 else ""
+    if any(ord(c) < 32 or ord(c) == 127 for c in comment):
+        raise ValueError("Invalid public key comment")
+    normalized = kind + " " + base64.b64encode(blob).decode("ascii")
+    if comment:
+        normalized += " " + comment
+    return normalized, {"type": kind, "fingerprint": fingerprint, "comment": comment}
+
+
+def key_lines(create=False):
+    parent = KEY_FILE.parent
+    if create:
+        parent.mkdir(mode=0o700, exist_ok=True)
+    try:
+        st = parent.lstat()
+    except FileNotFoundError:
+        return []
+    if not stat.S_ISDIR(st.st_mode) or st.st_uid != 0 or st.st_mode & 0o022:
+        raise ValueError("Unsafe SSH key directory")
+    try:
+        st = KEY_FILE.lstat()
+    except FileNotFoundError:
+        return []
+    if not stat.S_ISREG(st.st_mode) or st.st_uid != 0 or st.st_mode & 0o022 or st.st_size > 65536:
+        raise ValueError("Unsafe SSH authorized_keys file")
+    return KEY_FILE.read_bytes().splitlines(keepends=True)
+
+
+def key_info(line):
+    try:
+        return parse_key(line.decode("utf-8"))[1]
+    except (ValueError, UnicodeError):
+        return None
+
+
+def list_keys():
+    keys = {}
+    for line in key_lines():
+        info = key_info(line)
+        if info:
+            keys[info["fingerprint"]] = info
+    return list(keys.values())
+
+
+def update_keys(data):
+    lines = key_lines(create=True)
+    if data["action"] == "add_key":
+        line, info = parse_key(data.get("public_key"))
+        if any((key_info(old) or {}).get("fingerprint") == info["fingerprint"] for old in lines):
+            return
+        if lines and not lines[-1].endswith(b"\n"):
+            lines[-1] += b"\n"
+        lines.append((line + "\n").encode("utf-8"))
+    else:
+        fingerprint = data.get("fingerprint")
+        if not isinstance(fingerprint, str) or not re.fullmatch(r"SHA256:[A-Za-z0-9+/]{43}", fingerprint):
+            raise ValueError("Invalid public key fingerprint")
+        lines = [line for line in lines if (key_info(line) or {}).get("fingerprint") != fingerprint]
+    payload = b"".join(lines)
+    if len(payload) > 65536:
+        raise ValueError("Too many authorized keys")
+    os.chmod(KEY_FILE.parent, 0o700)
+    fd, temp = tempfile.mkstemp(prefix=".authorized_keys.", dir=KEY_FILE.parent)
+    try:
+        with os.fdopen(fd, "wb") as stream:
+            os.fchmod(stream.fileno(), 0o600)
+            stream.write(payload)
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.replace(temp, KEY_FILE)
+    finally:
+        if os.path.exists(temp):
+            os.unlink(temp)
+
+
 def status():
     stored = root_hash()
     running = run("status") == 0
     enabled = MARKER.is_file()
     return {"configured": configured(stored),
             "setup_needed": setup_needed(stored) and not enabled and not running,
-            "enabled": enabled, "running": running}
+            "enabled": enabled, "running": running, "keys": list_keys()}
 
 def set_password(data):
     password = data.get("new_password")
-    if (not isinstance(password, str) or not 12 <= len(password.encode("utf-8")) <= 72
+    if (not isinstance(password, str) or not 1 <= len(password.encode("utf-8")) <= 512
             or any(c in password for c in "\0\r\n:")
             or password != data.get("repeat_password")):
-        raise ValueError("Passwords must match: 12-72 UTF-8 bytes, no colon or line breaks")
+        raise ValueError("Passwords must match and be non-empty (no colon, NUL or line breaks; max 512 UTF-8 bytes)")
     # chpasswd receives the password exclusively through stdin.
     subprocess.run(["/usr/sbin/chpasswd"], input="root:" + password + "\n",
                    text=True, check=True, stdout=subprocess.DEVNULL,
@@ -82,11 +208,13 @@ def dispatch(data, runtime):
             raise ValueError("Initial setup is unavailable")
         set_password(data)
         return status()
-    if action not in ("enable", "disable", "change_password"):
+    if action not in ("enable", "disable", "change_password", "add_key", "remove_key"):
         raise ValueError("Unknown developer action")
     authenticate(data, runtime)
     if action == "change_password":
         set_password(data)
+    elif action in ("add_key", "remove_key"):
+        update_keys(data)
     elif action == "disable":
         MARKER.unlink(missing_ok=True)
         if run("stop"):
@@ -112,8 +240,8 @@ def main():
     if not stat.S_ISDIR(st.st_mode) or st.st_uid != 0 or st.st_mode & 0o077:
         raise ValueError("Unsafe SSH control runtime directory")
     # Read bounded input before locking to avoid blocking another request.
-    raw = sys.stdin.buffer.read(4097)
-    if len(raw) > 4096:
+    raw = sys.stdin.buffer.read(8193)
+    if len(raw) > 8192:
         raise ValueError("SSH control request too large")
     data = json.loads(raw)
     with open(runtime / "lock", "a") as lock:
