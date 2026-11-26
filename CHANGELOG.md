@@ -3,6 +3,10 @@
 These are user-facing changes, not a list of Git commits. Development images
 are experimental until hardware testing is complete.
 
+## Unreleased
+
+- Wi-Fi scanning now allows the radio to initialize and automatically retries transient scan failures, with clearer error messages.
+
 ## 2026.11.26-rc4
 
 - Check for and install software updates directly from the web interface, including new cartridge plugins shipped through the existing package repository. Kernel and bootloader are excluded.

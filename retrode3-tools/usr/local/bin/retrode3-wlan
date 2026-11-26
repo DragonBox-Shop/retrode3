@@ -11,6 +11,7 @@ import stat
 import subprocess
 import sys
 import tempfile
+import time
 
 IFACE = "wlan0"
 NET = Path("/sys/class/net") / IFACE
@@ -118,15 +119,51 @@ def link_up():
     return bool(int((NET / "flags").read_text().strip(), 16) & 1)
 
 
+class ScanError(RuntimeError):
+    """Fixed, credential-free error messages for the web client."""
+
+
 def scan():
+    if not NET.exists():
+        raise ScanError("WLAN interface unavailable")
     was_up = link_up()
-    if not was_up:
-        cmd(IP, "link", "set", IFACE, "up")
+    # Leave room for interface cleanup inside the backend's 18-second timeout.
+    deadline = time.monotonic() + 14
     try:
-        return parse_scan(cmd(IW, "dev", IFACE, "scan", timeout=12))
+        if not was_up:
+            try:
+                cmd(IP, "link", "set", IFACE, "up", timeout=4)
+            except (RuntimeError, subprocess.TimeoutExpired):
+                raise ScanError("Could not activate WLAN interface") from None
+            # Give the ESP firmware/driver time to initialize the radio.
+            time.sleep(0.8)
+        last_error = "WLAN scan did not complete"
+        for attempt in range(3):
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                break
+            try:
+                # A transient busy error may mean a scan is already in flight.
+                # Keep the link up throughout all retries; never return stale
+                # cached scan results as if a fresh scan had succeeded.
+                raw = cmd(IW, "dev", IFACE, "scan", timeout=min(8, remaining))
+                return parse_scan(raw)
+            except subprocess.TimeoutExpired:
+                last_error = "WLAN scan timed out"
+            except RuntimeError:
+                last_error = "WLAN scan rejected by driver"
+            if attempt < 2:
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    break
+                time.sleep(min(0.7, remaining))
+        raise ScanError(last_error + " after retrying")
     finally:
         if not was_up:
-            cmd(IP, "link", "set", IFACE, "down", check=False)
+            try:
+                cmd(IP, "link", "set", IFACE, "down", check=False, timeout=2)
+            except subprocess.TimeoutExpired:
+                raise ScanError("WLAN scan finished but interface cleanup timed out") from None
 
 
 def status():
@@ -269,6 +306,12 @@ def main():
 if __name__ == "__main__":
     try:
         main()
+    except ScanError as exc:
+        sys.stderr.write(str(exc) + "\n")
+        sys.exit(1)
+    except BlockingIOError:
+        sys.stderr.write("Another WLAN operation is running. Try again.\n")
+        sys.exit(1)
     except (OSError, ValueError, RuntimeError, subprocess.SubprocessError):
         # Do not echo arbitrary input, command lines, or credentials.
         sys.stderr.write("WLAN operation failed (invalid request, busy or unavailable device).\n")
