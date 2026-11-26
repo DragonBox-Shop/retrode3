@@ -218,6 +218,13 @@ readers.length = 0; readers.push({id:"md", name:"Mega Drive", slot:"md"});
 ctx.coreState = {available:true, cores:[
   {id:"sms-md", name:"SMS", slot:"md", enabled:false, status:"disabled"},
   {id:"other", name:"Other", slot:"snes", enabled:false, status:"disabled"}]};
+// The earlier removal test deliberately left a positive cached MD probe.
+// A real refreshSlots() clears it when presence changes. Simulate that
+// transition here before testing an unrecognized new cartridge.
+node = card();
+assert(!allText(node).includes("slot_disabled_plugins"),
+  "A positive cached manual probe must suppress the disabled-plugin hint");
+delete ctx.detectedBySlot.md;
 node = card();
 assert(allText(node).includes("slot_disabled_plugins: SMS"));
 assert(!allText(node).includes("Other"));
