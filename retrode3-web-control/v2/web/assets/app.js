@@ -13,7 +13,14 @@
   var writerSourcePath = "";
   var writerUploading = false;
   var writerUploadSerial = 0;
-  var csrf = document.querySelector('meta[name="csrf-token"]').content;
+  var direct = Boolean(document.querySelector('meta[name="retrode3-transport"]'));
+  var csrfMeta = document.querySelector('meta[name="csrf-token"]');
+  var csrf = csrfMeta ? csrfMeta.content : "";
+  function apiUrl(route, query) {
+    var url = direct ? route : "api.php?route=" + encodeURIComponent(route);
+    if (query !== undefined) url += (direct ? "?" : "&") + "path=" + encodeURIComponent(query);
+    return url;
+  }
   var $ = function (id) { return document.getElementById(id); };
   function t(key) { return messages[key] || key; }
   function text(el, value) { el.textContent = value === null || value === undefined ? "" : String(value); }
@@ -26,8 +33,7 @@
     /* Toast disappears on the next user-triggered action. */
   }
   function api(route, data, query) {
-    var url = "api.php?route=" + encodeURIComponent(route);
-    if (query !== undefined) url += "&path=" + encodeURIComponent(query);
+    var url = apiUrl(route, query);
     var options = {credentials: "same-origin", cache: "no-store"};
     if (data !== undefined) {
       options.method = "POST";
@@ -619,12 +625,21 @@
     writerUploading = true;
     renderWriterState();
     text($("writer-upload-status"), t("writer_uploading"));
-    var data = new FormData();
-    data.append("folder", reader.folder);
-    data.append("rom", selected, selected.name);
-    fetch("rom-upload.php", {
+    var data, url, headers = {"X-CSRF-Token": csrf};
+    if (direct) {
+      url = "/api/files/upload?folder=" + encodeURIComponent(reader.folder) +
+        "&filename=" + encodeURIComponent(selected.name);
+      headers["Content-Type"] = "application/octet-stream";
+      data = selected;
+    } else {
+      url = "rom-upload.php";
+      data = new FormData();
+      data.append("folder", reader.folder);
+      data.append("rom", selected, selected.name);
+    }
+    fetch(url, {
       method: "POST", credentials: "same-origin", cache: "no-store",
-      headers: {"X-CSRF-Token": csrf}, body: data
+      headers: headers, body: data
     }).then(function (reply) {
       return reply.json().then(function (result) {
         if (!reply.ok || !result.ok || !result.path)
@@ -896,8 +911,7 @@
         var actions = document.createElement("td");
         if (!item.directory) {
           actions.appendChild(button(t("download"), function () {
-            window.location.href = "api.php?route=" +
-              encodeURIComponent("/api/files/download") + "&path=" + encodeURIComponent(item.path);
+            window.location.href = apiUrl("/api/files/download", item.path);
           }));
         }
         actions.appendChild(button(t("rename"), function () {
@@ -1105,9 +1119,20 @@
       } else $("cancel").disabled = true;
     }).catch(function () { /* Older backends may not support /active. */ });
   }
-  bind();
-  var saved = (navigator.language || "").toLowerCase().indexOf("de") === 0 ? "de" : "en";
-  setLocale(saved);
-  loadCapabilities().then(resumeJob);
-  window.setInterval(refreshSlots, 1500);
+  function start() {
+    bind();
+    var saved = (navigator.language || "").toLowerCase().indexOf("de") === 0 ? "de" : "en";
+    setLocale(saved);
+    loadCapabilities().then(resumeJob);
+    window.setInterval(refreshSlots, 1500);
+  }
+  if (direct) {
+    api("/api/session").then(function (session) {
+      if (!/^[0-9a-f]{64}$/.test(session.csrf || "")) throw new Error("Invalid session");
+      csrf = session.csrf;
+      start();
+    }).catch(fail);
+  } else {
+    start();
+  }
 })();
