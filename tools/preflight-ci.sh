@@ -49,6 +49,8 @@ visudo -cf packaging/assets/retrode3-tools.sudoers
 python3 -m py_compile retrode3-tools/usr/local/bin/retrode3-wlan
 python3 -m py_compile packaging/assets/retrode3-ssh-control
 bash -n buildserver/build-image-from-packages.sh
+bash -n buildserver/run-image.sh
+python3 -m unittest discover -s image/tests -p 'test_publish_development_image.py' -v
 python3 -m unittest discover -s image/tests -p 'test_finalize_apt.py' -v
 python3 -m unittest discover -s image/tests -p 'test_verify_lighttpd_offline.py' -v
 python3 -m unittest discover -s image/tests -p 'test_lighttpd_routes.py' -v
