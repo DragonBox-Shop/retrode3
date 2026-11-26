@@ -74,6 +74,9 @@ static int erased_flash(uint32_t size) {
     MD5Final(digest, &ctx);
     for (size_t i=0; i<sizeof(digest); i++)
         snprintf(expected+2*i, 3, "%02x", digest[i]);
+    loader_port_start_timer(1000);
+    if (loader_spi_parameters(size)!=ESP_LOADER_SUCCESS || retrode_port_failed())
+        return -1;
     loader_port_start_timer(60000);
     if (loader_md5_cmd(0, size, observed)!=ESP_LOADER_SUCCESS || retrode_port_failed())
         return -1;
