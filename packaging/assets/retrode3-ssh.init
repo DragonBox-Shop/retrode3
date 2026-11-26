@@ -17,7 +17,12 @@ case "${1:-}" in
         [ -n "$(getent shadow root | cut -d: -f2 | grep -E '^\$[^!*]')" ] || exit 1
         install -d -o root -g root -m 0700 /etc/dropbear
         if "$0" status; then exit 0; fi
-        "$DAEMON" -R -j -k -p 22 -P "$PID"
+        # Disable root password authentication over SSH only, not in shadow.
+        if [ -f /etc/retrode3/ssh-key-only ]; then
+            "$DAEMON" -R -j -k -g -p 22 -P "$PID"
+        else
+            "$DAEMON" -R -j -k -p 22 -P "$PID"
+        fi
         ;;
     stop)
         start-stop-daemon --stop --pidfile "$PID" --exec "$DAEMON" --retry TERM/5/KILL/2 --oknodo

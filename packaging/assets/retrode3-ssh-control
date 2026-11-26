@@ -18,6 +18,7 @@ import time
 from pathlib import Path
 
 MARKER = Path("/etc/retrode3/ssh-enabled")
+KEY_ONLY = Path("/etc/retrode3/ssh-key-only")
 SERVICE = "/etc/init.d/retrode3-ssh"
 LEGACY = Path("/etc/retrode3-developer.auth")
 KEY_FILE = Path("/root/.ssh/authorized_keys")
@@ -141,6 +142,8 @@ def update_keys(data):
         if not isinstance(fingerprint, str) or not re.fullmatch(r"SHA256:[A-Za-z0-9+/]{43}", fingerprint):
             raise ValueError("Invalid public key fingerprint")
         lines = [line for line in lines if (key_info(line) or {}).get("fingerprint") != fingerprint]
+        if KEY_ONLY.is_file() and not any(key_info(line) for line in lines):
+            raise ValueError("Enable SSH password login before removing the last public key")
     payload = b"".join(lines)
     if len(payload) > 65536:
         raise ValueError("Too many authorized keys")
@@ -164,7 +167,8 @@ def status():
     enabled = MARKER.is_file()
     return {"configured": configured(stored),
             "setup_needed": setup_needed(stored) and not enabled and not running,
-            "enabled": enabled, "running": running, "keys": list_keys()}
+            "enabled": enabled, "running": running, "keys": list_keys(),
+            "password_login": not KEY_ONLY.is_file()}
 
 def set_password(data):
     password = data.get("new_password")
@@ -208,6 +212,39 @@ def authenticate(data, runtime):
         raise ValueError("Invalid developer password")
     failure.unlink(missing_ok=True)
 
+def set_password_login(enabled):
+    if type(enabled) is not bool:
+        raise ValueError("Invalid SSH password login setting")
+    previous = KEY_ONLY.is_file()
+    if not enabled and not list_keys():
+        raise ValueError("Add a public key before disabling SSH password login")
+    if previous == (not enabled):
+        return
+    running = run("status") == 0
+
+    def apply(key_only):
+        if key_only:
+            KEY_ONLY.parent.mkdir(mode=0o755, parents=True, exist_ok=True)
+            KEY_ONLY.touch(mode=0o600)
+        else:
+            KEY_ONLY.unlink(missing_ok=True)
+
+    apply(not enabled)
+    if running:
+        try:
+            if run("restart") or run("status"):
+                raise ValueError("SSH restart failed")
+        except (ValueError, OSError, subprocess.SubprocessError):
+            apply(previous)
+            try:
+                restored = run("restart") == 0 and run("status") == 0
+            except (OSError, subprocess.SubprocessError):
+                restored = False
+            if not restored:
+                raise ValueError("SSH restart failed; previous setting restored but SSH is not confirmed running") from None
+            raise ValueError("SSH restart failed; previous setting restored") from None
+
+
 def dispatch(data, runtime):
     if not isinstance(data, dict):
         raise ValueError("Expected an object")
@@ -221,11 +258,13 @@ def dispatch(data, runtime):
             raise ValueError("Initial setup is unavailable")
         set_password(data)
         return status()
-    if action not in ("enable", "disable", "change_password", "add_key", "remove_key"):
+    if action not in ("enable", "disable", "change_password", "add_key", "remove_key", "set_password_login"):
         raise ValueError("Unknown developer action")
     authenticate(data, runtime)
     if action == "change_password":
         set_password(data)
+    elif action == "set_password_login":
+        set_password_login(data.get("enabled"))
     elif action in ("add_key", "remove_key"):
         update_keys(data)
     elif action == "disable":
@@ -233,6 +272,8 @@ def dispatch(data, runtime):
         if run("stop"):
             raise ValueError("SSH stop failed")
     else:
+        if KEY_ONLY.is_file() and not list_keys():
+            raise ValueError("Add a public key or enable SSH password login first")
         if not Path("/usr/lib/openssh/sftp-server").is_file():
             raise ValueError("SFTP server missing")
         MARKER.parent.mkdir(mode=0o755, parents=True, exist_ok=True)

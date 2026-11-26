@@ -28,6 +28,9 @@ class SSHControlTests(unittest.TestCase):
         patcher = patch.object(ssh, "KEY_FILE", self.file)
         patcher.start()
         self.addCleanup(patcher.stop)
+        marker = patch.object(ssh, "KEY_ONLY", Path(tmp.name) / "ssh-key-only")
+        marker.start()
+        self.addCleanup(marker.stop)
 
     def test_short_password(self):
         saved = {}
@@ -88,6 +91,36 @@ class SSHControlTests(unittest.TestCase):
         self.file.symlink_to("/dev/null")
         with self.assertRaises(ValueError):
             ssh.update_keys({"action": "add_key", "public_key": key(1)})
+
+    def test_key_only_requires_key_and_preserves_password(self):
+        with patch.object(ssh, "run", return_value=1), patch.object(ssh, "set_password") as password:
+            with self.assertRaisesRegex(ValueError, "Add a public key"):
+                ssh.set_password_login(False)
+            ssh.update_keys({"action": "add_key", "public_key": key(1)})
+            ssh.set_password_login(False)
+            self.assertTrue(ssh.KEY_ONLY.is_file())
+            fingerprint = ssh.list_keys()[0]["fingerprint"]
+            with self.assertRaisesRegex(ValueError, "last public key"):
+                ssh.update_keys({"action": "remove_key", "fingerprint": fingerprint})
+            ssh.set_password_login(True)
+            self.assertFalse(ssh.KEY_ONLY.exists())
+            ssh.update_keys({"action": "remove_key", "fingerprint": fingerprint})
+            self.assertEqual(ssh.list_keys(), [])
+            password.assert_not_called()
+
+    def test_running_ssh_restart_failure_rolls_back(self):
+        ssh.update_keys({"action": "add_key", "public_key": key(1)})
+        with patch.object(ssh, "run", side_effect=[0, 1, 0, 0]):
+            with self.assertRaisesRegex(ValueError, "previous setting restored"):
+                ssh.set_password_login(False)
+        self.assertFalse(ssh.KEY_ONLY.exists())
+
+    def test_password_login_setting_requires_authentication(self):
+        with patch.object(ssh, "authenticate", side_effect=ValueError("wrong")), \
+             patch.object(ssh, "set_password_login") as change:
+            with self.assertRaises(ValueError):
+                ssh.dispatch({"action": "set_password_login", "enabled": False}, self.file.parent)
+            change.assert_not_called()
 
     def test_mutations_require_password(self):
         for action in ("add_key", "remove_key"):
