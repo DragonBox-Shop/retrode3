@@ -1,0 +1,31 @@
+#!/bin/sh
+### BEGIN INIT INFO
+# Provides:          retrode3-memory
+# Required-Start:    $local_fs
+# Required-Stop:     $local_fs
+# Default-Start:     2 3 4 5
+# Default-Stop:      0 1 6
+# Short-Description: Compressed swap for Retrode3
+### END INIT INFO
+set -eu
+Z=/sys/block/zram0
+case "${1:-}" in
+    start)
+        sysctl -w vm.watermark_boost_factor=0 vm.swappiness=100
+        if grep -q '^/dev/zram0 ' /proc/swaps; then exit 0; fi
+        modprobe zram num_devices=1
+        [ -b /dev/zram0 ] && [ -w "$Z/disksize" ] || exit 1
+        [ "$(cat "$Z/disksize")" = 0 ] || exit 1
+        echo lzo-rle > "$Z/comp_algorithm"
+        echo 32M > "$Z/disksize"
+        if ! mkswap /dev/zram0 || ! swapon -p 100 /dev/zram0; then
+            echo 1 > "$Z/reset"
+            exit 1
+        fi
+        ;;
+    stop)
+        # Shutdown handles swap. Avoid swapoff under memory pressure.
+        ;;
+    status) grep -q '^/dev/zram0 ' /proc/swaps ;;
+    *) echo "Usage: $0 {start|stop|status}" >&2; exit 2 ;;
+esac

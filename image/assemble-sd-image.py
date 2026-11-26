@@ -261,6 +261,13 @@ def compose(args):
             if args.ssh_authorized_key:
                 fail("developer SSH keys are not supported in package images")
             provision_usb_gadget(root)
+            memory = root / "etc/init.d/retrode3-memory"
+            memory_link = root / "etc/rc2.d/S01retrode3-memory"
+            if memory.exists() or memory.is_symlink() or memory_link.exists() or memory_link.is_symlink():
+                fail("unexpected existing memory service")
+            shutil.copyfile(Path(__file__).with_name("assets") / "retrode3-memory.init", memory)
+            os.chmod(memory, 0o755)
+            memory_link.symlink_to("../init.d/retrode3-memory")
         elif args.ssh_authorized_key:
             # Explicit historical donor-image test only, not the normal pipeline.
             provision_test_access(root, args.ssh_authorized_key.resolve(strict=True))

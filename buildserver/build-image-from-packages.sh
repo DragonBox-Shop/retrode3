@@ -195,7 +195,11 @@ for core in snes md nes; do
 done
 rm -f /work/rootfs/usr/bin/qemu-mipsel-static \
       /work/rootfs/usr/sbin/policy-rc.d /work/rootfs/etc/resolv.conf
+# Debian remains a build-time dependency source only.
+python3 /src/image/finalize-apt.py /work/rootfs
 rm -rf /work/rootfs/var/lib/apt/lists/*
+rm -f /work/rootfs/var/cache/apt/pkgcache.bin /work/rootfs/var/cache/apt/srcpkgcache.bin
+rm -f /work/rootfs/var/cache/apt/archives/*.deb
 python3 /src/image/verify-rootfs.py --with-retrode3 /work/rootfs
 # These are OCI bind mounts for build-time APT only. Never put the
 # host's character devices into the SD image; the target kernel mounts

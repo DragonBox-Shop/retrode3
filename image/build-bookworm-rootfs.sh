@@ -47,7 +47,7 @@ mmdebstrap \
   --skip=check/canmount,chroot/mount \
   --architectures=mipsel \
   --variant=minbase \
-  --include=sysvinit-core,sysv-rc,initscripts,udev,kmod,ifupdown,iproute2,isc-dhcp-client,e2fsprogs,dosfstools,ca-certificates,dropbear-bin,dnsmasq-base \
+  --include=sysvinit-core,sysv-rc,initscripts,udev,kmod,ifupdown,iproute2,isc-dhcp-client,e2fsprogs,dosfstools,ca-certificates,dropbear-bin,dnsmasq-base,fake-hwclock,wireless-regdb \
   --aptopt='APT::Install-Recommends "false"' \
   --format=tar \
   bookworm "$scratch/mmdebstrap-rootfs.tar" https://deb.debian.org/debian
@@ -67,6 +67,10 @@ EOF
 cat > "$root/etc/apt/apt.conf.d/99retrode3-minimal" <<'EOF'
 APT::Install-Recommends "false";
 APT::Install-Suggests "false";
+Acquire::Languages "none";
+APT::Update::GenerateCaches "false";
+APT::Cache-Start "4194304";
+APT::Cache-Grow "1048576";
 EOF
 # Signed Retrode3 APT source is opt-in for the image pipeline, never a
 # trustworthy-on-first-use download. All three inputs must be provided.
