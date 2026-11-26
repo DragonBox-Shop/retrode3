@@ -1232,6 +1232,10 @@
         list.appendChild(option);
       });
     }
+    if ($("ssh-password-status")) {
+      text($("ssh-password-status"), t(data.password_login === false ? "ssh_password_off" : "ssh_password_on"));
+      $("ssh-password-key-hint").hidden = (data.keys || []).length > 0;
+    }
     developerButtons();
   }
   function developerButtons() {
@@ -1241,7 +1245,10 @@
     $("ssh-enable").disabled = developerPending || !data.configured || data.running;
     $("ssh-disable").disabled = developerPending || !data.configured || (!data.enabled && !data.running);
     if ($("ssh-key-add")) $("ssh-key-add").disabled = developerPending || !data.configured;
-    if ($("ssh-key-remove")) $("ssh-key-remove").disabled = developerPending || !(data.keys || []).length;
+    var keyCount = (data.keys || []).length;
+    if ($("ssh-key-remove")) $("ssh-key-remove").disabled = developerPending || !keyCount || (data.password_login === false && keyCount === 1);
+    if ($("ssh-password-enable")) $("ssh-password-enable").disabled = developerPending || !data.configured || data.password_login !== false;
+    if ($("ssh-password-disable")) $("ssh-password-disable").disabled = developerPending || !data.configured || data.password_login === false || !keyCount;
   }
   function loadDeveloper() {
     if (!direct || !$("developer-panel") || developerPending) return;
@@ -1285,6 +1292,14 @@
     var data = {action: action, developer_password: $("developer-password").value};
     $("developer-password").value = "";
     return developerAction(data, "ssh_updating", action === "enable" ? "ssh_enabled_notice" : "ssh_disabled_notice");
+  }
+  function changeSSHPasswordLogin(enabled) {
+    if (developerPending) return;
+    if (!enabled && !confirm(t("ssh_password_confirm"))) return;
+    var data = {action: "set_password_login", enabled: enabled,
+                developer_password: $("developer-password").value};
+    $("developer-password").value = "";
+    return developerAction(data, "ssh_updating", enabled ? "ssh_password_enabled_notice" : "ssh_password_disabled_notice");
   }
   function changeSSHKey(action) {
     if (developerPending) return;
@@ -1431,6 +1446,10 @@
       $("developer-change-save").addEventListener("click", function () { saveDeveloperPassword(false); });
       $("ssh-enable").addEventListener("click", function () { changeSSH("enable"); });
       $("ssh-disable").addEventListener("click", function () { changeSSH("disable"); });
+      if ($("ssh-password-enable")) {
+        $("ssh-password-enable").addEventListener("click", function () { changeSSHPasswordLogin(true); });
+        $("ssh-password-disable").addEventListener("click", function () { changeSSHPasswordLogin(false); });
+      }
       if ($("ssh-key-file")) {
         $("ssh-key-file").addEventListener("change", function () {
           var file = this.files[0];

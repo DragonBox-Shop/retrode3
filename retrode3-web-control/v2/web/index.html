@@ -124,29 +124,33 @@
 <div class="actions"><button id="update-check" type="button" class="btn secondary" data-i18n="update_check">Check for updates</button>
 <button id="update-install" type="button" class="btn primary" data-i18n="update_install" disabled>Install updates</button></div></div>
 <div id="developer-panel" class="panel" hidden><details><summary data-i18n="developer_title">Advanced / developer settings</summary>
-<p id="developer-feedback" class="muted small" role="status"></p><p id="developer-locked" data-i18n="developer_locked">Connect directly via USB to set the root password first.</p>
+<p id="developer-feedback" class="muted small" role="status"></p><p id="developer-locked" data-i18n="developer_locked">Connect directly via USB to set the developer password first.</p>
 <div id="developer-setup" hidden>
-<p class="muted small" data-i18n="developer_setup_note">Set the shared root/developer password. SSH remains off until you enable it.</p>
-<label for="developer-new" data-i18n="developer_new">New root password</label><input id="developer-new" type="password" autocomplete="new-password" maxlength="512">
+<p class="muted small" data-i18n="developer_setup_note">Set the developer password. It also serves as the root password for local console access and optional SSH password login. SSH remains off until you enable it.</p>
+<label for="developer-new" data-i18n="developer_new">New developer password</label><input id="developer-new" type="password" autocomplete="new-password" maxlength="512">
 <label for="developer-repeat" data-i18n="developer_repeat">Repeat new password</label><input id="developer-repeat" type="password" autocomplete="new-password" maxlength="512">
-<button id="developer-save" type="button" class="btn primary" data-i18n="developer_save">Set root password</button>
+<button id="developer-save" type="button" class="btn primary" data-i18n="developer_save">Set developer password</button>
 </div>
-<div id="developer-controls" hidden><p data-i18n="ssh_warning">SSH and advanced settings use the same root password. HTTP transmits passwords unencrypted. Use a trusted network.</p>
+<div id="developer-controls" hidden><p data-i18n="ssh_warning">The developer password is also the root password. SSH password login can be disabled separately after adding a public key. HTTP transmits passwords unencrypted. Use a trusted network.</p>
 <div class="keyval"><span>SSH / SCP</span><strong id="ssh-status"></strong></div>
-<label for="developer-password" data-i18n="developer_password">Confirm root password</label><input id="developer-password" type="password" autocomplete="current-password">
+<label for="developer-password" data-i18n="developer_password">Confirm developer password</label><input id="developer-password" type="password" autocomplete="current-password">
 <div class="actions"><button id="ssh-enable" type="button" class="btn primary" data-i18n="ssh_enable">Enable SSH</button><button id="ssh-disable" type="button" class="btn danger" data-i18n="ssh_disable">Disable SSH</button></div>
+<div class="keyval"><span data-i18n="ssh_password_login">SSH root password login</span><strong id="ssh-password-status"></strong></div>
+<p class="muted small" data-i18n="ssh_password_note">After testing a public-key login, you can disable SSH password login. The developer and local console password remains unchanged.</p>
+<div class="actions"><button id="ssh-password-enable" type="button" class="btn secondary" data-i18n="ssh_password_enable">Allow password login</button><button id="ssh-password-disable" type="button" class="btn secondary" data-i18n="ssh_password_disable">Disable password login</button></div>
+<p id="ssh-password-key-hint" class="muted small" data-i18n="ssh_password_key_required">Add a public key first.</p>
 <details><summary data-i18n="ssh_keys">SSH public keys</summary>
-<p class="muted small" data-i18n="ssh_keys_note">Paste a public key or select a .pub file. Never upload your private key. Confirm the root password above to add or remove a key.</p>
+<p class="muted small" data-i18n="ssh_keys_note">Paste a public key or select a .pub file. Never upload your private key. Confirm the developer password above to add or remove a key.</p>
 <label for="ssh-key-file" data-i18n="ssh_key_file">Public key file</label><input id="ssh-key-file" type="file" accept=".pub,text/plain">
 <label for="ssh-key-text" data-i18n="ssh_key_text">Public key</label><textarea id="ssh-key-text" rows="3" maxlength="4096" autocomplete="off" spellcheck="false"></textarea>
 <button id="ssh-key-add" type="button" class="btn secondary" data-i18n="ssh_key_add">Add public key</button>
 <label for="ssh-key-list" data-i18n="ssh_key_list">Authorized public keys</label><select id="ssh-key-list"></select>
 <button id="ssh-key-remove" type="button" class="btn danger" data-i18n="ssh_key_remove">Remove selected key</button>
 </details>
-<details><summary data-i18n="developer_change">Change root password</summary>
-<label for="developer-change-new" data-i18n="developer_new">New root password</label><input id="developer-change-new" type="password" autocomplete="new-password" maxlength="512">
+<details><summary data-i18n="developer_change">Change developer password</summary>
+<label for="developer-change-new" data-i18n="developer_new">New developer password</label><input id="developer-change-new" type="password" autocomplete="new-password" maxlength="512">
 <label for="developer-change-repeat" data-i18n="developer_repeat">Repeat new password</label><input id="developer-change-repeat" type="password" autocomplete="new-password" maxlength="512">
-<button id="developer-change-save" type="button" class="btn secondary" data-i18n="developer_change">Change root password</button></details>
+<button id="developer-change-save" type="button" class="btn secondary" data-i18n="developer_change">Change developer password</button></details>
 </div></details></div></div></section>
 <section id="plugins" class="page"><p class="eyebrow" data-i18n="plugins_small">PLUGIN MANAGEMENT</p><h1 data-i18n="plugins_title">Installed plugins</h1><p class="muted" data-i18n="plugins_desc">Manage installed software cores without downloading or reinstalling them.</p><div class="panel"><div class="panel-head"><h2 data-i18n="core_title">Software cores</h2><button id="refresh-cores" type="button" class="btn secondary" data-i18n="refresh">Refresh</button></div><p class="muted small" data-i18n="core_intro">Core availability comes from the CLI. Enabled does not mean usable.</p><label for="core-slot-filter" data-i18n="core_filter_slot">Filter by slot</label><select id="core-slot-filter"><option value="" data-i18n="core_all_slots">All slots</option></select><p id="cores-summary" class="muted small" role="status"></p><div id="core-list" class="core-list"></div></div></section>
 <section id="help" class="page">
