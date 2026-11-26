@@ -32,3 +32,19 @@ checks each file and target, verifies each partition with MD5 and stops on
 error. A partial update can still leave the ESP unbootable. No firmware readback
 or backup is implemented by this candidate. Only use the documented board
 and physical recovery setup.
+
+## Guarded automatic recovery (development)
+
+After physical validation, enable the SysV recovery service in the image.
+The package itself does not register or start the service. An explicit
+root-owned `/etc/retrode3/esp-autorepair-enabled` marker is required during
+validation. Compatible firmware is untouched; the known NG-1.0.3.0.1
+mismatch triggers an update; missing SDIO firmware triggers a read-only
+ROM MD5 check over the entire 4 MiB flash and writes only if erased.
+Other nonblank or unrecognized firmware is left untouched for diagnosis.
+One persistent attempt per bundled firmware prevents repeated writes after
+power loss or failure. A successful write is not proof of WLAN registration.
+
+Use `--probe-blank` for a read-only flash-content check (it resets the ESP
+and temporarily unbinds its WLAN SDIO controller). No automatic customer
+flash until recovery, license, package and hardware checks are completed.
