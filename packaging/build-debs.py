@@ -35,17 +35,15 @@ MODES = {"usr/bin/retrode3-cli": 0o755,
 
 WEB_FILES = (
     ("backend/service.py", "opt/retrode3-web-v2/backend/service.py", 0o644),
-    ("web/index.php", "var/www/html/index.php", 0o644),
-    ("web/api.php", "var/www/html/api.php", 0o644),
-    ("web/rom-upload.php", "var/www/html/rom-upload.php", 0o644),
-    ("web/auth.php", "var/www/html/auth.php", 0o644),
-    ("web/assets/app.js", "var/www/html/assets/app.js", 0o644),
-    ("web/assets/selection-ui.js", "var/www/html/assets/selection-ui.js", 0o644),
-    ("web/assets/style.css", "var/www/html/assets/style.css", 0o644),
-    ("web/locales/de.json", "var/www/html/locales/de.json", 0o644),
-    ("web/locales/en.json", "var/www/html/locales/en.json", 0o644),
+    ("backend/http_gateway.py", "opt/retrode3-web-v2/backend/http_gateway.py", 0o644),
+    ("web/index.html", "var/www/retrode3-lighttpd/index.html", 0o644),
+    ("web/assets/app.js", "var/www/retrode3-lighttpd/assets/app.js", 0o644),
+    ("web/assets/selection-ui.js", "var/www/retrode3-lighttpd/assets/selection-ui.js", 0o644),
+    ("web/assets/style.css", "var/www/retrode3-lighttpd/assets/style.css", 0o644),
+    ("web/locales/de.json", "var/www/retrode3-lighttpd/locales/de.json", 0o644),
+    ("web/locales/en.json", "var/www/retrode3-lighttpd/locales/en.json", 0o644),
     ("service/retrode3-web-v2.init", "etc/init.d/retrode3-web-v2", 0o755),
-    ("manage-auth-on-retrode.sh", "usr/sbin/retrode3-web-v2-auth", 0o755),
+    ("manage-auth-python.py", "usr/sbin/retrode3-web-v2-auth", 0o755),
 )
 TOOL_FILES = (
     ("retrode3-tools/usr/local/bin/retrode3-admin",
@@ -65,10 +63,8 @@ WEB_EXTRA = (
      "opt/retrode3-web-v2/start.sh", 0o755),
     ("packaging/assets/retrode3-web-v2.default",
      "etc/default/retrode3-web-v2", 0o644),
-    ("packaging/assets/retrode3-prefork.conf",
-     "etc/apache2/conf-available/retrode3-prefork.conf", 0o644),
-    ("packaging/assets/retrode3-rom-upload.ini",
-     "etc/php/8.2/apache2/conf.d/99-retrode3-rom-upload.ini", 0o644),
+    ("packaging/assets/99-retrode3-lighttpd.conf",
+     "etc/lighttpd/conf-available/99-retrode3-lighttpd.conf", 0o644),
     ("packaging/assets/retrode3-corectl.sudoers",
      "etc/sudoers.d/retrode3-corectl", 0o440),
 )
@@ -76,8 +72,7 @@ CONFFILES = {
     "retrode3-core-runtime": ("/etc/init.d/retrode3-core-runtime",),
     WEB: ("/etc/init.d/retrode3-web-v2", "/etc/default/retrode3-web-v2",
           "/etc/sudoers.d/retrode3-corectl",
-          "/etc/apache2/conf-available/retrode3-prefork.conf",
-          "/etc/php/8.2/apache2/conf.d/99-retrode3-rom-upload.ini"),
+          "/etc/lighttpd/conf-available/99-retrode3-lighttpd.conf"),
     TOOLS: ("/etc/sudoers.d/retrode3",),
     UDEV: ("/etc/udev/rules.d/70-retrode3-cartridge.rules",)
 }
@@ -377,7 +372,7 @@ def control_text(package, lock, native=None):
         deps = ("retrode3-core-runtime (>= " + native_version + "), "
                 "retrode3-tools (>= " + web_version + "), "
                 "retrode3-udev-rules (>= " + web_version + "), "
-                "python3, php8.2-cli, apache2, libapache2-mod-php8.2, "
+                "python3, lighttpd, "
                 "sudo, passwd, adduser, init-system-helpers")
     elif package == TOOLS:
         deps = ("bash, sudo, iw, wireless-tools, net-tools, "
@@ -403,6 +398,8 @@ def control_text(package, lock, native=None):
     ]
     if package == "retrode3-core-runtime":
         lines.insert(6, "Provides: retrode3-core-abi-1")
+    if package == WEB:
+        lines.insert(6, "Conflicts: apache2")
     return "\n".join(lines) + "\n"
 
 
@@ -425,10 +422,6 @@ def build_one(work, package, layout, lock, stage, epoch, native=None):
             put(root, source / rel, target, mode)
         for rel, target, mode in WEB_EXTRA:
             put(root, REPO / rel, target, mode)
-        put_text(root, "var/www/html/index.html",
-                 '<!doctype html><html><meta charset="utf-8">'
-                 '<meta http-equiv="refresh" content="0;url=index.php">'
-                 '<a href="index.php">Retrode3</a></html>\n')
     elif package == TOOLS:
         for rel, target, mode in TOOL_FILES:
             put(root, REPO / rel, target, mode)

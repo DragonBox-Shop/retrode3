@@ -1,4 +1,4 @@
 #!/bin/sh
 set -e
 umask 022
-exec /usr/bin/python3 /opt/retrode3-web-v2/backend/service.py >>/var/log/retrode3-web-v2.log 2>&1
+exec /usr/bin/python3 /opt/retrode3-web-v2/backend/http_gateway.py >>/var/log/retrode3-web-v2.log 2>&1

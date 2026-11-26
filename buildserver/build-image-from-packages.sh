@@ -106,25 +106,8 @@ for spec in "${packages[@]}"; do
     echo "Wrong or unconfigured APT package: $pkg actual=$got state=<$state> expected=$ver" >&2; exit 1;
   }
 done
-# Debian's libapache2-mod-php8.2 may print transient "No MPM loaded"
-# warnings while switching from mpm_event to mpm_prefork. The finished
-# offline image must nevertheless have a consistent Apache configuration.
-for module in mpm_prefork.load php8.2.load; do
-  [[ -L "/work/rootfs/etc/apache2/mods-enabled/$module" &&
-     -e "/work/rootfs/etc/apache2/mods-enabled/$module" ]] || {
-    echo "Missing final Apache module: $module" >&2; exit 1;
-  }
-done
-if [[ -e /work/rootfs/etc/apache2/mods-enabled/mpm_event.load ||
-      -e /work/rootfs/etc/apache2/mods-enabled/mpm_worker.load ]]; then
-  echo "Apache has an unexpected conflicting MPM enabled" >&2; exit 1;
-fi
-# Apache's own configtest is not reliable inside the unmounted foreign
-# QEMU image chroot: even Debian's mod_php maintainer scripts emitted
-# "No MPM loaded" during installation, while the final symlink is present.
-# Validate the exact MIPS module binaries, LoadModule lines and Include path
-# offline. The *runtime* configtest is still required on real hardware.
-python3 /src/image/verify-apache-offline.py /work/rootfs
+# Verify the actual Lighttpd payload and enabled configuration offline.
+python3 /src/image/verify-lighttpd-offline.py /work/rootfs
 # APT installs boot candidates into *staging*, never directly over a live
 # kernel/bootloader. The offline assembler selects the exact package versions.
 mapfile -t platform_versions < <(python3 - <<'PY'

@@ -77,15 +77,14 @@ class TestPackaging(unittest.TestCase):
                 self.assertNotIn("./etc/retrode3/cores-enabled/", contents)
                 if name == pkg.WEB:
                     self.assertIn("./etc/init.d/retrode3-web-v2", contents)
-                    self.assertIn("./var/www/html/assets/app.js", contents)
-                    self.assertIn("./var/www/html/rom-upload.php", contents)
-                    upload_ini = "/etc/php/8.2/apache2/conf.d/99-retrode3-rom-upload.ini"
-                    self.assertIn("." + upload_ini, contents)
-                    self.assertIn(upload_ini, pkg.CONFFILES[pkg.WEB])
-                    self.assertIn("./etc/apache2/conf-available/retrode3-prefork.conf", contents)
+                    self.assertIn("./var/www/retrode3-lighttpd/assets/app.js", contents)
+                    self.assertIn("./var/www/retrode3-lighttpd/index.html", contents)
+                    self.assertIn("./opt/retrode3-web-v2/backend/http_gateway.py", contents)
+                    self.assertNotIn(".php", contents)
+                    conf = "/etc/lighttpd/conf-available/99-retrode3-lighttpd.conf"
+                    self.assertIn("." + conf, contents)
+                    self.assertIn(conf, pkg.CONFFILES[pkg.WEB])
                     self.assertIn("Architecture: all", info)
-                    self.assertIn("/etc/apache2/conf-available/retrode3-prefork.conf",
-                                  pkg.CONFFILES[pkg.WEB])
                 elif name == pkg.TOOLS:
                     self.assertIn("./usr/local/bin/retrode3-admin", contents)
                     self.assertIn("./usr/local/bin/retrode3-wlan", contents)
@@ -118,7 +117,9 @@ class TestPackaging(unittest.TestCase):
 
     def test_bookworm_dependencies_are_native_and_complete(self):
         web = pkg.control_text(pkg.WEB, LOCK)
-        self.assertIn("apache2, libapache2-mod-php8.2", web)
+        self.assertIn("python3, lighttpd", web)
+        self.assertNotIn("php8.2", web)
+        self.assertIn("Conflicts: apache2", web)
         self.assertIn("retrode3-tools (>= ", web)
         self.assertIn("retrode3-udev-rules (>= ", web)
         for obsolete in ("letux-httpd", "php5", "letux-config-etc"):
@@ -140,9 +141,7 @@ class TestPackaging(unittest.TestCase):
         self.assertIn("invoke-rc.d retrode3-core-runtime start", runtime)
         self.assertIn("invoke-rc.d retrode3-core-runtime start", web)
         self.assertIn("invoke-rc.d retrode3-web-v2", web)
-        self.assertIn("Apache stopped (offline image)", web)
-        self.assertIn("apache2ctl configtest", web)
-        self.assertLess(web.index("/etc/init.d/apache2 status"), web.index("apache2ctl configtest"))
+        self.assertIn("invoke-rc.d lighttpd restart", web)
         self.assertNotIn("/etc/init.d/retrode3-core-runtime start", runtime)
         self.assertNotIn("/etc/init.d/retrode3-core-runtime start", web)
 
@@ -179,40 +178,21 @@ class TestPackaging(unittest.TestCase):
             with self.assertRaises(ValueError):
                 pkg.verify_stage(stage, LAYOUT, check_symbols=False)
 
-    def test_apache_prefork_profile_preserves_distribution_config(self):
-        # Exact limits tested on a real 50-MiB Retrode3, and no upstream
-        # /etc/apache2/mods-available/mpm_prefork.conf file is packaged.
-        path = ROOT / "packaging/assets/retrode3-prefork.conf"
-        contents = path.read_text(encoding="utf-8")
-        self.assertIn("<IfModule mpm_prefork_module>", contents)
-        import re
-        options = dict(re.findall(
-            r"^\s*(StartServers|MinSpareServers|MaxSpareServers|"
-            r"MaxRequestWorkers|MaxConnectionsPerChild)\s+(\d+)\s*$",
-            contents, re.MULTILINE))
-        self.assertEqual(options, {
-            "StartServers": "2", "MinSpareServers": "1",
-            "MaxSpareServers": "2", "MaxRequestWorkers": "4",
-            "MaxConnectionsPerChild": "100"})
-        self.assertFalse(any("mods-available" in target
+    def test_lighttpd_profile_preserves_distribution_config(self):
+        conf = (ROOT / "packaging/assets/99-retrode3-lighttpd.conf").read_text()
+        self.assertIn('server.document-root := "/var/www/retrode3-lighttpd"', conf)
+        self.assertIn('server.modules += ( "mod_proxy" )', conf)
+        self.assertIn('127.0.0.1', conf)
+        self.assertIn('server.stream-request-body = 2', conf)
+        self.assertFalse(any(target == "etc/lighttpd/lighttpd.conf"
                              for _, target, _ in pkg.WEB_EXTRA))
-        install = (ROOT / "retrode3-web-control/v2/install-on-retrode.sh").read_text()
-        postinst = (ROOT / "packaging/maintainer/web.postinst").read_text()
-        prerm = (ROOT / "packaging/maintainer/web.prerm").read_text()
-        self.assertIn("a2enconf retrode3-prefork", install)
-        self.assertIn("apache2ctl configtest", install)
-        self.assertIn("a2enconf retrode3-prefork", postinst)
-        self.assertIn("apache2ctl configtest", postinst)
-        self.assertIn("a2disconf retrode3-prefork", prerm)
 
     def test_static_privilege_rules(self):
         policy = (ROOT / "packaging/assets/retrode3-corectl.sudoers").read_text()
-        self.assertNotIn("*", policy)
         self.assertNotIn(" ALL\n", policy)
-        self.assertEqual(policy.count("/usr/sbin/retrode3-corectl "), 8)
-        self.assertIn("/usr/sbin/retrode3-corectl enable sms-md", policy)
-        self.assertIn("/usr/sbin/retrode3-corectl disable sms-md", policy)
-        self.assertIn("RETRODE3_CORE_CONTROL_ENABLED=0",
+        self.assertEqual(policy.count("/usr/sbin/retrode3-corectl "), 1)
+        self.assertIn("^(enable|disable) [a-z][a-z0-9-]*$", policy)
+        self.assertIn("RETRODE3_CORE_CONTROL_ENABLED=1",
                       (ROOT / "packaging/assets/retrode3-web-v2.default").read_text())
         init = (ROOT / "retrode3-web-control/v2/service/retrode3-web-v2.init").read_text()
         self.assertIn("--chuid www-data", init)

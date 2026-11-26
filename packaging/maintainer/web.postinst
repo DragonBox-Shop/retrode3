@@ -6,7 +6,7 @@ case "${1:-}" in
         getent group retrode3-reader >/dev/null 2>&1
         [ -x /usr/bin/retrode3-cli ] && [ -x /usr/sbin/retrode3-corectl ]
         install -d -o root -g root -m 0755 /opt/retrode3-web-v2 /opt/retrode3-web-v2/backend
-        install -d -o root -g root -m 0755 /var/www/html
+        install -d -o root -g root -m 0755 /var/www/retrode3-lighttpd
         install -d -o root -g root -m 0755 /usr/local/games
         if [ ! -e /usr/local/games/ROMs ]; then
             install -d -o www-data -g www-data -m 0755 /usr/local/games/ROMs
@@ -32,33 +32,15 @@ case "${1:-}" in
             chown root:www-data /etc/retrode3-web-control.auth
             chmod 0640 /etc/retrode3-web-control.auth
         fi
-        # Apache 2.4 / Debian 12: limit prefork workers on the 50 MiB device.
-        # The shipped conf-available file overrides the distribution's MPM
-        # defaults without editing the package-owned mpm_prefork.conf.
-        if [ -f /etc/apache2/conf-available/retrode3-prefork.conf ] &&
-           command -v a2enconf >/dev/null 2>&1 &&
-           command -v apache2ctl >/dev/null 2>&1; then
-            enabled_before=0
-            [ -e /etc/apache2/conf-enabled/retrode3-prefork.conf ] &&
-                enabled_before=1
-            a2enconf retrode3-prefork
-            # A foreign-architecture image chroot deliberately has no
-            # running Apache. Validate/reload only on a live installation;
-            # runtime boot checks and CI verify required modules separately.
-            if [ -x /etc/init.d/apache2 ] &&
-               /etc/init.d/apache2 status >/dev/null 2>&1; then
-                if ! apache2ctl configtest; then
-                    if [ "$enabled_before" -eq 0 ]; then
-                        a2disconf retrode3-prefork || true
-                    fi
-                    echo "Apache configuration invalid; verify the prefork snippet" >&2
-                    exit 1
-                fi
-                # Do not interrupt ongoing connections with a hard restart.
-                invoke-rc.d apache2 reload || true
-            else
-                echo "Apache stopped (offline image): configtest deferred until start" >&2
-            fi
+        # Use Debian's Lighttpd service without replacing its conffile.
+        link=/etc/lighttpd/conf-enabled/99-retrode3-lighttpd.conf
+        if [ -L "$link" ]; then
+            [ "$(readlink "$link")" = ../conf-available/99-retrode3-lighttpd.conf ]
+        elif [ -e "$link" ]; then
+            echo "Refusing to overwrite unmanaged Lighttpd configuration" >&2
+            exit 1
+        else
+            ln -s ../conf-available/99-retrode3-lighttpd.conf "$link"
         fi
         update-rc.d retrode3-web-v2 defaults
         # invoke-rc.d respects policy-rc.d in offline Bookworm image chroots.
@@ -69,6 +51,7 @@ case "${1:-}" in
         else
             invoke-rc.d retrode3-web-v2 start
         fi
+        invoke-rc.d lighttpd restart
         ;;
     abort-upgrade|abort-remove|abort-deconfigure)
         ;;
