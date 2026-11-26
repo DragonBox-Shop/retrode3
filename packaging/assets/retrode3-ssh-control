@@ -142,8 +142,6 @@ def update_keys(data):
         if not isinstance(fingerprint, str) or not re.fullmatch(r"SHA256:[A-Za-z0-9+/]{43}", fingerprint):
             raise ValueError("Invalid public key fingerprint")
         lines = [line for line in lines if (key_info(line) or {}).get("fingerprint") != fingerprint]
-        if KEY_ONLY.is_file() and not any(key_info(line) for line in lines):
-            raise ValueError("Enable SSH password login before removing the last public key")
     payload = b"".join(lines)
     if len(payload) > 65536:
         raise ValueError("Too many authorized keys")
@@ -216,8 +214,6 @@ def set_password_login(enabled):
     if type(enabled) is not bool:
         raise ValueError("Invalid SSH password login setting")
     previous = KEY_ONLY.is_file()
-    if not enabled and not list_keys():
-        raise ValueError("Add a public key before disabling SSH password login")
     if previous == (not enabled):
         return
     running = run("status") == 0
@@ -272,8 +268,6 @@ def dispatch(data, runtime):
         if run("stop"):
             raise ValueError("SSH stop failed")
     else:
-        if KEY_ONLY.is_file() and not list_keys():
-            raise ValueError("Add a public key or enable SSH password login first")
         if not Path("/usr/lib/openssh/sftp-server").is_file():
             raise ValueError("SFTP server missing")
         MARKER.parent.mkdir(mode=0o755, parents=True, exist_ok=True)

@@ -92,20 +92,18 @@ class SSHControlTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             ssh.update_keys({"action": "add_key", "public_key": key(1)})
 
-    def test_key_only_requires_key_and_preserves_password(self):
+    def test_password_login_independent_of_keys(self):
         with patch.object(ssh, "run", return_value=1), patch.object(ssh, "set_password") as password:
-            with self.assertRaisesRegex(ValueError, "Add a public key"):
-                ssh.set_password_login(False)
-            ssh.update_keys({"action": "add_key", "public_key": key(1)})
             ssh.set_password_login(False)
             self.assertTrue(ssh.KEY_ONLY.is_file())
+            self.assertEqual(ssh.list_keys(), [])
+            ssh.update_keys({"action": "add_key", "public_key": key(1)})
             fingerprint = ssh.list_keys()[0]["fingerprint"]
-            with self.assertRaisesRegex(ValueError, "last public key"):
-                ssh.update_keys({"action": "remove_key", "fingerprint": fingerprint})
-            ssh.set_password_login(True)
-            self.assertFalse(ssh.KEY_ONLY.exists())
             ssh.update_keys({"action": "remove_key", "fingerprint": fingerprint})
             self.assertEqual(ssh.list_keys(), [])
+            self.assertTrue(ssh.KEY_ONLY.is_file())
+            ssh.set_password_login(True)
+            self.assertFalse(ssh.KEY_ONLY.exists())
             password.assert_not_called()
 
     def test_running_ssh_restart_failure_rolls_back(self):

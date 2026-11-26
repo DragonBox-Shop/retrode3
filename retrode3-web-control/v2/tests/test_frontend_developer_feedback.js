@@ -44,11 +44,14 @@ async function run(){
   assert(nodes["developer-setup"].hidden && !nodes["developer-controls"].hidden);
   assert(!nodes["ssh-enable"].disabled && !nodes["ssh-key-add"].disabled);
   assert.strictEqual(nodes["toast-message"].textContent,"developer_saved");
-  assert(nodes["ssh-password-disable"].disabled);
+  assert(!nodes["ssh-password-disable"].disabled);
   ctx.renderDeveloper({configured:true,running:false,enabled:false,password_login:true,keys:[{fingerprint:"test",type:"ssh-ed25519"}]});
   assert(!nodes["ssh-password-disable"].disabled);
   ctx.renderDeveloper({configured:true,running:false,enabled:false,password_login:false,keys:[{fingerprint:"test",type:"ssh-ed25519"}]});
-  assert(nodes["ssh-password-disable"].disabled && nodes["ssh-key-remove"].disabled);
+  assert(nodes["ssh-password-disable"].disabled && !nodes["ssh-key-remove"].disabled);
+  ctx.renderDeveloper({configured:true,running:false,enabled:false,password_login:false,keys:[]});
+  assert(!nodes["ssh-password-key-hint"].hidden);
+  assert(!nodes["ssh-password-enable"].disabled);
   assert(!nodes["ssh-password-enable"].disabled);
   const enable=ctx.changeSSH("enable");
   assert(nodes["ssh-enable"].disabled);

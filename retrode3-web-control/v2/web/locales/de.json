@@ -284,13 +284,14 @@
   "update_new_package": "Neu",
   "update_confirm": "Software jetzt aktualisieren? Die Weboberfläche kann kurz nicht erreichbar sein. Retrode3 während des Updates nicht ausschalten.",
   "ssh_password_login": "Root-Passwortanmeldung über SSH",
-  "ssh_password_note": "Nach erfolgreichem Test der Schlüsselanmeldung kannst Du die SSH-Passwortanmeldung deaktivieren. Das Entwicklerpasswort und die lokale Root-Konsole bleiben unverändert. Zum Entfernen des letzten Schlüssels muss die Passwortanmeldung wieder aktiviert werden.",
+  "ssh_password_note": "Die Passwortanmeldung über SSH kann unabhängig vom SSH-Dienst und den hinterlegten Schlüsseln jederzeit ein- und ausgeschaltet werden. Das Entwicklerpasswort und die lokale Root-Konsole bleiben unverändert.",
   "ssh_password_on": "Erlaubt",
-  "ssh_password_off": "Nur Schlüssel",
+  "ssh_password_off": "Deaktiviert",
   "ssh_password_enable": "Passwortanmeldung erlauben",
   "ssh_password_disable": "Passwortanmeldung deaktivieren",
-  "ssh_password_key_required": "Zuerst einen Public Key hinzufügen.",
-  "ssh_password_confirm": "Hast Du die SSH-Anmeldung mit Deinem Schlüssel getestet? Die Passwortanmeldung über SSH wird deaktiviert. Laufende SSH-Verbindungen können unterbrochen werden.",
+  "ssh_password_confirm": "Die Passwortanmeldung über SSH wird deaktiviert. Prüfe bei Bedarf vorher die Anmeldung mit Deinem Schlüssel. Laufende SSH-Verbindungen können unterbrochen werden.",
   "ssh_password_enabled_notice": "SSH-Passwortanmeldung aktiviert.",
-  "ssh_password_disabled_notice": "SSH-Passwortanmeldung deaktiviert. Entwicklerpasswort bleibt gültig."
+  "ssh_password_disabled_notice": "SSH-Passwortanmeldung deaktiviert. Entwicklerpasswort bleibt gültig.",
+  "ssh_password_no_access": "Die SSH-Passwortanmeldung ist deaktiviert und es sind keine verwalteten Public Keys hinterlegt. Eine SSH-Anmeldung ist möglicherweise nicht möglich.",
+  "ssh_password_confirm_no_key": "Es sind keine verwalteten Public Keys hinterlegt. Nach Abschalten der Passwortanmeldung ist eine SSH-Anmeldung möglicherweise nicht mehr möglich. Du kannst sie hier jederzeit mit dem Entwicklerpasswort wieder aktivieren. Fortfahren?"
 }

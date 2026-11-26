@@ -5,7 +5,7 @@ are experimental until hardware testing is complete.
 
 ## Unreleased
 
-- Advanced settings now clearly use the developer password, which also serves as the root password. After adding a public key, SSH root password login can be disabled independently without losing access to developer settings or the local console.
+- Advanced settings now clearly use the developer password, which also serves as the root password. SSH root password login can be enabled or disabled at any time, independently of installed public keys, without losing access to developer settings or the local recovery console.
 
 - Wi-Fi scanning now allows the radio to initialize and automatically retries transient scan failures, with clearer error messages.
 

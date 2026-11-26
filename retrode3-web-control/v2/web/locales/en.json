@@ -284,13 +284,14 @@
   "update_new_package": "New",
   "update_confirm": "Install updates now? The web interface may briefly be unavailable. Do not switch off Retrode3 during the update.",
   "ssh_password_login": "SSH root password login",
-  "ssh_password_note": "After testing public-key login, you can disable SSH password login. The developer password and local root console are unchanged. Re-enable password login before removing the last key.",
+  "ssh_password_note": "SSH password login can be enabled or disabled at any time, independently of the SSH service and installed public keys. The developer password and local root console remain unchanged.",
   "ssh_password_on": "Allowed",
-  "ssh_password_off": "Keys only",
+  "ssh_password_off": "Disabled",
   "ssh_password_enable": "Allow password login",
   "ssh_password_disable": "Disable password login",
-  "ssh_password_key_required": "Add a public key first.",
-  "ssh_password_confirm": "Have you tested SSH login with your key? SSH password login will be disabled. Existing SSH connections may be interrupted.",
+  "ssh_password_confirm": "SSH password login will be disabled. Test your key login first if needed. Existing SSH connections may be interrupted.",
   "ssh_password_enabled_notice": "SSH password login enabled.",
-  "ssh_password_disabled_notice": "SSH password login disabled. Developer password remains valid."
+  "ssh_password_disabled_notice": "SSH password login disabled. Developer password remains valid.",
+  "ssh_password_no_access": "SSH password login is disabled and no managed public keys are installed. SSH login may be unavailable.",
+  "ssh_password_confirm_no_key": "No managed public keys are installed. SSH login may become unavailable. You can re-enable password login here at any time using the developer password. Continue?"
 }

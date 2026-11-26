@@ -1234,7 +1234,7 @@
     }
     if ($("ssh-password-status")) {
       text($("ssh-password-status"), t(data.password_login === false ? "ssh_password_off" : "ssh_password_on"));
-      $("ssh-password-key-hint").hidden = (data.keys || []).length > 0;
+      $("ssh-password-key-hint").hidden = data.password_login !== false || (data.keys || []).length > 0;
     }
     developerButtons();
   }
@@ -1246,9 +1246,9 @@
     $("ssh-disable").disabled = developerPending || !data.configured || (!data.enabled && !data.running);
     if ($("ssh-key-add")) $("ssh-key-add").disabled = developerPending || !data.configured;
     var keyCount = (data.keys || []).length;
-    if ($("ssh-key-remove")) $("ssh-key-remove").disabled = developerPending || !keyCount || (data.password_login === false && keyCount === 1);
+    if ($("ssh-key-remove")) $("ssh-key-remove").disabled = developerPending || !keyCount;
     if ($("ssh-password-enable")) $("ssh-password-enable").disabled = developerPending || !data.configured || data.password_login !== false;
-    if ($("ssh-password-disable")) $("ssh-password-disable").disabled = developerPending || !data.configured || data.password_login === false || !keyCount;
+    if ($("ssh-password-disable")) $("ssh-password-disable").disabled = developerPending || !data.configured || data.password_login === false;
   }
   function loadDeveloper() {
     if (!direct || !$("developer-panel") || developerPending) return;
@@ -1295,7 +1295,7 @@
   }
   function changeSSHPasswordLogin(enabled) {
     if (developerPending) return;
-    if (!enabled && !confirm(t("ssh_password_confirm"))) return;
+    if (!enabled && !confirm(t(developerState && (developerState.keys || []).length ? "ssh_password_confirm" : "ssh_password_confirm_no_key"))) return;
     var data = {action: "set_password_login", enabled: enabled,
                 developer_password: $("developer-password").value};
     $("developer-password").value = "";

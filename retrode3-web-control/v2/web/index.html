@@ -131,14 +131,14 @@
 <label for="developer-repeat" data-i18n="developer_repeat">Repeat new password</label><input id="developer-repeat" type="password" autocomplete="new-password" maxlength="512">
 <button id="developer-save" type="button" class="btn primary" data-i18n="developer_save">Set developer password</button>
 </div>
-<div id="developer-controls" hidden><p data-i18n="ssh_warning">The developer password is also the root password. SSH password login can be disabled separately after adding a public key. HTTP transmits passwords unencrypted. Use a trusted network.</p>
+<div id="developer-controls" hidden><p data-i18n="ssh_warning">The developer password is also the root password. SSH password login can be disabled separately at any time. HTTP transmits passwords unencrypted. Use a trusted network.</p>
 <div class="keyval"><span>SSH / SCP</span><strong id="ssh-status"></strong></div>
 <label for="developer-password" data-i18n="developer_password">Confirm developer password</label><input id="developer-password" type="password" autocomplete="current-password">
 <div class="actions"><button id="ssh-enable" type="button" class="btn primary" data-i18n="ssh_enable">Enable SSH</button><button id="ssh-disable" type="button" class="btn danger" data-i18n="ssh_disable">Disable SSH</button></div>
 <div class="keyval"><span data-i18n="ssh_password_login">SSH root password login</span><strong id="ssh-password-status"></strong></div>
-<p class="muted small" data-i18n="ssh_password_note">After testing a public-key login, you can disable SSH password login. The developer and local console password remains unchanged.</p>
+<p class="muted small" data-i18n="ssh_password_note">SSH password login can be enabled or disabled independently of SSH and public keys. The developer password and local console remain unchanged.</p>
 <div class="actions"><button id="ssh-password-enable" type="button" class="btn secondary" data-i18n="ssh_password_enable">Allow password login</button><button id="ssh-password-disable" type="button" class="btn secondary" data-i18n="ssh_password_disable">Disable password login</button></div>
-<p id="ssh-password-key-hint" class="muted small" data-i18n="ssh_password_key_required">Add a public key first.</p>
+<p id="ssh-password-key-hint" class="muted small" data-i18n="ssh_password_no_access">Password login is disabled and no managed public keys are installed. SSH login may be unavailable.</p>
 <details><summary data-i18n="ssh_keys">SSH public keys</summary>
 <p class="muted small" data-i18n="ssh_keys_note">Paste a public key or select a .pub file. Never upload your private key. Confirm the developer password above to add or remove a key.</p>
 <label for="ssh-key-file" data-i18n="ssh_key_file">Public key file</label><input id="ssh-key-file" type="file" accept=".pub,text/plain">
