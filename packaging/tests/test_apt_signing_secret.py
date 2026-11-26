@@ -68,12 +68,7 @@ class SigningSecretTests(unittest.TestCase):
             # Match the actual import command, not comments mentioning it.
             imports = list(re.finditer(
                 r'(?m)^\s*(?:--export=never --keepunreferencedfiles )?'
-                r'includedeb (?:testing|"\$suite") "\$deb"\s*
-
-
-if __name__ == "__main__":
-    unittest.main()
-, content))
+                r'includedeb (?:testing|"\$suite") "\$deb"\s*$', content))
             self.assertEqual(len(imports), 1, name)
             self.assertLess(check, imports[0].start(), name)
 
