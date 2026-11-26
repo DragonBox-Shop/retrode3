@@ -1,14 +1,16 @@
 #!/usr/bin/env python3
 """Safe mocked tests; no cartridge or WLAN operation."""
 from __future__ import print_function
-import imp
+import importlib.util
 import os
 import shutil
 import tempfile
 import unittest
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-MODULE = imp.load_source("retrode3_web_v2", os.path.join(HERE, "..", "backend", "service.py"))
+SPEC = importlib.util.spec_from_file_location("retrode3_web_v2", os.path.join(HERE, "..", "backend", "service.py"))
+MODULE = importlib.util.module_from_spec(SPEC)
+SPEC.loader.exec_module(MODULE)
 
 class BackendTests(unittest.TestCase):
     def setUp(self):

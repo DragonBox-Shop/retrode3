@@ -1,12 +1,14 @@
 """Mocked Web Flash job contract using the normal unprivileged CLI."""
-import imp
+import importlib.util
 import os
 import shutil
 import tempfile
 import unittest
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-WEB = imp.load_source("r3_web_flash_test", os.path.join(HERE, "..", "backend", "service.py"))
+SPEC = importlib.util.spec_from_file_location("r3_web_flash_test", os.path.join(HERE, "..", "backend", "service.py"))
+WEB = importlib.util.module_from_spec(SPEC)
+SPEC.loader.exec_module(WEB)
 
 
 class FlashWebJobs(unittest.TestCase):

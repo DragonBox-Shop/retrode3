@@ -11,6 +11,13 @@ for tool in bash python3 node php visudo; do
     fi
 done
 
+# Authentication deliberately uses Bookworm's crypt and spwd modules.
+# Host Python >= 3.13 cannot run the target-runtime tests faithfully.
+if ! python3 -W ignore::DeprecationWarning -c 'import crypt, spwd' 2>/dev/null; then
+    printf '%s\n' 'Target Python authentication modules missing. Run bash buildserver/run-preflight.sh (Debian 12 Podman).' >&2
+    exit 1
+fi
+
 for p in packaging/maintainer/* packaging/assets/*.start; do
     sh -n "$p"
 done

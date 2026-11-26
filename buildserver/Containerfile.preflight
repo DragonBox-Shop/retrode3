@@ -1,0 +1,7 @@
+FROM debian:bookworm
+ENV DEBIAN_FRONTEND=noninteractive
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    bash python3 nodejs php-cli sudo dpkg-dev binutils git ca-certificates \
+ && rm -rf /var/lib/apt/lists/*
+ENV PATH=/usr/sbin:/usr/bin:/sbin:/bin
+WORKDIR /src

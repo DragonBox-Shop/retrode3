@@ -332,3 +332,14 @@ master launchers; stable platform activation remains a separate gate.
 
 The package image does not accept developer SSH keys. USB networking,
 serial and the read-only welcome disk are independent of SSH.
+
+## Reproducible Bookworm preflight
+
+Run `bash buildserver/run-preflight.sh` from the selected OS checkout before
+creating a release tag. The dedicated native-architecture Debian 12 container
+runs the complete existing `tools/preflight-ci.sh` suite, including bcrypt
+and SysV packaging tests. The source is mounted read-only, Python bytecode
+is written to container temporary storage and the test run has no network.
+Host Python 3.13 no longer includes the target's crypt/spwd modules; do not
+skip authentication tests or change the target authentication scheme to
+accommodate host Python. This is separate from MIPS builds and hardware tests.
