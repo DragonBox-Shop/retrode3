@@ -21,10 +21,11 @@ Keine zweite native Reader-Implementierung in diesem Repo anlegen.
   Nicht fertiggestellte Risiken muessen nachweislich deaktiviert/abgesichert
   sein. Tags niemals verschieben oder wiederverwenden.
 - **Erst aus genau einem solchen Tag bzw. dessen unveraenderlichem Commit**
-  werden neue Debian-Paketkandidaten fuer den passenden APT-Kanal gebaut.
-  Das Build-Manifest fixiert ausserdem die verwendeten OSCR-, Sanni-,
-  Kernel- und gegebenenfalls U-Boot-Revisionen sowie Paketpruefsummen.
-  Der neueste `develop`-HEAD ist **kein** automatischer Release-Input.
+  werden vollstaendige SD-Image-Releases gebaut. Debian-Paketkandidaten
+  entstehen beim expliziten Paketlauf aus den aktuellen, exakt fixierten
+  Branch-Commits (`develop` -> testing, `master` -> stable), ohne Tag-Pflicht.
+  Das Build-Manifest fixiert OS-, OSCR-, Sanni- und Plattform-Revisionen
+  sowie Paketpruefsummen. Image-Builds verlangen weiterhin beide Release-Tags.
 - Danach folgen Paketinstallation, Updates, Rollback und Hardwaretests.
   **Erst nach ausfuehrlicher Abnahme kommt genau der getaggte Stand in
   `master`**, nicht der inzwischen weitergewanderte `develop`-HEAD.
@@ -42,10 +43,11 @@ Keine zweite native Reader-Implementierung in diesem Repo anlegen.
   ein erzeugtes .deb, ein signierter APT-Index, ein erfolgreiches Boot und
   ein freigegebenes Kundenimage sind **verschiedene** Meilensteine.
 
-**Buildserver:** Die OS-/OSCR-Paketautomatik verwendet immutable Tags.
+**Buildserver:** Die OS-/OSCR-Paketautomatik fixiert Branch-Commits; nur
+Image-Builds verwenden immutable Release-Tags.
 Kernel und U-Boot werden als getrennte Plattformpakete aus exakt
 fixierten Commits gebaut. Der Image-Bau konsumiert die signierten
-Paket-Snapshots. Keine ungetaggten OS-/OSCR-Snapshots veroeffentlichen;
+Paket-Snapshots. Keine Rueckstufung bereits publizierter Quell-Commits;
 `master`/`stable` nicht mit laufender Image-Entwicklung aktualisieren.
 Plugin-Pakete werden aus den validierten OSCR-Core-Rezepten entdeckt.
 `retrode3-cores` zieht saemtliche freigegebenen Core-Pakete nach, ohne

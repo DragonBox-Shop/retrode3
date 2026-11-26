@@ -6,6 +6,9 @@ root="${RETRODE3_PACKAGE_SOURCE_ROOT:-$(cd "$(dirname "$0")/.." && pwd)}"
 [[ -d "$root/.git" || -f "$root/.git" ]] || {
   echo "Missing source Git checkout: $root" >&2; exit 1;
 }
+if [[ -n "${RETRODE3_RELEASE_COMMIT:-}" ]]; then
+  [[ "$(git -C "$root" rev-parse HEAD)" == "$RETRODE3_RELEASE_COMMIT" ]] || exit 1
+fi
 if [[ -n "${RETRODE3_RELEASE_TAG:-}" ]]; then
   [[ "$(git -C "$root" rev-parse "refs/tags/$RETRODE3_RELEASE_TAG^{commit}")" == \
      "${RETRODE3_RELEASE_COMMIT:-}" ]] || {

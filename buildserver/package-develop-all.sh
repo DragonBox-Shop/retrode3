@@ -9,7 +9,8 @@ case "$1" in
 esac
 [[ "$(id -un)" == retrode ]] || exit 1
 src="$(cd "$(dirname "$0")/.." && pwd -P)"
-# Use the already-installed, tested release-tag automation directly.
+# Use the already-installed, tested source-selection automation directly.
+# RETRODE3_SOURCE_MODE=tag is inherited only for an explicit image build.
 # DO NOT call the public package_develop.sh here: that public launcher
 # delegates to this very script, so doing so would recurse forever.
 base=/srv/www/vhosts/retrode.com/buildserver

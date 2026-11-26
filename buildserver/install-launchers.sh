@@ -38,7 +38,7 @@ for name in apt-signing-secret.sh auto-package.sh run-debs.sh publish-debs.sh pa
   install -m "$file_mode" "$source_dir/$name" "$tmp"
   mv -f "$tmp" "$target"
 done
-echo "Installed pinned-release APT automation in $base/automation"
+echo "Installed commit-pinned APT automation in $base/automation"
 if [[ "$install_mode" == --automation-only ]]; then
   echo "All four existing launchers unchanged."
   exit 0

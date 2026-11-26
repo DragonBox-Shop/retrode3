@@ -10,8 +10,9 @@ noch die eingesetzte SD-Karte werden hiermit aktualisiert.
 | `package_develop.sh` -> alle Git-Quellen -> signed APT `testing` | `build_image_develop.sh` -> Paketlauf -> signierte APT-Pakete -> SD-Image |
 | `package_master.sh` -> freigegebenes `stable` | `build_image_master.sh` -> freigegebenes `stable`-Image |
 
-Der Paketlauf lädt die neuesten **freigegebenen Release-Tags** aus
-`retrode3` und `retrode3-oscr` samt Sanni-Submodul und pinnt
+Der Paketlauf fixiert die aktuellen **Branch-Commits** aus
+`retrode3` und `retrode3-oscr` samt Sanni-Submodul. Nur der Image-Aufruf
+verlangt beide Release-Tags. Der Paketlauf pinnt
 Kernel sowie U-Boot auf je einen exakten Commit ihres `develop`-Branches.
 Im Kernel-Git liegen neben den Quellen auch
 `arch/mips/configs/retrode3_full.config` und das eigene

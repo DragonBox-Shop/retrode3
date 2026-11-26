@@ -17,22 +17,31 @@ root="${RETRODE3_PACKAGE_SOURCE_ROOT:-$(cd "$(dirname "$0")/.." && pwd)}"
 os_tag="${RETRODE3_RELEASE_TAG:-}"
 os_sha="${RETRODE3_RELEASE_COMMIT:-}"
 oscr_tag="${RETRODE3_OSCR_TAG:-}"
-# The APT release gate is intentionally stricter than manual offline builds:
-# no immutable OS and OSCR source tags means no APT publication.
-if [[ -z "$os_tag" || -z "$oscr_tag" || ! "$os_sha" =~ ^[0-9a-f]{40}$ ]]; then
-  echo "error: APT publication requires selected OS and OSCR release tags" >&2
-  exit 1
-fi
-git -C "$root" check-ref-format "refs/tags/$os_tag" || exit 1
-[[ "$(git -C "$root" rev-parse --verify "refs/tags/$os_tag^{commit}")" == "$os_sha" &&
-   "$(git -C "$root" rev-parse HEAD)" == "$os_sha" ]] || {
-  echo "error: source worktree is not the selected release tag" >&2
-  exit 1
+source_mode="${RETRODE3_SOURCE_MODE:-branch}"
+oscr_sha="${RETRODE3_OSCR_COMMIT:-}"
+oscr_history="${RETRODE3_OSCR_HISTORY:-}"
+[[ "$os_sha" =~ ^[0-9a-f]{40}$ && "$oscr_sha" =~ ^[0-9a-f]{40}$ &&
+   "${RETRODE3_FOLLOW_OSCR_BRANCH:-0}" == 1 && -d "$oscr_history" ]] || {
+  echo "error: publication requires exact OS/OSCR source commits and branch history" >&2; exit 1;
 }
-git -C "$root" merge-base --is-ancestor "$os_sha" "refs/heads/$branch" || {
-  echo "error: source release tag is not contained in $branch" >&2
-  exit 1
-}
+[[ "$(git -C "$root" rev-parse HEAD)" == "$os_sha" ]] || exit 1
+git -C "$root" merge-base --is-ancestor "$os_sha" "refs/heads/$branch" || exit 1
+git --git-dir="$oscr_history" merge-base --is-ancestor "$oscr_sha" "refs/heads/$branch" || exit 1
+case "$source_mode" in
+  tag)
+    [[ -n "$os_tag" && -n "$oscr_tag" ]] || exit 1
+    git -C "$root" check-ref-format "refs/tags/$os_tag" || exit 1
+    git --git-dir="$oscr_history" check-ref-format "refs/tags/$oscr_tag" || exit 1
+    [[ "$(git -C "$root" rev-parse "refs/tags/$os_tag^{commit}")" == "$os_sha" &&
+       "$(git --git-dir="$oscr_history" rev-parse "refs/tags/$oscr_tag^{commit}")" == "$oscr_sha" ]] || exit 1
+    ;;
+  branch)
+    [[ -z "$os_tag" && -z "$oscr_tag" &&
+       "$(git -C "$root" rev-parse "refs/heads/$branch")" == "$os_sha" &&
+       "$(git --git-dir="$oscr_history" rev-parse "refs/heads/$branch")" == "$oscr_sha" ]] || exit 1
+    ;;
+  *) echo "Invalid source mode" >&2; exit 1 ;;
+esac
 test -z "$(git -C "$root" status --porcelain --untracked-files=no)" || {
   echo "error: checkout contains modified tracked files" >&2; exit 1
 }
@@ -70,9 +79,9 @@ candidate_commit = manifest.get("os_commit", "")
 if not isinstance(candidate_commit, str) or not re.fullmatch(r"[0-9a-f]{40}", candidate_commit):
     sys.exit("error: missing or invalid source Git commit in build manifest")
 if candidate_commit != head:
-    sys.exit("error: candidate OS commit differs from the exact tagged source")
-if (manifest.get("os_tag") != os.environ.get("RETRODE3_RELEASE_TAG") or
-        manifest.get("oscr_tag") != os.environ.get("RETRODE3_OSCR_TAG")):
+    sys.exit("error: candidate OS commit differs from the exact selected source")
+if (manifest.get("os_tag") != (os.environ.get("RETRODE3_RELEASE_TAG") or None) or
+        manifest.get("oscr_tag") != (os.environ.get("RETRODE3_OSCR_TAG") or None)):
     sys.exit("error: package manifest source tags do not match selected tags")
 auto = os.environ.get("RETRODE3_AUTO_VERSION", "0") == "1"
 if bool(manifest.get("auto_versioned", False)) != auto:

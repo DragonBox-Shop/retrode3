@@ -10,8 +10,8 @@ Die vollstaendige Schritt-fuer-Schritt-Anleitung steht in
 
 ## Vier Launcher, zwei Aufgaben
 
-- `package_develop.sh`: OS + OSCR aus den letzten branch-erreichbaren,
-  unveraenderlichen `develop`-Release-Tags; Kernel + U-Boot aus ihren
+- `package_develop.sh`: OS + OSCR aus den aktuellen exakt fixierten
+  `develop`-Commits, ohne Tag-Pflicht; Kernel + U-Boot aus ihren
   jeweiligen `develop`-Git-Commits und den dort eingecheckten
   `packaging/retrode3/build-debs.sh`-Rezepten. Wenn Quellen,
   Paketrezepte und Compiler-Container unveraendert sind, werden
@@ -19,13 +19,13 @@ Die vollstaendige Schritt-fuer-Schritt-Anleitung steht in
   werden nach allen Checks durch die bestehende GPG-Signatur nach
   APT `testing` veroeffentlicht.
 - `build_image_develop.sh`: Ruft **zuerst**
-  `package_develop.sh` auf, verifiziert die signierten Paket-Snapshots,
+  `package_develop.sh` mit `RETRODE3_SOURCE_MODE=tag` auf (beide Release-Tags erforderlich), verifiziert die signierten Paket-Snapshots,
   erstellt Debian 12 MIPSEL mit SysVinit und installiert die exakten
   Paketversionen aus dem signierten APT `testing`. Dann erzeugt es eine
   FAT32/ext4-SD-Image-Datei mit dem in `.deb` gelieferten
   Ingenic-X1600-SPL/U-Boot, uImage, DTB und Modulen.
-- `package_master.sh` / `build_image_master.sh`: Bleiben bisher
-  unangetastet, bis der korrekte X1600-U-Boot-Stand auf einer realen
+- `package_master.sh`: baut die freigegebenen Master-Commits ohne Tag.
+  `build_image_master.sh` und Master-Plattformpakete bleiben gesperrt, bis der korrekte X1600-U-Boot-Stand auf einer realen
   Retrode3 hardwaregetestet und nach `master` freigegeben ist. Der
   bestehende U-Boot-`master` ist keine akzeptierte Retrode3-Konfiguration.
 
@@ -37,8 +37,8 @@ absichtlich sofort mit Fehler verlassen.
 
 | Git | Quelle | Paket-Output |
 | --- | --- | --- |
-| `retrode3` | getaggte OS/Web/Tools-Quellen | OS- und Verwaltungs-Pakete |
-| `retrode3-oscr` | getaggte OSCR/Sanni-Quellen | Runtime und dynamische Core-Pakete |
+| `retrode3` | fixierte OS/Web/Tools-Commits; Image: Tag | OS- und Verwaltungs-Pakete |
+| `retrode3-oscr` | fixierte OSCR/Sanni-Commits; Image: Tag | Runtime und dynamische Core-Pakete |
 | `retrode3-kernel` | exakter `develop`-Commit | `retrode3-linux-image`, `retrode3-linux-modules` |
 | `retrode3-uboot` | exakter `develop`-Commit | `retrode3-uboot-x1600` |
 

@@ -1,13 +1,12 @@
 # Retrode3 MIPSEL package build server
 
-The `package_master.sh` and `package_develop.sh` launchers update
-their own automation checkout but build **only the newest reachable Git tag**
-of the matching OS branch and the matching `retrode3-oscr` branch.
-`develop` can be broken between tags; untagged HEAD changes are never
-packaged. A tag is a completed checkpoint, not yet a hardware approval.
-The selected OS/OSCR tag names, their exact commits and the Sanni gitlink
-are recorded in the build manifest. Missing tags mean a clear failure,
-**never a fallback to branch HEAD**.
+The package launchers fetch the current matching OS and OSCR branch tips,
+pin both full commit SHAs, and build from those immutable snapshots.
+Ordinary package runs require no tags. Images explicitly set
+`RETRODE3_SOURCE_MODE=tag` and require both reachable release tags.
+The manifest records the commits, Sanni gitlink, and tags (null for
+ordinary package runs). An image must never roll back already published
+source commits.
 The tracked `packaging/native-source-lock.json` remains a deliberate
 fallback for offline, pinned/manual candidate builds and tests, **not**
 the source selector for automated APT releases.
@@ -82,10 +81,9 @@ This creates two executable files **outside** the public DocumentRoot:
 
 Each invocation takes a shared nonblocking `flock`, verifies the branch and
 clean tracked files, fetches and fast-forwards its dedicated automation
-checkout, selects the latest **existing, branch-reachable** source tags,
-and builds from a temporary self-contained OS-tag checkout. Package compilation
-uses the exact tagged OSCR commit, not a moving branch HEAD. It checks
-whether that specific tag pair is already published, then performs
+checkout, selects the exact fetched OS/OSCR branch commits (or both tags in image mode),
+and builds from a temporary self-contained detached OS checkout. It checks
+whether that specific source pair is already published, then performs
 the constrained rootless Podman crossbuild. After the build it verifies
 the manifest, all SHA256 sums, source commit, expected package versions and
 the pool/installed-suite versions, publishes explicitly with `reprepro`,
@@ -108,15 +106,14 @@ unset RETRODE3_BUILD_ONLY
 /srv/www/vhosts/retrode.com/package_develop.sh
 ```
 
-The first invocation selects the latest tagged snapshots reachable from
+The first invocation selects the current commits from
 `develop` and `retrode3-oscr/develop`, compiles only if that exact pair
 has no already-built candidate, and retains the manifest. A valid existing candidate is reused even in
 build-only mode. The second invocation uses the ordinary
 `candidate-resume` path: it verifies exact source commits and checksums,
 then imports the candidate and makes one signed `reprepro export`.
-If either selected release tag changes in between, the new tag pair must
-be built; an old candidate is never silently published as a different tag.
-New untagged development commits alone do not invalidate the candidate.
+If either selected commit changes, a new candidate must be built.
+In image mode both tag names must also match.
 The GPG passphrase must **not** be stored in Git, shell scripts, or public
 images. Build-only does not modify APT or the last-published marker.
 
@@ -153,7 +150,7 @@ project file or CI artifact. Exclude it from shared/web backups,
 synchronization, shell debug traces, and the Podman source mounts.
 
 Once configured, the normal `package_develop.sh` (or explicitly approved
-`package_master.sh`) reuses/builds the tag-pinned candidate, validates it,
+`package_master.sh`) reuses/builds the commit-pinned candidate, validates it,
 warms the GPG agent using `--pinentry-mode loopback --passphrase-file`, then
 verifies the existing **noninteractive signing preflight** before importing
 any .debs. If the file is missing, the previous manual SSH-unlock method
@@ -280,31 +277,21 @@ after invocation. It does not update firmware, kernel modules, rootfs images
 or customer devices. The build is deliberately cross-compiled against
 Debian Bookworm, not a verified legacy-device sysroot.
 
-## Skipping repeated tagged releases
+## Source selection and repeated builds
 
-The wrapper uses `buildserver/select-release-tag.py` to select the
-newest tag by creation date (annotated tagger date; lightweight tags
-inherit commit date). Tags must point to commits contained in the
-channel's `develop` or `master` history. Archive/upstream tracking
-tags are ignored. Use annotated, immutable release tags for predictable
-ordering. The first automated tagged build fails safely unless both repositories have suitable release tags.
+Normal package runs pin the current OS and OSCR commits of the matching
+branch. Unchanged commits already indexed in APT are a no-op. Changed
+commits trigger a build without requiring tags.
 
-If the exact OS tag, OSCR tag and both source commits are already in the
-last published manifest *and* all expected package versions still exist
-in the target APT suite, nothing is built or published. An untagged
-`develop` change alone never triggers new Debian packages. A genuinely
-new tag triggers a new candidate even if only documentation changed;
-the tag represents a new checkpoint.
+Image runs explicitly request tag mode and use `select-release-tag.py`
+to resolve the latest reachable tags in both repositories. Missing tags
+are fatal. Tag mode verifies both tag names and commits in the manifest;
+it never silently publishes older source over newer branch packages.
+Tag the current tested commits before building a new image. Existing
+published images and release tags remain immutable.
 
-`RETRODE3_BUILD_ONLY=1` builds without publishing. A later normal
-invocation reuses a candidate only when both tags and commits match.
-Publisher preflight independently verifies that the OS checkout is the
-selected exact tagged commit, that the tag belongs to the selected
-branch, and that both tag names match the package manifest.
-
-The selected tags must be handled as immutable Git references; never
-force-move or reuse a release tag. For a changed build, create a
-new tag with a different name.
+Build-only and resume reuse candidates only for the same selected source
+identity and do not permit Debian version downgrades.
 
 ## Upstream firmware handling
 

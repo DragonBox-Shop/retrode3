@@ -62,10 +62,13 @@ flock -n 8 || { echo "An image build for $branch is running" >&2; exit 1; }
 # image container. The package launcher returns only after signed APT export.
 if [[ "$resume" == 0 ]]; then
   echo "=== Updating ${branch} packages (OS, OSCR, kernel, U-Boot) ==="
-  bash "$vhost/package_$branch.sh"
+  RETRODE3_SOURCE_MODE=tag RETRODE3_BUILD_ONLY=0 bash "$vhost/package_$branch.sh"
 else
   echo "=== RESUME: no package rebuild or APT publication; checking existing signed snapshots ==="
 fi
+ # Prevent another package run from replacing the signed snapshot during assembly.
+exec 9>"$base/cache/package-automation.lock"
+flock -n 9 || { echo "Package publication active; retry image build" >&2; exit 1; }
 [[ "$(git -C "$checkout" symbolic-ref --short HEAD)" == "$branch" ]] || exit 1
 [[ -z "$(git -C "$checkout" status --porcelain --untracked-files=no)" ]] || exit 1
 published="$base/cache/last-published-$branch.json"
