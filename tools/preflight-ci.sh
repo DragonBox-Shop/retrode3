@@ -4,7 +4,7 @@
 set -eu
 cd "$(dirname "$0")/.."
 
-for tool in bash python3 node php visudo; do
+for tool in bash python3 node php visudo lighttpd; do
     if ! command -v "$tool" >/dev/null 2>&1; then
         printf 'Missing required tool: %s\n' "$tool" >&2
         exit 1
@@ -51,6 +51,7 @@ python3 -m py_compile packaging/assets/retrode3-ssh-control
 bash -n buildserver/build-image-from-packages.sh
 python3 -m unittest discover -s image/tests -p 'test_finalize_apt.py' -v
 python3 -m unittest discover -s image/tests -p 'test_verify_lighttpd_offline.py' -v
+python3 -m unittest discover -s image/tests -p 'test_lighttpd_routes.py' -v
 python3 -m unittest discover -s packaging/tests -p 'test_*.py' -v
 python3 -m unittest discover -s retrode3-web-control/v2/tests -p 'test_*.py' -v
 
