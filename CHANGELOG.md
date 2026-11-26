@@ -3,7 +3,7 @@
 These are user-facing changes, not a list of Git commits. Development images
 are experimental until hardware testing is complete.
 
-## Unreleased
+## 2026.11.26-rc6
 
 - Automatically enable 32 MiB of compressed RAM swap during package upgrades and on boot, without a swapfile on the SD card or a dependency on procps.
 

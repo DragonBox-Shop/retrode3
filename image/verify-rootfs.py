@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Fail closed if this is not a completed Debian 12 MIPSEL SysV userspace."""
 import argparse
+import os
 import re
 import sys
 from pathlib import Path
@@ -31,6 +32,23 @@ def package_db(root):
     return packages
 
 
+def verify_memory_service(root):
+    # The image must use the package-owned service, not a copied overlay.
+    service = root / "etc/init.d/retrode3-memory"
+    owner = root / "var/lib/dpkg/info/retrode3-tools.list"
+    if (service.is_symlink() or not service.is_file()
+            or not service.stat().st_mode & 0o111
+            or "/etc/init.d/retrode3-memory" not in owner.read_text().splitlines()):
+        raise ValueError("missing executable package-owned memory service")
+    links = list((root / "etc/rc2.d").glob("S[0-9][0-9]retrode3-memory"))
+    if (len(links) != 1 or not links[0].is_symlink()
+            or os.readlink(links[0]) != "../init.d/retrode3-memory"):
+        raise ValueError("missing or duplicate memory service boot registration")
+    if "sysctl -w" in service.read_text():
+        raise ValueError("memory service depends on missing sysctl")
+    return links[0]
+
+
 def verify(root, with_retrode3=False):
     if not root.is_dir():
         raise ValueError("missing rootfs")
@@ -51,6 +69,7 @@ def verify(root, with_retrode3=False):
                      "resolvconf", "avahi-daemon", "openssh-sftp-server", "wpasupplicant"):
             if name not in packages:
                 raise ValueError("missing Retrode3 image package: " + name)
+        verify_memory_service(root)
         for name in packages:
             if name.startswith(("apache2", "php", "libapache2-mod-php")):
                 raise ValueError("legacy Web package in Lighttpd image: " + name)
