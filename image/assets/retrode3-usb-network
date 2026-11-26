@@ -1,66 +1,38 @@
 #!/bin/sh
-# Exclusive USB link owner. A host DHCP offer wins; otherwise serve DHCP.
-# Re-evaluate only at physical reconnect or client failure, never run both.
-set -u
+# Dedicated USB-only IPv4 network. Never act as a DHCP client on USB.
+# WLAN obtains its own address, DNS and default route independently.
+set -eu
 R=/run/retrode3-usb-network
-mkdir -m 0755 -p "$R" || exit 1
+mkdir -m 0755 -p "$R"
 child=
-mode=down
-carrier() { [ "$(cat /sys/class/net/usb0/carrier 2>/dev/null)" = 1 ]; }
-alive() { [ -n "$child" ] && kill -0 "$child" 2>/dev/null; }
 cleanup() {
     if [ -n "$child" ]; then
         kill "$child" 2>/dev/null || :
         wait "$child" 2>/dev/null || :
-        child=
     fi
-    /sbin/resolvconf -d usb0.retrode3 2>/dev/null || :
-    ip -4 route del default dev usb0 metric 500 2>/dev/null || :
-    ip -4 addr flush dev usb0 scope global 2>/dev/null || :
-    rm -f "$R/bound" "$R/client.pid" "$R/leases" "$R/server.pid"
-    mode=down
+    ip -4 addr del 172.31.255.1/29 dev usb0 2>/dev/null || :
+    rm -f "$R/server.pid"
 }
 trap 'exit 0' TERM INT
 trap cleanup EXIT
+# The gadget has already created usb0 and brought it up. Set the address
+# immediately, even before the host opens its NCM link.
+ip -4 addr replace 172.31.255.1/29 dev usb0
 while [ -d /sys/class/net/usb0 ]; do
-    if ! carrier; then
-        [ "$mode" = down ] || cleanup
+    /usr/sbin/dnsmasq --keep-in-foreground --conf-file=/dev/null \
+        --port=0 --interface=usb0 --bind-interfaces --dhcp-authoritative \
+        --dhcp-range=172.31.255.2,172.31.255.6,255.255.255.248,12h \
+        --dhcp-option=3 --dhcp-option=6 --dhcp-leasefile="$R/server.leases" \
+        --pid-file="$R/server.pid" >/dev/null 2>&1 &
+    child=$!
+    echo "USB: local DHCP, 172.31.255.1"
+    # Keep DHCP across host link changes; restart only on process failure.
+    while [ -d /sys/class/net/usb0 ] && kill -0 "$child" 2>/dev/null; do
         sleep 1
-        continue
-    fi
-    if [ "$mode" = down ]; then
-        # New connection; discard all former DHCP leases.
-        : > "$R/leases"
-        /sbin/dhclient -4 -1 -d -cf /etc/retrode3/usb-dhclient.conf \
-            -sf /usr/sbin/retrode3-usb-dhcp-hook -pf "$R/client.pid" \
-            -lf "$R/leases" usb0 >/dev/null 2>&1 &
-        child=$!
-        mode=probe
-        n=0
-        while [ "$n" -lt 12 ] && carrier && alive && [ ! -f "$R/bound" ]; do
-            sleep 1
-            n=$((n+1))
-        done
-        if carrier && alive && [ -f "$R/bound" ]; then
-            mode=client
-            echo "USB: host DHCP accepted"
-        else
-            cleanup
-            if carrier; then
-                ip -4 addr replace 172.31.255.1/29 dev usb0 || exit 1
-                /usr/sbin/dnsmasq --keep-in-foreground --conf-file=/dev/null \
-                    --port=0 --interface=usb0 --bind-interfaces --dhcp-authoritative \
-                    --dhcp-range=172.31.255.2,172.31.255.6,255.255.255.248,12h \
-                    --dhcp-option=3 --dhcp-option=6 --dhcp-leasefile="$R/server.leases" \
-                    --pid-file="$R/server.pid" >/dev/null 2>&1 &
-                child=$!
-                mode=server
-                echo "USB: local DHCP, 172.31.255.1"
-            fi
-        fi
-    elif ! alive; then
-        cleanup
-        sleep 2
-    fi
-    sleep 1
+    done
+    kill "$child" 2>/dev/null || :
+    wait "$child" 2>/dev/null || :
+    child=
+    [ -d /sys/class/net/usb0 ] || break
+    sleep 2
 done

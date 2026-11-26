@@ -4,10 +4,11 @@
 <title>Retrode3 - Getting started</title></head>
 <body>
 <h1>Welcome to Retrode3</h1>
-<p>Open <a href="http://retrode3.local/">retrode3.local</a> or, in local USB mode, <a href="http://172.31.255.1/">172.31.255.1</a>.</p>
-<p>When Internet sharing is enabled on the computer before connecting, Retrode3 accepts its DHCP settings.</p>
+<p>Open <a href="http://172.31.255.1/">http://172.31.255.1/</a> over USB (or <a href="http://retrode3.local/">retrode3.local</a> if supported by your computer).</p>
+<p>The USB address is fixed. Retrode3 supplies an address to your computer without changing its Internet gateway or DNS settings. Configure Wi-Fi in the web interface for Internet access on Retrode3.</p>
+<p>If your browser warns about HTTP, continue only when you are connected to your own Retrode3. Use the explicit http:// address above.</p>
 <p>The Retrode3 exposes a USB NCM network connection. Your computer can obtain
-an address automatically via DHCP. If not, configure 172.31.255.2 with
+an address automatically via DHCP. If necessary, activate the separate USB network connection in your network settings. If DHCP still fails, configure 172.31.255.2 with
 netmask 255.255.255.248 on the USB network adapter.</p>
 <p>This welcome disk is read-only and does not contain your ROMs.
 Cartridge dumps are accessed through the web interface and, once configured,

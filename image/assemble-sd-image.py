@@ -182,9 +182,7 @@ def provision_usb_gadget(root):
         if path.exists() or path.is_symlink():
             fail("unexpected preexisting USB gadget payload: " + str(path))
     for source, target, mode in (
-            ("retrode3-usb-network", "usr/sbin/retrode3-usb-network", 0o755),
-            ("retrode3-usb-dhcp-hook", "usr/sbin/retrode3-usb-dhcp-hook", 0o755),
-            ("usb-dhclient.conf", "etc/retrode3/usb-dhclient.conf", 0o644)):
+            ("retrode3-usb-network", "usr/sbin/retrode3-usb-network", 0o755),):
         dest = root / target
         if dest.exists() or dest.is_symlink():
             fail("unexpected preexisting USB network payload: " + str(dest))
@@ -353,7 +351,7 @@ def compose(args):
             "boot": {"start_sector": BOOT_START, "sectors": BOOT_SECTORS, "filesystem": "FAT32"},
             "root": {"start_sector": ROOT_START, "sectors": ROOT_SECTORS, "filesystem": "ext4"},
             "userland_access": (
-                "ttyS2, USB NCM host DHCP or local 172.31.255.1/29, USB ACM ttyGS0, read-only welcome disk"
+                "ttyS2, USB NCM fixed 172.31.255.1/29 with USB-only DHCP, USB ACM ttyGS0, read-only welcome disk"
                 if args.with_retrode3 else
                 ("ttyS2, USB NCM, ACM and SSH-key-only Dropbear"
                  if args.ssh_authorized_key else "ttyS2 serial console only")),

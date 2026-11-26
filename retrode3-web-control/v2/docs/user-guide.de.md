@@ -14,7 +14,7 @@ Diese Anleitung beschreibt die Weboberfläche aus dem Retrode3-OS-Repository auf
 
 ## 1. Anschließen
 
-Verbinde die Retrode3 per USB mit Deinem Computer und öffne `http://172.31.255.1/`. Diese Adresse gilt für die aktuelle USB-Netzwerkkonfiguration; sie ist keine allgemein garantierte Adresse für spätere Images.
+Verbinde die Retrode3 per USB mit Deinem Computer und öffne `http://172.31.255.1/`. Diese USB-Adresse ist fest. Die Retrode3 vergibt per DHCP eine Adresse an Deinen Rechner, ohne Standardgateway oder DNS-Server anzubieten. WLAN bezieht seine Adresse vom Router.
 
 Die Weboberfläche ist auf dem bisherigen Entwicklungsgerät standardmäßig ohne Passwort erreichbar. Ein Passwort lässt sich bei Bedarf mit `retrode3-web-v2-auth enable` einrichten. Die Oberfläche nicht ohne zusätzliche Absicherung ins öffentliche Internet stellen; Basic Auth über HTTP verschlüsselt die Anmeldung nicht.
 

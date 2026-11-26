@@ -3,6 +3,11 @@
 These are user-facing changes, not a list of Git commits. Development images
 are experimental until hardware testing is complete.
 
+## Unreleased
+
+- USB networking now uses a fixed device address (172.31.255.1) and immediately offers DHCP to the computer, without changing its Internet gateway or DNS. Wi-Fi obtains its network settings independently.
+- Updated the USB welcome pages to match the fixed address and explain browser HTTP warnings.
+
 ## 2026.11.26-rc3
 
 - The cartridge reader page keeps its layout steady when cartridges are inserted,

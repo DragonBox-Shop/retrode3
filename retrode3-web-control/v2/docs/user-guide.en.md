@@ -12,7 +12,7 @@ This guide describes the Web v2 interface from the Retrode3 OS `master` branch (
 
 ## 1. Connecting
 
-Connect Retrode3 to your computer over USB and open `http://172.31.255.1/`. This is the address of the current USB network setup, not a guarantee for every future image.
+Connect Retrode3 to your computer over USB and open `http://172.31.255.1/`. The Retrode3 has this fixed USB address and supplies a DHCP address to your computer without advertising a default gateway or DNS server. Wi-Fi uses DHCP from your router.
 
 The existing development device runs the web UI without a password by default. Owners can enable optional authentication using `retrode3-web-v2-auth enable`. Do not expose the UI to the public internet. Basic Auth over unencrypted HTTP does not protect credentials against eavesdropping.
 
