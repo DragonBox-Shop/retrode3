@@ -12,6 +12,18 @@ SPEC = importlib.util.spec_from_file_location("retrode3_web_v2", os.path.join(HE
 MODULE = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(MODULE)
 
+class DetectionTestManager(MODULE.JobManager):
+    """Real presence/result bookkeeping with mocked hardware job submission."""
+
+    def slot_job_state(self):
+        # The detection tests use a bare object as a manual-bus-ownership
+        # sentinel, not a real Job. Real job summaries are tested separately.
+        with self.lock:
+            if type(self.active) is object:
+                return {"status": "running", "automatic": False}
+            return super().slot_job_state()
+
+
 class BackendTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.mkdtemp(prefix="retrode3-web-test-")
@@ -462,8 +474,9 @@ for line in sys.stdin:
                     "title": "SONIC", "mapping": "linear", "size_bytes": 262144}}
             def cancel(self):
                 self.status = "cancelled"
-        class FakeManager(object):
+        class FakeManager(DetectionTestManager):
             def __init__(self):
+                super().__init__()
                 self.calls = []
                 self.job = FakeJob()
                 self.lock = MODULE.threading.RLock()
@@ -526,8 +539,9 @@ for line in sys.stdin:
                 self.cancel_calls += 1
                 self.status = "cancelled"
 
-        class FakeManager(object):
+        class FakeManager(DetectionTestManager):
             def __init__(self):
+                super().__init__()
                 self.lock = MODULE.threading.RLock()
                 self.active = None
                 self.job = FakeJob()
@@ -610,8 +624,9 @@ for line in sys.stdin:
             def snapshot(self):
                 return {"status": "done", "result": self.result}
 
-        class FakeManager(object):
+        class FakeManager(DetectionTestManager):
             def __init__(self):
+                super().__init__()
                 self.lock = MODULE.threading.RLock()
                 self.active = None
                 self.calls = []
@@ -703,8 +718,9 @@ for line in sys.stdin:
                     "probe_result": {"event": "probe_result", "slot": "snes",
                                      "system": "sfc-adapter", "title": "TEST CART",
                                      "read_voltage_mv": 5000}}}
-        class FakeManager(object):
+        class FakeManager(DetectionTestManager):
             def __init__(self):
+                super().__init__()
                 self.lock = MODULE.threading.RLock()
                 self.active = None
                 self.calls = []
@@ -750,8 +766,9 @@ for line in sys.stdin:
                     "detection": "manual_required", "core": None,
                     "attempts": [{"core": "md", "outcome": "no_match"},
                                  {"core": "sms-md", "outcome": "no_match"}]}}
-        class FakeManager(object):
+        class FakeManager(DetectionTestManager):
             def __init__(self):
+                super().__init__()
                 self.lock = MODULE.threading.RLock()
                 self.active = None
             def submit_slot_probe(self, slot_id):
@@ -784,8 +801,9 @@ for line in sys.stdin:
                                        "system": "adapter", "title": "TEST CART"}}
             def snapshot(self):
                 return {"status": "done", "result": self.result}
-        class FakeManager(object):
+        class FakeManager(DetectionTestManager):
             def __init__(self):
+                super().__init__()
                 self.lock = MODULE.threading.RLock()
                 self.active = None
                 self.calls = []
