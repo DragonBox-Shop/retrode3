@@ -58,6 +58,9 @@ static int program(struct part *p) {
         rc=esp_loader_flash_write(buf,n);
         if(rc!=ESP_LOADER_SUCCESS) return rc;
         left-=n;
+        if(!left || (p->size-left)%65536==0) {
+            printf("  %u/%u bytes written\n",p->size-left,p->size); fflush(stdout);
+        }
     }
     return esp_loader_flash_verify();
 }
@@ -91,8 +94,9 @@ static int restore_sdio(void) {
 int main(int argc,char **argv) {
     int blank_only=argc==2&&!strcmp(argv[1],"--flash-if-blank");
     int probe_only=argc==2&&!strcmp(argv[1],"--probe-blank");
-    if(argc!=2||(!blank_only&&!probe_only&&strcmp(argv[1],"--flash-confirmed"))) {
-        fprintf(stderr,"Usage: retrode3-esp-flasher --flash-confirmed|--flash-if-blank|--probe-blank\nExperimental: maintenance candidate; physical recovery required.\n");
+    int verify_only=argc==2&&!strcmp(argv[1],"--verify-installed");
+    if(argc!=2||(!blank_only&&!probe_only&&!verify_only&&strcmp(argv[1],"--flash-confirmed"))) {
+        fprintf(stderr,"Usage: retrode3-esp-flasher --flash-confirmed|--flash-if-blank|--probe-blank|--verify-installed\nExperimental: maintenance candidate; physical recovery required.\n");
         return argc==2&&!strcmp(argv[1],"--help")?0:2;
     }
     if(geteuid()!=0) { fputs("Root required\n",stderr); return 1; }
@@ -123,15 +127,52 @@ int main(int argc,char **argv) {
             return blank==1 ? 0 : blank==0 ? 3 : 1;
         }
     }
+    if(verify_only) {
+        int good=1;
+        loader_port_start_timer(1000);
+        if(loader_spi_parameters(flash_size)!=ESP_LOADER_SUCCESS) good=0;
+        for(size_t i=0;good&&i<sizeof(parts)/sizeof(parts[0]);i++) {
+            struct part *p=&parts[i];
+            struct MD5Context ctx;
+            uint8_t buf[1024], digest[16], observed[33]={0};
+            char expected[33];
+            uint32_t left=p->size;
+            MD5Init(&ctx);
+            while(left) {
+                uint32_t n=left<sizeof(buf)?left:sizeof(buf);
+                if(fread(buf,1,n,p->file)!=n) { good=0; break; }
+                MD5Update(&ctx,buf,n); left-=n;
+            }
+            if(!good) break;
+            MD5Final(digest,&ctx);
+            for(size_t j=0;j<sizeof(digest);j++)
+                snprintf(expected+2*j,3,"%02x",digest[j]);
+            loader_port_start_timer(60000);
+            good=loader_md5_cmd(p->addr,p->size,observed)==ESP_LOADER_SUCCESS &&
+                 !retrode_port_failed() && !memcmp(expected,observed,32);
+            printf("%s: %s\n",p->name,good?"verified":"verification failed");
+            fflush(stdout);
+        }
+        if(restore_sdio()) return 1;
+        return good?0:1;
+    }
     for(size_t i=0;i<sizeof(parts)/sizeof(parts[0]);i++) {
         printf("Programming and verifying %s\n",parts[i].name); fflush(stdout);
         int rc=program(&parts[i]);
         if(rc||retrode_port_failed()) { fprintf(stderr,"Failed %s: %d\n",parts[i].name,rc); goto fail; }
+        printf("Verified %s\n",parts[i].name); fflush(stdout);
     }
-    if(esp_loader_flash_finish(false)!=ESP_LOADER_SUCCESS) goto fail;
-    esp_loader_reset_target();
-    retrode_port_close();
-    if(retrode_port_failed()||retrode_sdio_bind()) goto fail;
+    /* The ESP32-C6 ROM rejected FLASH_END after all four MD5 checks on
+     * hardware. A physical reset successfully booted the verified image.
+     * Finish is not a write or integrity check; always reset explicitly.
+     * Do not reach this path after a failed write or digest mismatch. */
+    esp_loader_error_t finish=esp_loader_flash_finish(false);
+    if(finish!=ESP_LOADER_SUCCESS)
+        fprintf(stderr,"Warning: FLASH_END returned %d after all MD5 checks; resetting ESP\n",finish);
+    if(restore_sdio()) {
+        fputs("All partitions verified, but ESP reset/SDIO rebind failed; cold boot required.\n",stderr);
+        goto fail;
+    }
     puts("All four partitions verified. Check WLAN and cold boot.");
     return 0;
 fail:

@@ -48,3 +48,15 @@ power loss or failure. A successful write is not proof of WLAN registration.
 Use `--probe-blank` for a read-only flash-content check (it resets the ESP
 and temporarily unbinds its WLAN SDIO controller). No automatic customer
 flash until recovery, license, package and hardware checks are completed.
+
+## Hardware test, 2026-11-26
+
+Kernel commit 1377dda6fb2c819541d67ff417f02b569de07137 fixes the SDIO
+unbind hang with NG-1.0.3.0.1. All four image writes passed MD5, then the
+ROM rejected FLASH_END. Cold boot registered NG-1.0.6.0.1 and WLAN scan
+worked. The revised flasher reports each verified partition, warns on
+FLASH_END failure after verified writes, resets and attempts SDIO rebind.
+Hot rebind and the revised executable still require hardware validation.
+Use --verify-installed to compare all four installed regions by ROM MD5
+without erasing/programming; this temporarily disconnects WLAN. Do not
+reflash the working device simply to test the error path.
