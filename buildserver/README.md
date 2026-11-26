@@ -145,7 +145,8 @@ unset apt_passphrase
 chmod 600 "$BASE/private/signing/apt-signing-passphrase"
 ```
 
-The directory must be owned by `retrode` with mode `0700`, the
+The directory must be owned by `retrode` with mode `0700` or `2700`
+(setgid inheritance, no group/other access), and the
 non-symlink, single-link secret file owned by `retrode` with mode `0600`.
 The file is a **local administrator-managed secret**, not a tracked
 project file or CI artifact. Exclude it from shared/web backups,
@@ -163,8 +164,13 @@ arguments, the environment, log output or version manifests.
 The secret remains on disk between boots so automated package publication
 is a deliberate security tradeoff. To return to interactive operation, move
 the secret **out of the signing directory** to secured offline storage and
-use `unlock-apt-signing.sh` as described below. No changes to the tag
-policy, packaging, GPG keys or public APT endpoints are required.
+use `unlock-apt-signing.sh` as described below. Both package publishers use the same credential validation helper. After
+reviewing and testing an automation-only fix, install it using
+`bash buildserver/install-launchers.sh --automation-only` from the updated
+testing checkout. This preserves all four deployed launchers and does not
+require moving or creating package source tags. Re-run the normal launcher
+to resume an exact existing candidate. No changes to the tag policy,
+packaging, GPG keys or public APT endpoints are required.
 
 ### Unlocking the APT signing key over SSH
 

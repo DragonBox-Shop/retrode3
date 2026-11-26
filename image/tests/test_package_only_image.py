@@ -95,13 +95,12 @@ class PackageOnlyImageTests(unittest.TestCase):
 
     def test_signing_directory_supports_secure_setgid_inheritance(self):
         publisher = (ROOT / "buildserver/publish-platform-develop.sh").read_text()
-        self.assertIn('"700:$owner_uid"', publisher)
-        self.assertIn('"2700:$owner_uid"', publisher)
-        self.assertIn('"600:$owner_uid:1"', publisher)
-        self.assertIn('! -L "$secret_dir"', publisher)
-        self.assertIn('! -L "$secret"', publisher)
+        helper = (ROOT / "buildserver/apt-signing-secret.sh").read_text()
+        self.assertIn('"700:$owner_uid"', helper)
+        self.assertIn('"2700:$owner_uid"', helper)
+        self.assertIn('"600:$owner_uid:1"', helper)
+        self.assertIn('validate_apt_signing_secret "$secret_dir" "$secret"', publisher)
         self.assertIn('stage=signature-preflight', publisher)
-        self.assertNotIn('== "700:$(id -u)"', publisher)
 
     def test_rootless_mmdebstrap_bootstrap(self):
         rootfs = (ROOT / "image/build-bookworm-rootfs.sh").read_text()

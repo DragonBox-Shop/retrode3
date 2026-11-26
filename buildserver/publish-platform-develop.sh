@@ -81,20 +81,8 @@ stage=signature-preflight
 tmp="$(mktemp -d)"
 printf 'Retrode3 platform APT signature test\n' > "$tmp/probe.txt"
 if [[ -e "$secret" || -L "$secret" ]]; then
-  # On Amaterasu the private directory deliberately inherits the parent's
-  # setgid bit: mode 2700, shown as drwx--S---. It has exactly the same
-  # effective access as 0700. GNU chmod 0700 can preserve directory setgid.
-  # Accept only 0700 or 2700, never any group/other read/write/search bits.
-  owner_uid="$(id -u)"
-  dir_access="$(stat -c '%a:%u' -- "$secret_dir")"
-  [[ ! -L "$secret_dir" && -d "$secret_dir" &&
-     ( "$dir_access" == "700:$owner_uid" ||
-       "$dir_access" == "2700:$owner_uid" ) &&
-     -f "$secret" && ! -L "$secret" && -s "$secret" &&
-     "$(stat -c '%a:%u:%h' -- "$secret")" == "600:$owner_uid:1" ]] || {
-    echo "ERROR: APT signing credentials fail owner/mode/link checks (directory 0700 or setgid 2700, single-link secret 0600, owned by retrode)." >&2
-    exit 1
-  }
+  source "$src/buildserver/apt-signing-secret.sh"
+  validate_apt_signing_secret "$secret_dir" "$secret"
   timeout 20s gpg --homedir "$GNUPGHOME" --batch --no-tty \
     --pinentry-mode loopback --passphrase-file "$secret" \
     --local-user "$fpr" --detach-sign \

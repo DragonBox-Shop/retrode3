@@ -220,14 +220,8 @@ printf 'Retrode3 APT signing preflight\n' > "$sign_dir/test.txt"
 signing_secret_dir="$(dirname "$base")/private/signing"
 signing_secret="$signing_secret_dir/apt-signing-passphrase"
 if [[ -e "$signing_secret" || -L "$signing_secret" ]]; then
-  if [[ -L "$signing_secret_dir" || ! -d "$signing_secret_dir" ||
-        "$(stat -c '%a:%u' -- "$signing_secret_dir")" != "700:$(id -u)" ||
-        -L "$signing_secret" || ! -f "$signing_secret" || ! -s "$signing_secret" ||
-        ! -r "$signing_secret" ||
-        "$(stat -c '%a:%u:%h' -- "$signing_secret")" != "600:$(id -u):1" ]]; then
-    echo "ERROR: APT signing secret must be a non-symlink 0600 single-link file owned by retrode under an owned 0700 directory" >&2
-    exit 1
-  fi
+  source "$(dirname "$0")/apt-signing-secret.sh"
+  validate_apt_signing_secret "$signing_secret_dir" "$signing_secret"
   # A loopback signature warms the user's GPG agent just before reprepro,
   # which still signs through its normal GPGME/GnuPG agent integration.
   # Never reveal the secret's contents to the shell or the process list.

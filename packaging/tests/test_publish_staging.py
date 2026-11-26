@@ -30,10 +30,9 @@ class StagedPublicationContractTests(unittest.TestCase):
         self.assertLess(preflight, include)
         self.assertIn('--pinentry-mode loopback', self.script[secret:preflight])
         self.assertIn('--pinentry-mode error', self.script[preflight:include])
-        self.assertIn('stat -c', self.script[secret:preflight])
-        self.assertIn('600:$(id -u):1', self.script[secret:preflight])
-        self.assertIn('700:$(id -u)', self.script[secret:preflight])
-        self.assertIn('! -r "$signing_secret"', self.script[secret:preflight])
+        self.assertIn('validate_apt_signing_secret "$signing_secret_dir" "$signing_secret"',
+                      self.script[secret:preflight])
+        self.assertIn('apt-signing-secret.sh', self.script[secret:preflight])
         self.assertIn('[[ -e "$signing_secret" || -L "$signing_secret" ]]',
                       self.script[secret:preflight])
         self.assertIn('no packages imported', self.script[secret:preflight])
@@ -128,6 +127,14 @@ class BuildOnlyContractTests(unittest.TestCase):
 
 
 class LauncherIsolationTests(unittest.TestCase):
+    def test_automation_only_keeps_all_existing_launchers(self):
+        script = (Path(__file__).resolve().parents[2] /
+                  "buildserver/install-launchers.sh").read_text()
+        start = script.index('if [[ "$install_mode" == --automation-only ]]')
+        end = script.index('for spec in "master:', start)
+        self.assertIn("exit 0", script[start:end])
+        self.assertIn("apt-signing-secret.sh", script[:start])
+
     def test_apt_only_install_does_not_touch_image_launchers(self):
         script = (Path(__file__).resolve().parents[2] /
                   "buildserver/install-launchers.sh").read_text()

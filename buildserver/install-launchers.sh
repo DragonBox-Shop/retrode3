@@ -3,10 +3,10 @@
 set -euo pipefail
 umask 027
 install_mode="${1:---all}"
-[[ "$#" -le 1 ]] || { echo "Usage: $0 [--packages-only|--all]" >&2; exit 2; }
+[[ "$#" -le 1 ]] || { echo "Usage: $0 [--automation-only|--packages-only|--all]" >&2; exit 2; }
 case "$install_mode" in
-  --all|--packages-only) ;;
-  *) echo "Usage: $0 [--packages-only|--all]" >&2; exit 2 ;;
+  --all|--packages-only|--automation-only) ;;
+  *) echo "Usage: $0 [--automation-only|--packages-only|--all]" >&2; exit 2 ;;
 esac
 vhost=/srv/www/vhosts/retrode.com
 base="$vhost/buildserver"
@@ -26,11 +26,11 @@ mkdir -p "$base/cache" "$base/automation"
 exec 9>"$base/cache/package-automation.lock"
 flock -n 9 || { echo "Package build active; reinstall later" >&2; exit 1; }
 source_dir="$base/src/retrode3-testing-pr/buildserver"
-for name in auto-package.sh run-debs.sh publish-debs.sh package-failure-alert.sh unlock-apt-signing.sh; do
+for name in auto-package.sh run-debs.sh publish-debs.sh package-failure-alert.sh unlock-apt-signing.sh apt-signing-secret.sh; do
   bash -n "$source_dir/$name"
 done
 python3 "$source_dir/select-release-tag.py" --help >/dev/null
-for name in auto-package.sh run-debs.sh publish-debs.sh package-failure-alert.sh unlock-apt-signing.sh select-release-tag.py; do
+for name in apt-signing-secret.sh auto-package.sh run-debs.sh publish-debs.sh package-failure-alert.sh unlock-apt-signing.sh select-release-tag.py; do
   target="$base/automation/$name"
   [[ ! -L "$target" ]] || { echo "Refusing automation symlink: $target" >&2; exit 1; }
   tmp="$(mktemp "$base/automation/.install.XXXXXXXX")"
@@ -39,6 +39,10 @@ for name in auto-package.sh run-debs.sh publish-debs.sh package-failure-alert.sh
   mv -f "$tmp" "$target"
 done
 echo "Installed pinned-release APT automation in $base/automation"
+if [[ "$install_mode" == --automation-only ]]; then
+  echo "All four existing launchers unchanged."
+  exit 0
+fi
 for spec in "master:retrode3-stable-pr" "develop:retrode3-testing-pr"; do
   branch="${spec%%:*}"
   checkout="${spec#*:}"

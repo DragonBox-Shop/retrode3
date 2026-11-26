@@ -208,7 +208,9 @@ PY
     echo "BUILD ONLY: existing candidate $run; APT unchanged."
     exit 0
   fi
-  bash "$script_dir/publish-debs.sh" "$branch" "$run"
+  failure_stage=apt-publication
+  log="$base/artifacts/logs/$branch-resume-$(date -u +%Y%m%dT%H%M%SZ)-${os_sha:0:12}.log"
+  bash "$script_dir/publish-debs.sh" "$branch" "$run" 2>&1 | tee "$log"
   save_published_manifest "$manifest"
   echo "DONE: resumed $branch -> $suite from $os_tag / $oscr_tag"
   exit 0
