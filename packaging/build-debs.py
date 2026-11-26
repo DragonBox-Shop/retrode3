@@ -70,6 +70,8 @@ WEB_EXTRA = (
     ("packaging/assets/retrode3-corectl.sudoers",
      "etc/sudoers.d/retrode3-corectl", 0o440),
     ("packaging/assets/retrode3-ssh-control", "usr/sbin/retrode3-ssh-control", 0o755),
+    ("packaging/assets/retrode3-update-control", "usr/sbin/retrode3-update-control", 0o755),
+    ("packaging/assets/retrode3-update.sudoers", "etc/sudoers.d/retrode3-update", 0o440),
     ("packaging/assets/retrode3-ssh.init", "etc/init.d/retrode3-ssh", 0o755),
     ("packaging/assets/retrode3-ssh.sudoers", "etc/sudoers.d/retrode3-ssh", 0o440),
 )
@@ -77,6 +79,7 @@ CONFFILES = {
     "retrode3-core-runtime": ("/etc/init.d/retrode3-core-runtime",),
     WEB: ("/etc/init.d/retrode3-web-v2", "/etc/default/retrode3-web-v2",
           "/etc/sudoers.d/retrode3-corectl", "/etc/sudoers.d/retrode3-ssh",
+          "/etc/sudoers.d/retrode3-update",
           "/etc/init.d/retrode3-ssh",
           "/etc/lighttpd/conf-available/99-retrode3-lighttpd.conf"),
     TOOLS: ("/etc/sudoers.d/retrode3", "/etc/init.d/retrode3-wlan"),
@@ -382,7 +385,7 @@ def control_text(package, lock, native=None):
                 "retrode3-tools (>= " + web_version + "), "
                 "retrode3-udev-rules (>= " + web_version + "), "
                 "python3, lighttpd, "
-                "sudo, passwd, adduser, init-system-helpers, dropbear-bin, openssh-sftp-server")
+                "sudo, passwd, adduser, init-system-helpers, dropbear-bin, openssh-sftp-server, apt")
     elif package == TOOLS:
         deps = ("bash, sudo, iw, iproute2, python3, wpasupplicant, isc-dhcp-client, "
                 "resolvconf, init-system-helpers, net-tools, wget, unzip")
@@ -472,7 +475,8 @@ def build_one(work, package, layout, lock, stage, epoch, native=None):
               "var/www/retrode3-lighttpd/index.html",
               "etc/lighttpd/conf-available/99-retrode3-lighttpd.conf",
               "etc/init.d/retrode3-web-v2", "etc/init.d/retrode3-ssh",
-              "usr/sbin/retrode3-ssh-control", "etc/sudoers.d/retrode3-ssh"),
+              "usr/sbin/retrode3-ssh-control", "etc/sudoers.d/retrode3-ssh",
+              "usr/sbin/retrode3-update-control", "etc/sudoers.d/retrode3-update"),
         TOOLS: ("usr/local/bin/retrode3-admin", "usr/local/bin/retrode3-wlan",
                 "etc/init.d/retrode3-wlan", "usr/lib/retrode3/wlan-dhcp-hook"),
         UDEV: ("etc/udev/rules.d/70-retrode3-cartridge.rules",),

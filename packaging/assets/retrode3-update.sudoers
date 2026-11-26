@@ -1,0 +1,2 @@
+# No command-line arguments; helper accepts only check/install JSON.
+www-data ALL=(root) NOPASSWD: /usr/sbin/retrode3-update-control ""

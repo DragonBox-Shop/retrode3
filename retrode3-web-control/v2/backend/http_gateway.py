@@ -229,6 +229,28 @@ class Handler(service.Handler):
                                      and direct_usb_peer(self.headers))
         self._json(200, body)
 
+    def _update(self, data):
+        if not isinstance(data, dict) or set(data) != {"action"} or data["action"] not in ("check", "install"):
+            raise error(400, "invalid_update", "Only check or install is supported")
+        with service.MANAGER.lock:
+            if data["action"] == "install" and (service.MANAGER.active is not None or
+                    not service.MANAGER.bus_lock.acquire(False)):
+                raise error(409, "busy", "Cartridge hardware busy")
+            reserved = data["action"] == "install"
+            try:
+                result = subprocess.run(
+                    ["/usr/bin/sudo", "-n", "/usr/sbin/retrode3-update-control"],
+                    input=service.json.dumps(data), text=True, capture_output=True, timeout=5)
+                body = service.json.loads(result.stdout)
+            except (OSError, ValueError, subprocess.SubprocessError):
+                raise error(503, "update_unavailable", "Update control unavailable")
+            finally:
+                if reserved:
+                    service.MANAGER.bus_lock.release()
+            if result.returncode:
+                raise error(409, "update_failed", body.get("error", "Update control failed"))
+        self._json(202, body)
+
     def _session(self):
         token = session_from_cookie(self.headers.get("Cookie", "")) or secrets.token_hex(32)
         body = service.json.dumps({"csrf": token}).encode("ascii")
@@ -275,6 +297,8 @@ class Handler(service.Handler):
                 self._index()
             elif path == "/api/session":
                 self._session()
+            elif path == "/api/update":
+                self._json(200, service.update_status())
             elif path == "/api/developer/ssh":
                 self._developer_ssh({"action": "status"})
             else:
@@ -291,6 +315,8 @@ class Handler(service.Handler):
             url = urlsplit(self.path)
             if url.path == "/api/files/upload":
                 self._upload(url)
+            elif url.path == "/api/update":
+                self._update(self._body())
             elif url.path == "/api/developer/ssh":
                 self._developer_ssh(self._body())
             else:

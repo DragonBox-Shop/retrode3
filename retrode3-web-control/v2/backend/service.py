@@ -49,6 +49,19 @@ SEGMENT = re.compile(r"^[^/\\\x00-\x1f\x7f]+$")
 FILE_STEM = re.compile(r"[^A-Za-z0-9_. -]+")
 PROTOCOL = "retrode3-ndjson"
 MAX_BODY = 16384
+UPDATE_STATE = '/run/retrode3-update/status.json'
+
+
+def update_status():
+    try:
+        with open(UPDATE_STATE, 'r') as stream:
+            return json.load(stream)
+    except FileNotFoundError:
+        return {'phase': 'idle', 'packages': [], 'message': ''}
+
+
+def update_busy():
+    return update_status()['phase'] in ('downloading', 'installing', 'restarting')
 
 
 class ApiError(Exception):
@@ -384,7 +397,7 @@ def toggle_core(data):
             type(data.get("enabled")) is not bool):
         raise ApiError(400, "invalid_core_request", "Invalid core toggle request")
     with MANAGER.lock:
-        if MANAGER.active is not None or not MANAGER.bus_lock.acquire(False):
+        if update_busy() or MANAGER.active is not None or not MANAGER.bus_lock.acquire(False):
             raise ApiError(409, "busy", "Hardware job or core change running")
     try:
         inv = core_registry()
@@ -936,8 +949,8 @@ class JobManager(object):
                   cap, automatic=automatic, selection=selection,
                   source=source, flash_options=flash_options)
         with self.lock:
-            if self.active is not None:
-                raise ApiError(409, "busy", "Cartridge reader already busy")
+            if update_busy() or self.active is not None:
+                raise ApiError(409, "busy", "Cartridge reader or update already busy")
             if len(self.jobs) >= 50:
                 old = sorted((j for j in self.jobs.values() if j is not self.active),
                              key=lambda j: j.created)
@@ -965,8 +978,8 @@ class JobManager(object):
         job = Job(self, slot_id, "probe_slot", "", {"slot": slot_id},
                   automatic=True)
         with self.lock:
-            if self.active is not None:
-                raise ApiError(409, "busy", "Cartridge reader already busy")
+            if update_busy() or self.active is not None:
+                raise ApiError(409, "busy", "Cartridge reader or update already busy")
             if len(self.jobs) >= 50:
                 old = sorted((j for j in self.jobs.values() if j is not self.active),
                              key=lambda j: j.created)
