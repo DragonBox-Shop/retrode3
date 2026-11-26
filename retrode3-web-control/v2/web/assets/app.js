@@ -68,6 +68,7 @@
     renderSelectedProbe();
     renderCores();
     renderWriterState();
+    renderGlobalStatus();
   }
   function setLocale(lang) {
     if (!/^(en|de)$/.test(lang)) lang = "en";
@@ -355,7 +356,12 @@
   }
   function renderSlots() {
     if (!slotData) return;
-    var list = $("slot-list"); list.innerHTML = "";
+    var list = $("slot-list");
+    var scrollPositions = {};
+    Array.prototype.forEach.call(list.children, function (card) {
+      if (card.retR3Slot) scrollPositions[card.retR3Slot] = card.scrollTop;
+    });
+    list.innerHTML = "";
     var occupied = slotData.slots.filter(function (slot) { return slot.status === "occupied"; });
     text($("slots-summary"), occupied.length ? occupied.length + " " + t("slots_occupied") : t("no_occupied_slots"));
     slotData.slots.forEach(function (slot) {
@@ -374,6 +380,7 @@
       // A select may not be nested in a button. The card is a plain container
       // with a separate focusable card button and manual reader selector.
       var card = document.createElement("div");
+      card.retR3Slot = slot.id;
       card.className = "slot-card" + (slot.status === "occupied" ? " occupied" : "") +
         (isSelected ? " selected" : "");
       var main = document.createElement("button");
@@ -507,6 +514,7 @@
         else notify(t("slot_no_reader"));
       });
       list.appendChild(card);
+      if (scrollPositions[slot.id]) card.scrollTop = scrollPositions[slot.id];
     });
   }
   function refreshSlots() {
