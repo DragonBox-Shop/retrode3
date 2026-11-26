@@ -1,5 +1,6 @@
 """Execute the shared credential policy against disposable dummy files."""
 import os
+import re
 from pathlib import Path
 import subprocess
 import tempfile
@@ -64,7 +65,17 @@ class SigningSecretTests(unittest.TestCase):
             content = (HELPER.parent / name).read_text()
             check = content.index("validate_apt_signing_secret")
             self.assertLess(check, content.index("--passphrase-file"))
-            self.assertLess(check, content.index("includedeb"))
+            # Match the actual import command, not comments mentioning it.
+            imports = list(re.finditer(
+                r'(?m)^\s*(?:--export=never --keepunreferencedfiles )?'
+                r'includedeb (?:testing|"\$suite") "\$deb"\s*
+
+
+if __name__ == "__main__":
+    unittest.main()
+, content))
+            self.assertEqual(len(imports), 1, name)
+            self.assertLess(check, imports[0].start(), name)
 
 
 if __name__ == "__main__":
