@@ -115,6 +115,22 @@ class TestPackaging(unittest.TestCase):
                     self.assertIn("./usr/lib/retrode3/cores-available/" +
                                   core + ".core", contents)
 
+    def test_package_directories_under_private_umask(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            stage = self.fixture_stage(root)
+            native = pkg.verify_stage(stage, LAYOUT, check_symbols=False)
+            previous = os.umask(0o077)
+            try:
+                _, built = pkg.build_one(root, pkg.RUNTIME, LAYOUT, LOCK,
+                                         stage, 1795132800, native)
+            finally:
+                os.umask(previous)
+            self.assertTrue(built.is_file())
+            for parent, dirs, _ in os.walk(str(root / pkg.RUNTIME)):
+                self.assertEqual(stat.S_IMODE(os.stat(parent).st_mode), 0o755)
+            self.assertEqual(stat.S_IMODE(root.stat().st_mode), 0o700)
+
     def test_bookworm_dependencies_are_native_and_complete(self):
         web = pkg.control_text(pkg.WEB, LOCK)
         self.assertIn("python3, lighttpd", web)

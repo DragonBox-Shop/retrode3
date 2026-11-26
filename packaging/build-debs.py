@@ -445,7 +445,12 @@ def build_one(work, package, layout, lock, stage, epoch, native=None):
     if package in CONFFILES:
         put_text(root, "DEBIAN/conffiles", "\n".join(CONFFILES[package]) + "\n")
     maintainer_scripts(root, package)
+    # Package directory permissions must not inherit the build user\'s umask.
+    # File permissions are set explicitly by put()/put_text().
+    os.chmod(str(root), 0o755)
     for parent, dirs, files in os.walk(str(root)):
+        for name in dirs:
+            os.chmod(os.path.join(parent, name), 0o755)
         for name in dirs + files:
             p = os.path.join(parent, name)
             os.utime(p, (epoch, epoch), follow_symlinks=False)
