@@ -97,3 +97,13 @@ sie automatisch zu aktivieren. Keine Labor-Plugins als Release-Rezepte.
   `docs/`-Dateien; deren alte TODO-Abschnitte nicht mit dem aktuellen
   HEAD verwechseln. Vor Aenderungen stets aktuelle Git-Quellen,
   CI-Ergebnisse und Hardware-Abnahmestand pruefen.
+
+## Redaktionelles Changelog
+
+`CHANGELOG.md` ist fuer Anwender, keine Git-Commit-Liste. Sichtbare neue
+Funktionen, Fehlerkorrekturen und relevante Einschraenkungen unter der
+naechsten Release-Ueberschrift sammeln. Vor dem Tag muss die Ueberschrift
+exakt zur Versionskennung (ohne `apt-`) passen. Historische Eintraege
+nicht nachtraeglich umdeuten. Der Image-Publisher exportiert ausschliesslich
+das Changelog des tatsaechlich gebauten OS-Tags. Keine Aussagen ueber
+Hardwarefreigabe ohne Testnachweis.

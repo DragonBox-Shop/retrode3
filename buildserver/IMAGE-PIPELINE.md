@@ -114,3 +114,16 @@ normale Datei bauen. Er schreibt niemals direkt nach `/dev/mmcblk*`,
 Das Image-Manifest nennt alle Source-Commits, Release-Tags,
 Paketversionen, SHA256-Werte und den Bootloaderstatus. **Bootfaehig
 ist eine Hypothese, bis der kalte Hardwarestart bewiesen ist.**
+
+## Public development downloads
+
+After full-image checksum verification, `build_image_develop.sh` exports
+only the image, SHA256SUMS, README.txt and curated CHANGELOG.md to
+`httpdocs/downloads/develop/YYYY.MM.DD-rcN/` on retrode.com. The changelog
+is read with git show from the exact OS release commit, never moving HEAD.
+Every new apt-YYYY.MM.DD-rcN release must contain its matching changelog
+heading. The image is marked experimental, not hardware accepted.
+Existing versions are immutable: identical complete downloads are reused;
+different or incomplete files cause an error without overwrite. The private
+build remains available if publication fails. No container sees the website.
+There is no automatic stable publication.

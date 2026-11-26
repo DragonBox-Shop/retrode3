@@ -209,4 +209,8 @@ podman --runtime=crun --cgroup-manager=systemd run --rm \
     "$image" bash /src/buildserver/build-image-from-packages.sh
 (cd "$run" && sha256sum --check --strict FULL-IMAGE-SHA256SUMS)
 echo "Image build complete: $run/retrode3-$branch.img.xz"
-echo "NOT RELEASED: source-built U-Boot and kernel require physical boot acceptance."
+echo "NOT HARDWARE ACCEPTED: source-built U-Boot and kernel require physical boot acceptance."
+# Development downloads are public test candidates, never stable releases.
+# Export only the verified image and curated changelog from the exact OS tag.
+python3 "$image_checkout/buildserver/publish-development-image.py" \
+  "$checkout" "$run" "$vhost/httpdocs" "$os_tag" "$os_sha"
