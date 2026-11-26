@@ -32,15 +32,15 @@
 <div id="reader-progress-anchor"><div id="job-panel" class="job-panel" hidden><div class="progress-line"><strong id="job-label"></strong><div class="progress-numbers"><strong id="job-speed" class="job-speed" hidden></strong><span id="job-percent"></span></div></div><div class="progress"><div id="job-fill"></div></div><p id="job-detail" class="muted small"></p><p id="job-result-details" class="muted small" aria-live="polite"></p><button id="cancel" class="btn danger" data-i18n="cancel">Cancel</button></div></div>
 </div></div>
 <div class="two-col reader-details">
-<div class="panel"><div class="panel-head"><h2 data-i18n="cartridge">Cartridge</h2><span class="tag" id="reader-support" data-i18n="checking">Checking…</span></div>
+<div class="panel cartridge-panel"><div class="panel-head"><h2 data-i18n="cartridge">Cartridge</h2><span class="tag" id="reader-support" data-i18n="checking">Checking…</span></div>
 <div class="keyval"><span data-i18n="selected_reader">Selected reader</span><strong id="selected-reader" data-i18n="choose_reader">No supported reader selected</strong></div>
-<p class="muted small" data-i18n="systems_note">Select an automatically identified cartridge, or choose its system directly in the occupied slot.</p>
+<p class="muted small systems-note" data-i18n="systems_note">Select an automatically identified cartridge, or choose its system directly in the occupied slot.</p>
 <button id="probe" class="btn secondary" data-i18n="detect">Detect cartridge</button>
 <div id="game-info" class="game-info"><p class="muted" data-i18n="not_detected">No cartridge examined yet.</p></div>
 <h3 class="result-heading" data-i18n="rom_result_title">ROM read result</h3><div class="rom-result-area"><p id="rom-result-empty" class="muted small" data-i18n="rom_result_empty">No ROM read for this cartridge yet.</p><div id="slot-read-result" class="game-info slot-read-result" hidden></div></div>
 
 </div>
-<div class="panel"><h2 data-i18n="read_options">Read options</h2>
+<div class="panel read-options-panel"><h2 data-i18n="read_options">Read options</h2>
 <label for="filename" data-i18n="filename">File name</label><input id="filename" maxlength="64" value="SNES-Dump" autocomplete="off">
 <button id="advanced-toggle" type="button" class="btn secondary" aria-expanded="false" data-i18n="advanced_toggle">Advanced settings</button>
 <div class="read-options-area"><div id="advanced" hidden>

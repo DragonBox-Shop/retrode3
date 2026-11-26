@@ -5,6 +5,8 @@ are experimental until hardware testing is complete.
 
 ## Unreleased
 
+- Reduced empty space on the reader page and removed unnecessary outer panel scrollbars while keeping the layout steady.
+
 - USB networking now uses a fixed device address (172.31.255.1) and immediately offers DHCP to the computer, without changing its Internet gateway or DNS. Wi-Fi obtains its network settings independently.
 - Updated the USB welcome pages to match the fixed address and explain browser HTTP warnings.
 
