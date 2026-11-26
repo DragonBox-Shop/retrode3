@@ -1,0 +1,46 @@
+#!/bin/sh
+# DHCP client hook only for the dedicated USB interface. No eval of lease data.
+set -eu
+[ "${interface:-}" = usb0 ] || exit 1
+R=/run/retrode3-usb-network
+case "${reason:-}" in
+    BOUND|RENEW|REBIND|REBOOT)
+        # Convert and validate the host-supplied IPv4 address/mask/routes.
+        # Python is already required by Web Control; it runs only on lease events.
+        /usr/bin/python3 - <<'PY'
+import ipaddress
+import os
+import subprocess
+from pathlib import Path
+def ip(*args):
+    subprocess.run(["/sbin/ip", "-4", *args], check=True)
+addr = ipaddress.IPv4Interface(os.environ["new_ip_address"] + "/" + os.environ["new_subnet_mask"])
+if addr.ip.is_unspecified or addr.ip.is_multicast or addr.ip.is_loopback:
+    raise ValueError("invalid USB address")
+routers = [ipaddress.IPv4Address(x) for x in os.environ.get("new_routers", "").split()]
+dns = [ipaddress.IPv4Address(x) for x in os.environ.get("new_domain_name_servers", "").split()]
+old = os.environ.get("old_ip_address")
+if old and old != str(addr.ip):
+    subprocess.run(["/sbin/ip", "-4", "addr", "flush", "dev", "usb0", "scope", "global"], check=True)
+ip("addr", "replace", str(addr), "dev", "usb0")
+subprocess.run(["/sbin/ip", "-4", "route", "del", "default", "dev", "usb0", "metric", "500"],
+               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+if routers and routers[0] in addr.network and routers[0] != addr.ip:
+    ip("route", "replace", "default", "via", str(routers[0]), "dev", "usb0", "metric", "500")
+if dns:
+    subprocess.run(["/sbin/resolvconf", "-a", "usb0.retrode3"],
+                   input="".join("nameserver " + str(x) + "\n" for x in dns),
+                   text=True, check=True)
+else:
+    subprocess.run(["/sbin/resolvconf", "-d", "usb0.retrode3"], check=False)
+Path("/run/retrode3-usb-network/bound").touch()
+PY
+        ;;
+    EXPIRE|FAIL|RELEASE|STOP)
+        rm -f "$R/bound"
+        /sbin/resolvconf -d usb0.retrode3 || :
+        ip -4 route del default dev usb0 metric 500 2>/dev/null || :
+        ip -4 addr flush dev usb0 scope global 2>/dev/null || :
+        ;;
+    PREINIT|MEDIUM) ip link set usb0 up ;;
+esac

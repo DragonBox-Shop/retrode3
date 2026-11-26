@@ -47,7 +47,8 @@ def verify(root, with_retrode3=False):
     if with_retrode3:
         for name in ("retrode3-core-runtime", "retrode3-web-control",
                      "retrode3-tools", "retrode3-udev-rules",
-                     "lighttpd", "fake-hwclock", "wireless-regdb", "chrony"):
+                     "lighttpd", "fake-hwclock", "wireless-regdb", "chrony",
+                     "resolvconf", "avahi-daemon", "openssh-sftp-server"):
             if name not in packages:
                 raise ValueError("missing Retrode3 image package: " + name)
         for name in packages:

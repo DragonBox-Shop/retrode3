@@ -47,7 +47,7 @@ mmdebstrap \
   --skip=check/canmount,chroot/mount \
   --architectures=mipsel \
   --variant=minbase \
-  --include=sysvinit-core,sysv-rc,initscripts,udev,kmod,ifupdown,iproute2,isc-dhcp-client,e2fsprogs,dosfstools,ca-certificates,dropbear-bin,dnsmasq-base,fake-hwclock,wireless-regdb,chrony \
+  --include=sysvinit-core,sysv-rc,initscripts,udev,kmod,ifupdown,iproute2,isc-dhcp-client,e2fsprogs,dosfstools,ca-certificates,dropbear-bin,dnsmasq-base,fake-hwclock,wireless-regdb,chrony,resolvconf,avahi-daemon,openssh-sftp-server \
   --aptopt='APT::Install-Recommends "false"' \
   --format=tar \
   bookworm "$scratch/mmdebstrap-rootfs.tar" https://deb.debian.org/debian
@@ -122,6 +122,7 @@ EOF
 : > "$root/etc/init.d/.legacy-bootordering"
 rm -f "$root/usr/sbin/policy-rc.d" "$root/usr/bin/qemu-mipsel-static"
 rm -f "$root/etc/resolv.conf"
+ln -s /run/resolvconf/resolv.conf "$root/etc/resolv.conf"
 rm -rf "$root/var/lib/apt/lists/"*
 mkdir -p "$root/var/lib/apt/lists" "$root/boot"
 python3 "$(dirname "$0")/verify-rootfs.py" "$root"

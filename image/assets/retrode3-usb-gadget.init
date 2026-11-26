@@ -14,9 +14,8 @@ set -u
 
 G=/sys/kernel/config/usb_gadget/retrode3
 DISK=/usr/share/retrode3/usb-welcome.img
-DHCP_PID=/run/retrode3-usb-dhcp.pid
-DHCP_LEASES=/run/retrode3-usb-dhcp.leases
-IP=172.31.255.1/29
+NET_PID=/run/retrode3-usb-network.pid
+NET=/usr/sbin/retrode3-usb-network
 
 start_gadget() {
     [ -r "$DISK" ] && [ -s "$DISK" ] || {
@@ -81,30 +80,16 @@ start_gadget() {
         echo "USB NCM interface usb0 not created" >&2
         return 1
     }
-    ip -4 addr replace "$IP" dev usb0 || return 1
     ip link set usb0 up || return 1
-    /usr/sbin/dnsmasq --conf-file=/dev/null --port=0 --interface=usb0 \
-        --bind-interfaces --dhcp-authoritative \
-        --dhcp-range=172.31.255.2,172.31.255.6,255.255.255.248,12h \
-        --dhcp-option=3 --dhcp-option=6 \
-        --dhcp-leasefile="$DHCP_LEASES" --pid-file="$DHCP_PID" || return 1
-    [ -s "$DHCP_PID" ] || {
-        echo "USB NCM DHCP did not start" >&2
-        return 1
-    }
-    echo "Retrode3 USB gadget ready: NCM 172.31.255.1, ACM ttyGS0, read-only HTML disk"
+    start-stop-daemon --start --background --make-pidfile \
+        --pidfile "$NET_PID" --startas "$NET" || return 1
+    echo "Retrode3 USB gadget ready: NCM automatic network, ACM ttyGS0, read-only HTML disk"
     echo "SSH is not enabled by the USB gadget service."
 }
 
 stop_gadget() {
-    if [ -r "$DHCP_PID" ]; then
-        read -r pid < "$DHCP_PID"
-        case "$pid" in
-            *[!0-9]*|'') : ;;
-            *) kill "$pid" 2>/dev/null || : ;;
-        esac
-    fi
-    rm -f "$DHCP_PID" "$DHCP_LEASES"
+    start-stop-daemon --stop --pidfile "$NET_PID" --retry TERM/10/KILL/2 --oknodo || return 1
+    rm -f "$NET_PID"
     [ -d "$G" ] || return 0
     if [ -w "$G/UDC" ]; then
         printf '\n' > "$G/UDC" || :
@@ -133,6 +118,6 @@ case "${1:-}" in
     restart|force-reload) stop_gadget; start_gadget || { stop_gadget; exit 1; } ;;
     status)
         [ -r "$G/UDC" ] && [ -s "$G/UDC" ] &&
-            [ -s "$DHCP_PID" ] ;;
+            [ -s "$NET_PID" ] ;;
     *) echo "Usage: $0 {start|stop|restart|status}" >&2; exit 2 ;;
 esac
