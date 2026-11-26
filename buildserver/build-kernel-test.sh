@@ -40,6 +40,8 @@ podman --runtime=crun --cgroup-manager=systemd run --rm -i \
   --pids-limit "${RETRODE3_PLATFORM_PIDS:-512}" \
   -v "$run:/out:rw" "$image" bash -s -- "$sha" "$version" <<'BUILD' 2>&1 | tee "$run/build.log"
 set -euo pipefail
+# Debian control directories require mode 0755; the host run stays private.
+umask 022
 sha="$1"; version="$2"
 [[ "$sha" =~ ^[a-f0-9]{40}$ ]] || exit 1
 mkdir -p /work/source
