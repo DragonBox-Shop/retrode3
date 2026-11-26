@@ -2,10 +2,11 @@
 from importlib.machinery import SourceFileLoader
 from importlib.util import module_from_spec, spec_from_loader
 from pathlib import Path
+from io import BytesIO
 import subprocess
 import tempfile
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 path = Path(__file__).resolve().parents[1] / "assets/retrode3-update-control"
 spec = spec_from_loader("update_test", SourceFileLoader("update_test", str(path)))
@@ -14,6 +15,53 @@ spec.loader.exec_module(update)
 
 
 class UpdateTests(unittest.TestCase):
+    def test_clock_already_synchronized_skips_recovery(self):
+        log = BytesIO()
+        with patch.object(update.subprocess, "run",
+                          return_value=subprocess.CompletedProcess([], 0)) as run:
+            update.sync_clock(log)
+        run.assert_called_once()
+        self.assertEqual(run.call_args.args[0],
+                         ["/usr/bin/chronyc", "-n", "waitsync", "1", "1.0", "0", "1"])
+        self.assertNotIn(b"WARNING", log.getvalue())
+
+    def test_clock_recovery_refreshes_sources_and_waits(self):
+        log = BytesIO()
+        with patch.object(update.subprocess, "run", side_effect=[
+                subprocess.CompletedProcess([], code) for code in (1, 0, 0, 0, 0)]) as run:
+            update.sync_clock(log)
+        self.assertEqual([call.args[0][2:] for call in run.call_args_list],
+                         [["waitsync", "1", "1.0", "0", "1"], ["refresh"],
+                          ["online"], ["burst", "4/4"], ["waitsync", "15", "1.0", "0", "1"]])
+        self.assertEqual(run.call_args.kwargs["timeout"], 20)
+        self.assertNotIn(b"WARNING", log.getvalue())
+
+    def test_unavailable_ntp_keeps_normal_apt_validation(self):
+        for error in (FileNotFoundError(), subprocess.TimeoutExpired("chronyc", 3)):
+            with self.subTest(error=error), patch.object(update.subprocess, "run",
+                                                         side_effect=error) as run:
+                log = BytesIO()
+                update.sync_clock(log)
+                self.assertEqual(run.call_count, 5)
+                self.assertIn(b"normal APT time validation", log.getvalue())
+
+    def test_clock_check_precedes_apt_refresh(self):
+        calls = Mock()
+        with tempfile.TemporaryDirectory() as folder, \
+             patch.object(update, "LOG", Path(folder) / "update.log"), \
+             patch.object(update, "apt_base", return_value=["apt-get"]), \
+             patch.object(update, "sync_clock", calls.clock), \
+             patch.object(update, "command", calls.apt), \
+             patch.object(update, "installed", return_value=["retrode3-tools"]), \
+             patch.object(update, "simulate", return_value=[]), \
+             patch.object(update, "save") as save, \
+             patch.object(update.os, "close"):
+            update.worker("check", 10, 11)
+        self.assertEqual([call[0] for call in calls.mock_calls], ["clock", "apt"])
+        self.assertEqual(calls.apt.call_args.args[0],
+                         ["apt-get", "-o", "APT::Update::Error-Mode=any", "update"])
+        save.assert_called_once_with("current", [])
+
     def test_plan(self):
         plan = update.parse_plan(
             "Inst retrode3-web-control [2.0-1] (2.0-2 Retrode3:testing [all])\n"
