@@ -167,7 +167,8 @@
       currentPage === "reader" && !jobTerminal(job) && jobSlot(job) === selectedSlotId();
     // Writer keeps its terminal verification result, reader replaces progress
     // with the slot-specific ROM result. Never move a read into the writer.
-    (writer ? $("writer-progress-anchor") : $("reader-progress-anchor")).appendChild(panel);
+    var anchor = writer ? $("writer-progress-anchor") : $("reader-progress-anchor");
+    if (panel.parentNode !== anchor) anchor.appendChild(panel);
     panel.hidden = !show;
     $("cancel").disabled = !activeJob || activeJob === "pending" || jobTerminal(job);
   }
@@ -268,7 +269,9 @@
     box.innerHTML = "";
     var slot = slotData && slotData.slots.filter(function (s) { return s.id === selectedSlotId(); })[0];
     var result = slot && slot.status === "occupied" && slot.read_result;
-    box.hidden = !result || result.system !== selectedReader;
+    var running = busyJob();
+    box.hidden = !result || result.system !== selectedReader ||
+      Boolean(running && running.command === "read_rom" && jobSlot(running) === selectedSlotId());
     if (box.hidden) return;
     var verification = result.verification || {};
     var heading = document.createElement("strong");
@@ -463,6 +466,7 @@
       }
       main.addEventListener("click", function () {
         if (identified) selectReader(identified.reader.id);
+        else if (picker && picker.disabled && chosenManually) selectReader(chosenManually);
         else if (picker) picker.focus();
         else if (waiting) notify(t("detecting_automatically"));
         else if (matching.length === 1) selectReader(matching[0].id);
@@ -476,6 +480,7 @@
     return api("/api/slots").then(function (data) {
       if (!data || !Array.isArray(data.slots) || serial < slotAppliedSerial) return;
       slotAppliedSerial = serial;
+      var wasBusy = hardwareBusy();
       if (typeof data.registry_revision === "number") {
         var changed = registryRevision !== null && registryRevision !== data.registry_revision;
         registryRevision = data.registry_revision;
@@ -491,6 +496,7 @@
           if (genericWidget) genericWidget.reset();
           slotData = data;
           adoptBusyJob(data);
+          if (wasBusy !== hardwareBusy()) renderCores();
           slotFingerprint = null;
           renderSelectedProbe();
           loadCores();
@@ -519,6 +525,7 @@
       });
       slotData = data;
       adoptBusyJob(data);
+      if (wasBusy !== hardwareBusy()) renderCores();
       var fingerprint = data.slots.map(function (slot) { return slot.id + ":" + slot.status; }).join("|");
       if (probeTarget && data.slots.some(function (slot) {
         return slot.id === probeTarget.slot && slot.status !== probeTarget.status;

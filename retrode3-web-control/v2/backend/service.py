@@ -785,10 +785,12 @@ class Job(object):
                             pass
                     process.stdout.close()
                 with self.manager.lock:
-                    if self.action == "read_rom" and self.status == "done":
-                        self.manager.remember_read(self)
-                    if self.manager.active is self:
-                        self.manager.active = None
+                    try:
+                        if self.action == "read_rom" and self.status == "done":
+                            self.manager.remember_read(self)
+                    finally:
+                        if self.manager.active is self:
+                            self.manager.active = None
 
 
 class JobManager(object):
@@ -821,6 +823,10 @@ class JobManager(object):
             result = job.result or {}
             identity = result.get("identity") or {}
             verification = result.get("verification") or {}
+            if not isinstance(identity, dict):
+                identity = {}
+            if not isinstance(verification, dict):
+                verification = {}
             self.read_results[slot] = {
                 "system": job.reader_id, "job_id": job.id,
                 "title": identity.get("title") or result.get("title"),

@@ -29,7 +29,7 @@ const elements = {
 };
 const ctx = {
   slotData: {slots: []}, slotFingerprint: null, slotPollSerial: 0, slotAppliedSerial: 0,
-  adoptBusyJob: () => {},
+  adoptBusyJob: () => {}, hardwareBusy: () => Boolean(ctx.activeJob), renderCores: () => {},
   selectedReader: "", activeJob: null, probeTarget: null,
   manualReaderBySlot: {}, detectedBySlot: {}, autoNames: {},
   genericWidget: null, document: {activeElement: null},
