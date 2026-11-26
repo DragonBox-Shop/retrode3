@@ -356,6 +356,19 @@
         core.status === "disabled";
     });
   }
+  function disabledPluginPreview(cores) {
+    var limit = 64, suffix = ", …", preview = "";
+    for (var i = 0; i < cores.length; i++) {
+      var candidate = preview + (preview ? ", " : "") + cores[i].name;
+      var reserve = i + 1 < cores.length ? suffix.length : 0;
+      if (Array.from(candidate).length + reserve > limit) {
+        return preview ? preview + suffix :
+          Array.from(cores[i].name).slice(0, limit - 1).join("") + "…";
+      }
+      preview = candidate;
+    }
+    return preview;
+  }
   function renderSlots() {
     if (!slotData) return;
     var list = $("slot-list");
@@ -497,9 +510,7 @@
           var pluginHint = document.createElement("p");
           pluginHint.className = "slot-plugin-hint";
           text(pluginHint, t("slot_disabled_plugins") + ": " +
-            disabled.slice(0, 2).map(function (core) {
-              return core.name.length > 36 ? core.name.slice(0, 35) + "…" : core.name;
-            }).join(", ") + (disabled.length > 2 ? ", …" : ""));
+            disabledPluginPreview(disabled));
           card.appendChild(pluginHint);
           var pluginLink = document.createElement("button");
           pluginLink.type = "button";
