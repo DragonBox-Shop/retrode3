@@ -36,6 +36,10 @@ sh -n image/assets/retrode3-usb-network
 sh -n image/assets/retrode3-usb-dhcp-hook
 sh -n image/assets/retrode3-usb-gadget.init
 sh -n packaging/assets/retrode3-ssh.init
+sh -n packaging/assets/retrode3-wlan.init
+sh -n packaging/assets/retrode3-wlan-dhcp-hook
+visudo -cf packaging/assets/retrode3-tools.sudoers
+python3 -m py_compile retrode3-tools/usr/local/bin/retrode3-wlan
 python3 -m py_compile packaging/assets/retrode3-ssh-control
 bash -n buildserver/build-image-from-packages.sh
 python3 -m unittest discover -s image/tests -p 'test_finalize_apt.py' -v

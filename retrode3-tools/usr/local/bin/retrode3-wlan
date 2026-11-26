@@ -1,53 +1,275 @@
-#!/bin/bash -p
-# retrode3-wlan - control WLAN
+#!/usr/bin/python3
+"""Retrode3 Bookworm WLAN control. Only wlan0; no arbitrary root commands."""
+import fcntl
+import hashlib
+import ipaddress
+import json
+import os
+from pathlib import Path
+import re
+import stat
+import subprocess
+import sys
+import tempfile
 
-function interface {
-	# take first (with timeout)
-	read -t 5 WLAN OTHER < <(iwconfig 2>&1 | fgrep 'wlan')
-	echo $WLAN
-}
+IFACE = "wlan0"
+NET = Path("/sys/class/net") / IFACE
+RUN = Path("/run/retrode3-wlan")
+ETC = Path("/etc/retrode3/wlan")
+CONF = ETC / "wpa.conf"
+IP = "/sbin/ip"
+IW = "/usr/sbin/iw"
+WPA = "/sbin/wpa_supplicant"
+DHCP = "/sbin/dhclient"
+DNS = "/sbin/resolvconf"
+SSD = "/sbin/start-stop-daemon"
+HOOK = "/usr/lib/retrode3/wlan-dhcp-hook"
+ENV = {"PATH": "/usr/sbin:/usr/bin:/sbin:/bin", "LC_ALL": "C"}
 
-case "$1" in
-	status )
-		shift
 
-		WLAN=$(interface)
-		case "$WLAN" in
-			"" )
-				echo "no WLAN interface";
-				exit;
-		esac
+def cmd(*args, check=True, timeout=5, data=None):
+    # Never emit child stderr: it can contain credentials or hostile SSIDs.
+    p = subprocess.run(args, input=data, text=True, stdout=subprocess.PIPE,
+                       stderr=subprocess.DEVNULL, env=ENV, timeout=timeout)
+    if check and p.returncode:
+        raise RuntimeError("WLAN command failed: " + Path(args[0]).name)
+    return p.stdout if p.returncode == 0 else ""
 
-	# check for access point mode	iwconfig | fgrep Mode:Managed oder Mode:Master
 
-		SSID=$(iwconfig $WLAN | fgrep "ESSID:" | sed 's/.*ESSID:\"\([^" ]*\).*/\1/g')
-		APMAC=$(iwconfig $WLAN | fgrep "Access Point: " | sed 's/.*Access Point: \([^ ]*\).*/\1/g')
-		MAC=$(ifconfig $WLAN | fgrep "HWaddr " | sed 's/.*HWaddr \([^ ]*\).*/\1/g')
-		IP4=$(ifconfig $WLAN | fgrep "inet addr:" | sed 's/.*inet addr:\([^ ]*\).*/\1/g')	# may be missing
-		IP6=$(ifconfig $WLAN | fgrep "inet6 addr:" | sed 's/.*inet6 addr:\([^ ]*\).*/\1/g')	# may be missing
-		STATUS=disconnected
-		[ "$IP4" -o "$IP6" ] && STATUS=connected
-		[ "$APMAC" == "Not-Associated" ] && SSID= APMAC=none STATUS=disconnected
+def private_dir(path):
+    path.mkdir(parents=True, mode=0o700, exist_ok=True)
+    info = path.lstat()
+    if not stat.S_ISDIR(info.st_mode) or info.st_uid != 0 or info.st_mode & 0o077:
+        raise RuntimeError("Unsafe WLAN directory")
 
-		echo $STATUS,$SSID,$APMAC,$MAC,$IP4,$IP6
-		;;
-	list )
-	# does not work in access point mode!
-		shift
-		/root/wlan-scan "$@"
-		;;
-	connect )
-		shift
-		/root/wlan-on "$@" && echo Connected. || echo failed.
-		;;
-	disconnect )
-		shift
-		/root/wlan-on -f 0 dummy	# turn off access point mode
-		ifconfig $(interface) down
-		;;
-	* )
-		echo unknown command "$1"
-		echo "  status, list, connect, disconnect"
-		exit 1
-		;;
-esac
+
+def config(ssid, password):
+    if not isinstance(ssid, str) or not isinstance(password, str):
+        raise ValueError("Invalid WLAN credentials")
+    name, secret = ssid.encode("utf-8"), password.encode("utf-8")
+    if not 1 <= len(name) <= 32 or b"\0" in name:
+        raise ValueError("SSID must contain 1-32 UTF-8 bytes")
+    if secret and (not 8 <= len(secret) <= 63 or any(c < 32 or c == 127 for c in secret)):
+        raise ValueError("WPA password must contain 8-63 bytes without control characters")
+    lines = ["ctrl_interface=DIR=/run/retrode3-wlan/ctrl",
+             "update_config=0", "network={", "    ssid=" + name.hex(),
+             "    scan_ssid=1"]
+    if secret:
+        psk = hashlib.pbkdf2_hmac("sha1", secret, name, 4096, 32).hex()
+        lines += ["    key_mgmt=WPA-PSK SAE", "    proto=RSN",
+                  "    ieee80211w=1", "    psk=" + psk,
+                  "    sae_password=" + secret.hex()]
+    else:
+        lines += ["    key_mgmt=NONE"]
+    return "\n".join(lines + ["}", ""])
+
+
+def save_config(value):
+    private_dir(ETC)
+    fd, name = tempfile.mkstemp(prefix=".wpa-", dir=ETC)
+    try:
+        with os.fdopen(fd, "w", encoding="ascii") as f:
+            f.write(value)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(name, CONF)
+        fd = os.open(ETC, os.O_RDONLY | os.O_DIRECTORY)
+        try:
+            os.fsync(fd)
+        finally:
+            os.close(fd)
+    finally:
+        if os.path.exists(name):
+            os.unlink(name)
+
+
+def parse_scan(raw):
+    result = {}
+    for block in re.split(r"(?m)^BSS ", raw)[1:]:
+        bssid = re.match(r"([0-9a-fA-F:]{17})", block)
+        ssid = re.search(r"(?m)^\s*SSID: (.*)$", block)
+        freq = re.search(r"(?m)^\s*freq:\s*(\d+)", block)
+        signal = re.search(r"(?m)^\s*signal:\s*(-?\d+(?:\.\d+)?)", block)
+        if not all((bssid, ssid, freq, signal)) or not ssid.group(1):
+            continue
+        name = ssid.group(1)
+        # iw escapes nonprintable SSID bytes as \xNN.
+        raw_name = re.sub(rb"\\x([0-9a-fA-F]{2})",
+                          lambda m: bytes([int(m.group(1), 16)]), name.encode("utf-8"))
+        name = raw_name.decode("utf-8", "replace")
+        if "\0" in name:
+            continue
+        security = ("WPA2/WPA3" if "PSK" in block and "SAE" in block else
+                    "WPA3" if "SAE" in block else
+                    "WPA2" if "RSN:" in block and "PSK" in block else
+                    "Enterprise/other" if "RSN:" in block else
+                    "WPA" if "WPA:" in block else
+                    "WEP/other" if re.search(r"(?m)^\s*capability:.*Privacy", block)
+                    else "Open")
+        item = dict(ssid=name, bssid=bssid.group(1), mhz=int(freq.group(1)),
+                    dbm=float(signal.group(1)), security=security)
+        key = (name, security)
+        if key not in result or item["dbm"] > result[key]["dbm"]:
+            result[key] = item
+    return sorted(result.values(), key=lambda n: n["dbm"], reverse=True)
+
+
+def link_up():
+    return bool(int((NET / "flags").read_text().strip(), 16) & 1)
+
+
+def scan():
+    was_up = link_up()
+    if not was_up:
+        cmd(IP, "link", "set", IFACE, "up")
+    try:
+        return parse_scan(cmd(IW, "dev", IFACE, "scan", timeout=12))
+    finally:
+        if not was_up:
+            cmd(IP, "link", "set", IFACE, "down", check=False)
+
+
+def status():
+    if not NET.exists():
+        return {"available": False, "connected": False}
+    link = cmd(IW, "dev", IFACE, "link", check=False)
+    ssid = re.search(r"(?m)^\s*SSID: (.*)$", link)
+    ap = re.search(r"(?m)^Connected to ([0-9a-fA-F:]{17})", link)
+    addr = json.loads(cmd(IP, "-j", "addr", "show", "dev", IFACE))
+    ips = addr[0].get("addr_info", []) if addr else []
+    ipv4 = next((a["local"] for a in ips if a["family"] == "inet"
+                 and a.get("scope") == "global"), "")
+    ipv6 = next((a["local"] for a in ips if a["family"] == "inet6"
+                 and a.get("scope") == "global"), "")
+    return dict(available=True, associated=bool(ap), connected=bool(ap and (ipv4 or ipv6)),
+                ssid=ssid.group(1) if ssid else "", access_point=ap.group(1) if ap else "",
+                mac=(NET / "address").read_text().strip(), ipv4=ipv4, ipv6=ipv6)
+
+
+def stop_process(exe, pidfile):
+    path = RUN / pidfile
+    if path.exists():
+        p = subprocess.run([SSD, "--stop", "--oknodo", "--retry", "TERM/2/KILL/1",
+                            "--pidfile", str(path), "--exec", exe],
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                           env=ENV, timeout=5)
+        if p.returncode:
+            raise RuntimeError("Could not stop WLAN process")
+        path.unlink(missing_ok=True)
+
+
+def clear_ipv4():
+    cmd(DNS, "-d", IFACE + ".retrode3", check=False)
+    if NET.exists():
+        cmd(IP, "-4", "route", "del", "default", "dev", IFACE, "metric", "100", check=False)
+        cmd(IP, "-4", "addr", "flush", "dev", IFACE, "scope", "global", check=False)
+
+
+def stop():
+    stop_process(DHCP, "dhclient.pid")
+    stop_process(WPA, "wpa.pid")
+    clear_ipv4()
+    if NET.exists():
+        cmd(IP, "link", "set", IFACE, "down")
+
+
+def start():
+    if not CONF.exists():
+        return
+    info = CONF.lstat()
+    if not stat.S_ISREG(info.st_mode) or info.st_uid != 0 or info.st_mode & 0o077:
+        raise RuntimeError("Unsafe WLAN configuration")
+    if not NET.exists():
+        raise RuntimeError("WLAN interface unavailable")
+    stop()
+    cmd(IP, "link", "set", IFACE, "up")
+    try:
+        cmd(WPA, "-B", "-P", str(RUN / "wpa.pid"), "-i", IFACE,
+            "-D", "nl80211", "-c", str(CONF), timeout=5)
+        cmd(DHCP, "-4", "-nw", "-pf", str(RUN / "dhclient.pid"),
+            "-lf", str(RUN / "leases"), "-sf", HOOK, IFACE, timeout=5)
+    except Exception:
+        stop()
+        raise
+
+
+def dhcp_hook():
+    # Executed by the dedicated dhclient, never a web action.
+    if os.environ.get("interface") != IFACE:
+        raise ValueError("Wrong DHCP interface")
+    reason = os.environ.get("reason", "")
+    if reason in ("BOUND", "RENEW", "REBIND", "REBOOT"):
+        addr = ipaddress.IPv4Interface(os.environ["new_ip_address"] + "/" +
+                                       os.environ["new_subnet_mask"])
+        if addr.ip.is_unspecified or addr.ip.is_multicast or addr.ip.is_loopback:
+            raise ValueError("Invalid WLAN DHCP address")
+        routers = [ipaddress.IPv4Address(x) for x in os.environ.get("new_routers", "").split()]
+        dns = [ipaddress.IPv4Address(x) for x in os.environ.get("new_domain_name_servers", "").split()]
+        if os.environ.get("old_ip_address") not in (None, "", str(addr.ip)):
+            clear_ipv4()
+        cmd(IP, "-4", "addr", "replace", str(addr), "dev", IFACE)
+        cmd(IP, "-4", "route", "del", "default", "dev", IFACE, "metric", "100", check=False)
+        if routers and routers[0] in addr.network and routers[0] != addr.ip:
+            cmd(IP, "-4", "route", "replace", "default", "via", str(routers[0]),
+                "dev", IFACE, "metric", "100")
+        if dns:
+            cmd(DNS, "-a", IFACE + ".retrode3",
+                data="".join("nameserver " + str(x) + "\n" for x in dns))
+        else:
+            cmd(DNS, "-d", IFACE + ".retrode3", check=False)
+    elif reason in ("EXPIRE", "FAIL", "RELEASE", "STOP"):
+        clear_ipv4()
+
+
+def main():
+    if os.geteuid() != 0:
+        raise RuntimeError("Root required")
+    if sys.argv[1:] == ["dhcp-hook"]:
+        dhcp_hook()
+        return
+    # Only the no-argument JSON interface is granted to www-data by sudo.
+    if sys.argv[1:] in (["start"], ["stop"], ["status"], ["list"]):
+        request = {"action": sys.argv[1]}
+    elif len(sys.argv) == 1:
+        raw = sys.stdin.buffer.read(4097)
+        if len(raw) > 4096:
+            raise ValueError("WLAN request too large")
+        request = json.loads(raw)
+    else:
+        raise ValueError("Invalid WLAN command")
+    if not isinstance(request, dict):
+        raise ValueError("Invalid WLAN request")
+    action = request.get("action")
+    if action == "status" and set(request) == {"action"}:
+        print(json.dumps(status()))
+        return
+    private_dir(RUN)
+    fd = os.open(RUN / "lock", os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o600)
+    with os.fdopen(fd, "r+"):
+        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        if action == "list" and set(request) == {"action"}:
+            print(json.dumps(scan()))
+        elif action == "connect" and set(request) == {"action", "ssid", "password"}:
+            value = config(request["ssid"], request["password"])
+            if not NET.exists():
+                raise RuntimeError("WLAN interface unavailable")
+            save_config(value)
+            start()
+            print("Connection started; check WLAN status.")
+        elif action == "disconnect" and set(request) == {"action"}:
+            stop()
+            CONF.unlink(missing_ok=True)
+            print("Disconnected; automatic connection disabled.")
+        elif action in ("start", "stop") and len(sys.argv) == 2:
+            start() if action == "start" else stop()
+        else:
+            raise ValueError("Invalid WLAN action")
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except (OSError, ValueError, RuntimeError, subprocess.SubprocessError):
+        # Do not echo arbitrary input, command lines, or credentials.
+        sys.stderr.write("WLAN operation failed (invalid request, busy or unavailable device).\n")
+        sys.exit(1)

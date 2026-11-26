@@ -1,0 +1,16 @@
+#!/bin/sh
+### BEGIN INIT INFO
+# Provides:          retrode3-wlan
+# Required-Start:    $local_fs $network
+# Required-Stop:     $local_fs $network
+# Default-Start:     2
+# Default-Stop:      0 1 6
+# Short-Description: Retrode3 saved WLAN connection
+### END INIT INFO
+case "$1" in
+    start|stop|status) exec /usr/local/bin/retrode3-wlan "$1" ;;
+    restart|force-reload)
+        /usr/local/bin/retrode3-wlan stop &&
+            exec /usr/local/bin/retrode3-wlan start ;;
+    *) exit 2 ;;
+esac

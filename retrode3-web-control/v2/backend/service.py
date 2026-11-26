@@ -98,18 +98,19 @@ def sanitized_filename(value):
     return (value or "SNES-Dump")[:64]
 
 
-def wifi_args(*args):
+def wifi_args():
     if not os.path.isfile(WLAN_BIN):
         raise ApiError(503, "wifi_unavailable", "WLAN helper unavailable")
     prefix = ["sudo", "-n"] if RUN_SUDO else []
-    return prefix + [WLAN_BIN] + list(args)
+    return prefix + [WLAN_BIN]
 
 
-def call_wlan(*args):
+def call_wlan(action, **fields):
+    payload = dict(fields, action=action)
     try:
-        proc = subprocess.Popen(wifi_args(*args), stdout=subprocess.PIPE,
+        proc = subprocess.Popen(wifi_args(), stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                                 stderr=subprocess.PIPE)
-        out, err = proc.communicate(timeout=15)
+        out, err = proc.communicate(json.dumps(payload).encode('utf-8'), timeout=18)
     except subprocess.TimeoutExpired:
         proc.kill()
         proc.communicate()
@@ -206,7 +207,11 @@ def wifi_status():
     helper_failed = False
     try:
         raw = call_wlan("status")
-        if raw == "no WLAN interface":
+        if raw.startswith("{"):
+            details = json.loads(raw)
+            if not details.get("available"):
+                details = {}
+        elif raw == "no WLAN interface":
             helper_missing_interface = True
         else:
             # Legacy format: connected,ssid,ap,mac,ipv4,ipv6
@@ -218,7 +223,7 @@ def wifi_status():
                            "ipv6": fields[5]}
             else:
                 helper_failed = True
-    except ApiError:
+    except (ApiError, ValueError):
         helper_failed = True
     available = bool(interfaces) or bool(details)
     interface = interfaces[0] if interfaces else None
@@ -243,7 +248,10 @@ def wifi_status():
 
 
 def wifi_scan():
-    lines = call_wlan("list").splitlines()
+    raw = call_wlan("list")
+    if raw.startswith("["):
+        return json.loads(raw)
+    lines = raw.splitlines()
     networks = []
     for line in lines:
         match = re.match(r"^\s*([0-9a-fA-F:]{17})\s+(.+?)\s+(\d{4})\s+(-?\d+(?:\.\d+)?)", line)
@@ -1529,15 +1537,11 @@ class Handler(BaseHTTPRequestHandler):
             elif path == "/api/wifi/connect":
                 ssid = data.get("ssid", "")
                 password = data.get("password", "")
-                if not isinstance(ssid, str) or not (1 <= len(ssid) <= 32) or "\x00" in ssid:
+                if not isinstance(ssid, str) or not (1 <= len(ssid.encode("utf-8")) <= 32) or "\x00" in ssid:
                     raise ApiError(400, "invalid_ssid", "SSID must contain 1-32 characters")
                 if not isinstance(password, str) or len(password) > 128 or "\x00" in password:
                     raise ApiError(400, "invalid_password", "Invalid password")
-                args = ["connect"]
-                if password:
-                    args += ["-p", password]
-                args.append(ssid)
-                self._json(200, {"message": call_wlan(*args)})
+                self._json(200, {"message": call_wlan("connect", ssid=ssid, password=password)})
             elif path == "/api/wifi/disconnect":
                 self._json(200, {"message": call_wlan("disconnect")})
             else:

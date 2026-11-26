@@ -1247,7 +1247,7 @@
           });
           row.className = "network"; row.appendChild(btn);
           var signal = document.createElement("small");
-          text(signal, network.dbm + " dBm"); row.appendChild(signal); list.appendChild(row);
+          text(signal, network.dbm + " dBm" + (network.security ? " · " + network.security : "")); row.appendChild(signal); list.appendChild(row);
         });
       }).catch(fail);
     });

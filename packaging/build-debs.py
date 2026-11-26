@@ -50,6 +50,8 @@ TOOL_FILES = (
      "usr/local/bin/retrode3-admin", 0o755),
     ("retrode3-tools/usr/local/bin/retrode3-wlan",
      "usr/local/bin/retrode3-wlan", 0o755),
+    ("packaging/assets/retrode3-wlan.init", "etc/init.d/retrode3-wlan", 0o755),
+    ("packaging/assets/retrode3-wlan-dhcp-hook", "usr/lib/retrode3/wlan-dhcp-hook", 0o755),
     ("packaging/assets/retrode3-tools.sudoers",
      "etc/sudoers.d/retrode3", 0o440),
 )
@@ -77,7 +79,7 @@ CONFFILES = {
           "/etc/sudoers.d/retrode3-corectl", "/etc/sudoers.d/retrode3-ssh",
           "/etc/init.d/retrode3-ssh",
           "/etc/lighttpd/conf-available/99-retrode3-lighttpd.conf"),
-    TOOLS: ("/etc/sudoers.d/retrode3",),
+    TOOLS: ("/etc/sudoers.d/retrode3", "/etc/init.d/retrode3-wlan"),
     UDEV: ("/etc/udev/rules.d/70-retrode3-cartridge.rules",)
 }
 DESCRIPTIONS = {
@@ -87,7 +89,7 @@ DESCRIPTIONS = {
     "retrode3-core-md": "Read-only Mega Drive cartridge module for Retrode3",
     "retrode3-core-nes": "NES NROM and MMC1 ROM reader module for Retrode3",
     WEB: "Retrode3 Web Control v2 with Python backend and SysV service",
-    TOOLS: "Retrode3 legacy administrative and WLAN helper scripts",
+    TOOLS: "Retrode3 administrative and Bookworm WLAN helper scripts",
     UDEV: "Retrode3 cartridge node permissions for udev and SysV init",
     META: "Meta-package for all released Retrode3 cartridge cores"
 }
@@ -315,6 +317,9 @@ def maintainer_scripts(root, package):
                         "prerm": "web.prerm",
                         "postinst": "web.postinst",
                         "postrm": "web.postrm"})
+    elif package == TOOLS:
+        scripts.update({"postinst": "tools.postinst", "prerm": "tools.prerm",
+                        "postrm": "tools.postrm"})
     for target, name in scripts.items():
         put(root, HERE / "maintainer" / name, "DEBIAN/" + target, 0o755)
 
@@ -379,8 +384,8 @@ def control_text(package, lock, native=None):
                 "python3, lighttpd, "
                 "sudo, passwd, adduser, init-system-helpers, dropbear-bin, openssh-sftp-server")
     elif package == TOOLS:
-        deps = ("bash, sudo, iw, wireless-tools, net-tools, "
-                "wget, unzip")
+        deps = ("bash, sudo, iw, iproute2, python3, wpasupplicant, isc-dhcp-client, "
+                "resolvconf, init-system-helpers, net-tools, wget, unzip")
     elif package == UDEV:
         deps = ("udev, retrode3-core-runtime (>= " + native_version + ")")
     else:
@@ -463,7 +468,8 @@ def build_one(work, package, layout, lock, stage, epoch, native=None):
               "etc/lighttpd/conf-available/99-retrode3-lighttpd.conf",
               "etc/init.d/retrode3-web-v2", "etc/init.d/retrode3-ssh",
               "usr/sbin/retrode3-ssh-control", "etc/sudoers.d/retrode3-ssh"),
-        TOOLS: ("usr/local/bin/retrode3-admin", "usr/local/bin/retrode3-wlan"),
+        TOOLS: ("usr/local/bin/retrode3-admin", "usr/local/bin/retrode3-wlan",
+                "etc/init.d/retrode3-wlan", "usr/lib/retrode3/wlan-dhcp-hook"),
         UDEV: ("etc/udev/rules.d/70-retrode3-cartridge.rules",),
         META: ("usr/share/doc/retrode3-cores/README",),
     }

@@ -1,3 +1,2 @@
-# Bookworm transition: restrict Web sudo to legacy read-only WLAN diagnostics.
-# Connecting/disconnecting requires a reviewed Bookworm WLAN helper first.
-www-data ALL=(root) NOPASSWD: /usr/local/bin/retrode3-wlan status, /usr/local/bin/retrode3-wlan list
+# Fixed JSON protocol; no arbitrary CLI options or credentials in argv.
+www-data ALL=(root) NOPASSWD: /usr/local/bin/retrode3-wlan ""
