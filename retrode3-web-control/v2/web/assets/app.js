@@ -8,6 +8,7 @@
   var detectedBySlot = {}, probeTarget = null, autoNames = {};
   var manualReaderBySlot = {};
   var coreState = null, corePending = false, registryRevision = null;
+  var wifiOperation = null, wifiStatusSerial = 0;
   var readerOptions = null, readerOptionsLoading = false, readerOptionsRequest = 0;
   var genericWidget = null;
   var writerIdentified = null;
@@ -88,6 +89,7 @@
     });
     currentPage = id;
     syncJobPanel();
+    renderGlobalStatus();
     if (id === "files") listFiles();
     if (id === "reader") loadCapabilities();
     if (id === "writer") renderWriterState();
@@ -161,15 +163,16 @@
   }
   function syncJobPanel() {
     var job = currentJob, panel = $("job-panel");
-    if (!job) { panel.hidden = true; return; }
+    if (!job) { panel.hidden = true; if ($("reader-activity-idle")) $("reader-activity-idle").hidden = false; return; }
     var writer = isWriterJob(job);
     var show = writer ? currentPage === "writer" :
-      currentPage === "reader" && !jobTerminal(job) && jobSlot(job) === selectedSlotId();
+      currentPage === "reader" && !jobTerminal(job);
     // Writer keeps its terminal verification result, reader replaces progress
     // with the slot-specific ROM result. Never move a read into the writer.
     var anchor = writer ? $("writer-progress-anchor") : $("reader-progress-anchor");
     if (panel.parentNode !== anchor) anchor.appendChild(panel);
     panel.hidden = !show;
+    if ($("reader-activity-idle")) $("reader-activity-idle").hidden = show && !writer;
     $("cancel").disabled = !activeJob || activeJob === "pending" || jobTerminal(job);
   }
   function renderGlobalStatus() {
@@ -180,9 +183,11 @@
     if (reader) label = reader.name + " · " + label;
     if (typeof progress === "number" && isFinite(progress))
       label += " · " + Math.floor(Math.max(0, Math.min(100, progress))) + "%";
-    status.hidden = !busy;
+    status.hidden = !busy || (currentPage === "reader" && !isWriterJob(job));
+    if ($("reader-activity-label")) text($("reader-activity-label"), busy ? label : t("hardware_idle"));
+    if ($("reader-activity-idle")) text($("reader-activity-idle"), busy ? t("hardware_busy_hint") : t("slots_idle_hint"));
     text($("global-job-label"), label);
-    $("global-job-cancel").hidden = !activeJob || activeJob === "pending" || !job || jobTerminal(job);
+    $("global-job-cancel").hidden = status.hidden || !activeJob || activeJob === "pending" || !job || jobTerminal(job);
     text($("read-busy-hint"), busy ? (job && job.command === "read_rom" ? t("read_busy_hint") : t("hardware_busy_hint")) : "");
     $("read-busy-hint").hidden = !busy;
   }
@@ -272,6 +277,12 @@
     var running = busyJob();
     box.hidden = !result || result.system !== selectedReader ||
       Boolean(running && running.command === "read_rom" && jobSlot(running) === selectedSlotId());
+    var placeholder = $("rom-result-empty");
+    if (placeholder) {
+      placeholder.hidden = !box.hidden;
+      text(placeholder, running && running.command === "read_rom" && jobSlot(running) === selectedSlotId() ?
+        t("read_busy") : t("rom_result_empty"));
+    }
     if (box.hidden) return;
     var verification = result.verification || {};
     var heading = document.createElement("strong");
@@ -334,6 +345,13 @@
       if (autoReader) return {reader: autoReader, result: automatic.result};
     }
     return null;
+  }
+  function disabledSlotCores(slot) {
+    if (!coreState || !coreState.available) return [];
+    return coreState.cores.filter(function (core) {
+      return core.slot === slot.id && core.installed !== false && !core.enabled &&
+        core.status === "disabled";
+    });
   }
   function renderSlots() {
     if (!slotData) return;
@@ -463,6 +481,22 @@
         text(disclaimer, t("slot_manual_note"));
         manual.appendChild(disclaimer);
         card.appendChild(manual);
+      }
+      if (!identified && !waiting && slot.status === "occupied") {
+        var disabled = disabledSlotCores(slot);
+        if (disabled.length) {
+          var pluginHint = document.createElement("p");
+          pluginHint.className = "slot-plugin-hint";
+          text(pluginHint, t("slot_disabled_plugins") + ": " +
+            disabled.map(function (core) { return core.name; }).join(", "));
+          card.appendChild(pluginHint);
+          var pluginLink = document.createElement("button");
+          pluginLink.type = "button";
+          text(pluginLink, t("slot_open_plugins"));
+          pluginLink.addEventListener("click", function () { showTab("plugins"); });
+          pluginLink.className = "slot-plugin-link";
+          card.appendChild(pluginLink);
+        }
       }
       main.addEventListener("click", function () {
         if (identified) selectReader(identified.reader.id);
@@ -1118,6 +1152,8 @@
       if (!result || !Array.isArray(result.cores)) throw new Error(t("error_generic"));
       coreState = result;
       renderCores();
+      if (slotData && !(document.activeElement && document.activeElement.classList &&
+          document.activeElement.classList.contains("slot-manual-select"))) renderSlots();
     }).catch(function (error) {
       coreState = {available: false, control_enabled: false, cores: [], reason: "cli_error"};
       renderCores();
@@ -1185,19 +1221,53 @@
     api("/api/settings").then(function (data) {
       text($("device-time"), data.time); text($("device-timezone"), data.timezone);
     }).catch(fail);
-    api("/api/wifi/status").then(function (data) {
-      text($("wifi-status"), !data.available ? t("status_no_wifi") :
-        data.connected ? t("status_connected") + (data.ssid ? " · " + data.ssid : "") :
-        data.associated ? t("wifi_associated_no_ip") : t("status_disconnected"));
-      text($("wifi-ip"), data.ipv4 || "—");
-      text($("wifi-interface"), data.interface || "—");
-      var hint = data.warning === "legacy_helper_does_not_detect_interface" ?
-        t("wifi_legacy_warning") :
-        data.warning === "legacy_helper_unavailable" ? t("wifi_helper_warning") :
-        !data.available ? t("wifi_not_found_detail") : "";
-      text($("wifi-diagnostic"), hint);
-    }).catch(fail);
+    if (!wifiOperation) loadWifiStatus().catch(fail);
   }
+  function renderWifiStatus(data) {
+    text($("wifi-status"), !data.available ? t("status_no_wifi") :
+      data.connected ? t("status_connected") + (data.ssid ? " · " + data.ssid : "") :
+      data.associated ? t("wifi_associated_no_ip") : t("status_disconnected"));
+    text($("wifi-ip"), data.ipv4 || "—");
+    text($("wifi-interface"), data.interface || "—");
+    var hint = data.warning === "legacy_helper_does_not_detect_interface" ?
+      t("wifi_legacy_warning") :
+      data.warning === "legacy_helper_unavailable" ? t("wifi_helper_warning") :
+      !data.available ? t("wifi_not_found_detail") : "";
+    text($("wifi-diagnostic"), hint);
+    return data;
+  }
+  function loadWifiStatus() {
+    var serial = ++wifiStatusSerial;
+    return api("/api/wifi/status").then(function (data) {
+      if (serial === wifiStatusSerial) renderWifiStatus(data);
+      return data;
+    });
+  }
+  function setWifiOperation(operation, message) {
+    wifiOperation = operation;
+    ++wifiStatusSerial;
+    ["scan-wifi", "connect-wifi", "disconnect-wifi"].forEach(function (id) {
+      $(id).disabled = Boolean(operation);
+    });
+    text($("wifi-operation"), message);
+  }
+  function wifiFailed(error) {
+    setWifiOperation(null, t("wifi_operation_failed") + ": " + (error.message || t("error_generic")));
+    fail(error);
+  }
+  function waitForWifi(ssid, deadline) {
+    return loadWifiStatus().then(function (data) {
+      if (data.connected && data.ssid === ssid) {
+        setWifiOperation(null, t("wifi_connect_done"));
+      } else if (Date.now() >= deadline) {
+        setWifiOperation(null, t("wifi_connect_timeout"));
+      } else {
+        text($("wifi-operation"), t(data.associated ? "wifi_wait_ip" : "wifi_connecting"));
+        setTimeout(function () { waitForWifi(ssid, deadline).catch(wifiFailed); }, 1500);
+      }
+    });
+  }
+
   function bind() {
     if (direct && $("ssh-enable")) {
       $("developer-save").addEventListener("click", function () { saveDeveloperPassword(true); });
@@ -1275,10 +1345,12 @@
         .then(function () { notify(t("folder_created")); listFiles(); }).catch(fail);
     });
     $("scan-wifi").addEventListener("click", function () {
+      if (wifiOperation) return;
+      setWifiOperation("scan", t("wifi_scanning"));
       api("/api/wifi/scan").then(function (data) {
         var list = $("wifi-networks"); list.innerHTML = "";
         if (!data.networks || !data.networks.length) {
-          notify(t("wifi_scan_empty"));
+          setWifiOperation(null, t("wifi_scan_empty"));
           return;
         }
         data.networks.forEach(function (network) {
@@ -1289,15 +1361,25 @@
           var signal = document.createElement("small");
           text(signal, network.dbm + " dBm" + (network.security ? " · " + network.security : "")); row.appendChild(signal); list.appendChild(row);
         });
-      }).catch(fail);
+        setWifiOperation(null, t("wifi_scan_done").replace("{count}", data.networks.length));
+      }).catch(wifiFailed);
     });
     $("connect-wifi").addEventListener("click", function () {
-      api("/api/wifi/connect", {ssid: $("wifi-ssid").value, password: $("wifi-password").value})
-        .then(function () { $("wifi-password").value = ""; loadSettings(); }).catch(fail);
+      if (wifiOperation) return;
+      var ssid = $("wifi-ssid").value;
+      setWifiOperation("connect", t("wifi_connecting"));
+      api("/api/wifi/connect", {ssid: ssid, password: $("wifi-password").value})
+        .then(function () {
+          $("wifi-password").value = "";
+          return waitForWifi(ssid, Date.now() + 45000);
+        }).catch(wifiFailed);
     });
     $("disconnect-wifi").addEventListener("click", function () {
-      if (!confirm(t("confirm_disconnect"))) return;
-      api("/api/wifi/disconnect", {}).then(loadSettings).catch(fail);
+      if (wifiOperation || !confirm(t("confirm_disconnect"))) return;
+      setWifiOperation("disconnect", t("wifi_disconnecting"));
+      api("/api/wifi/disconnect", {}).then(loadWifiStatus).then(function () {
+        setWifiOperation(null, t("wifi_disconnect_done"));
+      }).catch(wifiFailed);
     });
   }
   function resumeJob() {
@@ -1321,6 +1403,7 @@
     bind();
     var saved = (navigator.language || "").toLowerCase().indexOf("de") === 0 ? "de" : "en";
     setLocale(saved);
+    loadCores();
     loadCapabilities().then(resumeJob);
     window.setInterval(refreshSlots, 1500);
   }

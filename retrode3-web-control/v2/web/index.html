@@ -26,20 +26,24 @@
 <div class="section-head"><div><p class="eyebrow" data-i18n="reader_small">ROM DUMPING</p><h1 data-i18n="reader_title">Read your cartridge</h1><p class="muted" data-i18n="reader_desc">Detect a game and save a ROM dump to shared storage.</p></div></div>
 <div class="panel"><div class="panel-head"><h2 data-i18n="slots_title">Cartridge slots</h2><span class="tag" id="slots-summary" data-i18n="checking">Checking…</span></div>
 <div id="slot-list" class="slot-grid" aria-live="polite"></div>
-<p class="muted small" data-i18n="slots_note">Slot presence is passive detection. The game or adapter type is not automatically identified.</p></div>
-<div class="two-col">
+<div class="reader-activity">
+<p id="reader-activity-label" class="activity-label" role="status" data-i18n="hardware_idle">Ready</p>
+<p id="reader-activity-idle" class="muted small" data-i18n="slots_idle_hint">Insert a cartridge or select an occupied slot.</p>
+<div id="reader-progress-anchor"><div id="job-panel" class="job-panel" hidden><div class="progress-line"><strong id="job-label"></strong><div class="progress-numbers"><strong id="job-speed" class="job-speed" hidden></strong><span id="job-percent"></span></div></div><div class="progress"><div id="job-fill"></div></div><p id="job-detail" class="muted small"></p><p id="job-result-details" class="muted small" aria-live="polite"></p><button id="cancel" class="btn danger" data-i18n="cancel">Cancel</button></div></div>
+</div></div>
+<div class="two-col reader-details">
 <div class="panel"><div class="panel-head"><h2 data-i18n="cartridge">Cartridge</h2><span class="tag" id="reader-support" data-i18n="checking">Checking…</span></div>
 <div class="keyval"><span data-i18n="selected_reader">Selected reader</span><strong id="selected-reader" data-i18n="choose_reader">No supported reader selected</strong></div>
 <p class="muted small" data-i18n="systems_note">Select an automatically identified cartridge, or choose its system directly in the occupied slot.</p>
 <button id="probe" class="btn secondary" data-i18n="detect">Detect cartridge</button>
 <div id="game-info" class="game-info"><p class="muted" data-i18n="not_detected">No cartridge examined yet.</p></div>
-<div id="slot-read-result" class="game-info slot-read-result" hidden></div>
-<div id="reader-progress-anchor"><div id="job-panel" class="job-panel" hidden><div class="progress-line"><strong id="job-label"></strong><div class="progress-numbers"><strong id="job-speed" class="job-speed" hidden></strong><span id="job-percent"></span></div></div><div class="progress"><div id="job-fill"></div></div><p id="job-detail" class="muted small"></p><p id="job-result-details" class="muted small" aria-live="polite"></p><button id="cancel" class="btn danger" data-i18n="cancel">Cancel</button></div></div>
+<h3 class="result-heading" data-i18n="rom_result_title">ROM read result</h3><div class="rom-result-area"><p id="rom-result-empty" class="muted small" data-i18n="rom_result_empty">No ROM read for this cartridge yet.</p><div id="slot-read-result" class="game-info slot-read-result" hidden></div></div>
+
 </div>
 <div class="panel"><h2 data-i18n="read_options">Read options</h2>
 <label for="filename" data-i18n="filename">File name</label><input id="filename" maxlength="64" value="SNES-Dump" autocomplete="off">
 <button id="advanced-toggle" type="button" class="btn secondary" aria-expanded="false" data-i18n="advanced_toggle">Advanced settings</button>
-<div id="advanced" hidden>
+<div class="read-options-area"><div id="advanced" hidden>
 <p class="muted small" data-i18n="advanced_note">Only readers with confirmed read operations are selectable. Selecting a system does not detect an adapter or change the voltage.</p>
 <label for="system" data-i18n="system">Reader / system</label><select id="system"><option value="">—</option></select>
 </div>
@@ -58,7 +62,7 @@
     <p id="generic-override-hint" class="muted small" role="status"></p>
   </div>
 </div>
-<button id="read" class="btn primary" data-i18n="start_read">Read ROM</button>
+</div><button id="read" class="btn primary" data-i18n="start_read">Read ROM</button>
 <p id="read-busy-hint" class="muted small" role="status" hidden></p>
 </div></div>
 </section>
@@ -108,7 +112,7 @@
 </section>
 <section id="settings" class="page"><p class="eyebrow" data-i18n="device">DEVICE</p><h1 data-i18n="settings_title">General settings</h1><div class="two-col"><div class="panel"><h2 data-i18n="wifi">Wi-Fi connection</h2><div class="keyval"><span data-i18n="wifi_status">Status</span><strong id="wifi-status">…</strong></div><div class="keyval"><span data-i18n="ip_address">IP address</span><strong id="wifi-ip">…</strong></div>
 <div class="keyval"><span data-i18n="wifi_interface">Wireless interface</span><strong id="wifi-interface">…</strong></div><p id="wifi-diagnostic" class="muted small" role="status"></p>
-<div class="actions"><button id="scan-wifi" class="btn secondary" data-i18n="scan">Scan networks</button><button id="disconnect-wifi" class="btn danger" data-i18n="disconnect">Disconnect</button></div><div id="wifi-networks"></div>
+<div class="actions"><button id="scan-wifi" class="btn secondary" data-i18n="scan">Scan networks</button><button id="disconnect-wifi" class="btn danger" data-i18n="disconnect">Disconnect</button></div><p id="wifi-operation" class="muted small wifi-operation" role="status"></p><div id="wifi-networks"></div>
 <label for="wifi-ssid" data-i18n="ssid">Network name (SSID)</label><input id="wifi-ssid" maxlength="32" autocomplete="off">
 <label for="wifi-password" data-i18n="password">Password</label><input id="wifi-password" type="password" maxlength="128" autocomplete="new-password">
 <button id="connect-wifi" class="btn primary" data-i18n="connect">Connect</button><p class="muted small" data-i18n="wifi_warning">Changing network settings may interrupt your connection.</p></div>

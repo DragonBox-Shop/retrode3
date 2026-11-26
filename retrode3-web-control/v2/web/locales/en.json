@@ -239,5 +239,20 @@
   "ssh_key_add": "Add public key",
   "ssh_key_list": "Authorized public keys",
   "ssh_key_remove": "Remove selected key",
-  "ssh_key_invalid": "Select an SSH public key file."
+  "ssh_key_invalid": "Select an SSH public key file.",
+  "hardware_idle": "Ready",
+  "slots_idle_hint": "Insert a cartridge or select an occupied slot.",
+  "rom_result_title": "ROM read result",
+  "rom_result_empty": "No ROM read for this cartridge yet.",
+  "slot_disabled_plugins": "Not recognized. A required plugin may be disabled",
+  "slot_open_plugins": "Manage plugins",
+  "wifi_scanning": "Scanning Wi-Fi networks …",
+  "wifi_scan_done": "Found {count} Wi-Fi networks.",
+  "wifi_connecting": "Connecting to Wi-Fi …",
+  "wifi_wait_ip": "Associated. Waiting for IP address …",
+  "wifi_connect_done": "Wi-Fi connected.",
+  "wifi_connect_timeout": "Not connected yet. Check Wi-Fi status and password.",
+  "wifi_disconnecting": "Disconnecting Wi-Fi …",
+  "wifi_disconnect_done": "Wi-Fi disconnected.",
+  "wifi_operation_failed": "Wi-Fi operation failed"
 }

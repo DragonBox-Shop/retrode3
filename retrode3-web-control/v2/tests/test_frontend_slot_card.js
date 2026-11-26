@@ -50,6 +50,8 @@ const ctx = {
   },
   readers: function () { return readers; },
   slotData: {slots: [slot]},
+  coreState: null,
+  showTab: function (tab) { chosen = tab; },
   detectedBySlot: {},
   selectedReader: "md", activeJob: null, hardwareBusy: () => Boolean(ctx.activeJob),
   busyJob: () => null,
@@ -211,4 +213,16 @@ slot.detection = {state: "detected", core_id: "snes",
 node = card();
 assert(allText(node).includes("TERRANIGMA D"));
 assert(!node.children.some(function (part) { return part.className === "slot-manual"; }));
+slot.id = "md"; slot.status = "occupied"; slot.detection = {state:"failed"};
+readers.length = 0; readers.push({id:"md", name:"Mega Drive", slot:"md"});
+ctx.coreState = {available:true, cores:[
+  {id:"sms-md", name:"SMS", slot:"md", enabled:false, status:"disabled"},
+  {id:"other", name:"Other", slot:"snes", enabled:false, status:"disabled"}]};
+node = card();
+assert(allText(node).includes("slot_disabled_plugins: SMS"));
+assert(!allText(node).includes("Other"));
+node.children.find(part => part.className === "slot-plugin-link").handlers.click();
+assert.strictEqual(chosen, "plugins");
+ctx.coreState.cores[0].enabled = true;
+assert(!allText(card()).includes("slot_disabled_plugins"));
 console.log("confirmed slot card identity, single-core and inline picker tests passed");
