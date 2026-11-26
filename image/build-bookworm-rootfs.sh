@@ -47,7 +47,7 @@ mmdebstrap \
   --skip=check/canmount,chroot/mount \
   --architectures=mipsel \
   --variant=minbase \
-  --include=sysvinit-core,sysv-rc,initscripts,udev,kmod,ifupdown,iproute2,isc-dhcp-client,e2fsprogs,dosfstools,ca-certificates,dropbear-bin,dnsmasq-base,fake-hwclock,wireless-regdb \
+  --include=sysvinit-core,sysv-rc,initscripts,udev,kmod,ifupdown,iproute2,isc-dhcp-client,e2fsprogs,dosfstools,ca-certificates,dropbear-bin,dnsmasq-base,fake-hwclock,wireless-regdb,chrony \
   --aptopt='APT::Install-Recommends "false"' \
   --format=tar \
   bookworm "$scratch/mmdebstrap-rootfs.tar" https://deb.debian.org/debian
@@ -61,6 +61,9 @@ mkdir -p "$root/dev"
   echo "Incomplete mmdebstrap rootfs" >&2; exit 1;
 }
 # No second-stage needed: mmdebstrap has already configured the base packages.
+# Client-only NTP; fake-hwclock persists the last time across clean shutdown.
+install -m 0644 "$(dirname "$0")/assets/retrode3-chrony.conf" "$root/etc/chrony/chrony.conf"
+
 cat > "$root/etc/apt/sources.list" <<'EOF'
 deb https://deb.debian.org/debian bookworm main
 EOF

@@ -1,9 +1,9 @@
 # PHP-free web control experiment (Bookworm)
 
-This feature branch is deliberately **not** a package or image release.
-The default PHP entrypoint, existing SysV unit, APT dependencies and
-production image verification remain unchanged until the new gateway
-passes its tests. Do not run the two cartridge backends concurrently.
+The Lighttpd prototype has passed initial hardware smoke tests and is now
+wired into the develop Debian package and image verifier. It is not a
+release or a completed upgrade test. Do not run the two cartridge backends
+concurrently. The remaining sections document the historical experiment.
 
 ## Implemented
 

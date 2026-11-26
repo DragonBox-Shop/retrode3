@@ -30,7 +30,10 @@ python3 -m json.tool packaging/retrode3-core-layout.json >/dev/null
 python3 -m json.tool packaging/core-meta.json >/dev/null
 bash -n buildserver/stage-oscr-plugins.sh
 python3 -m py_compile packaging/build-debs.py
-python3 -m py_compile retrode3-web-control/v2/backend/service.py
+python3 -m py_compile retrode3-web-control/v2/backend/service.py retrode3-web-control/v2/backend/http_gateway.py
+sh -n image/assets/retrode3-memory.init
+python3 -m unittest discover -s image/tests -p 'test_finalize_apt.py' -v
+python3 -m unittest discover -s image/tests -p 'test_verify_lighttpd_offline.py' -v
 python3 -m unittest discover -s packaging/tests -p 'test_*.py' -v
 python3 -m unittest discover -s retrode3-web-control/v2/tests -p 'test_*.py' -v
 

@@ -454,8 +454,9 @@ def build_one(work, package, layout, lock, stage, epoch, native=None):
     names = cmd(["dpkg-deb", "--contents", str(destination)])
     required_files = {
         WEB: ("opt/retrode3-web-v2/backend/service.py",
-              "var/www/html/index.php", "var/www/html/rom-upload.php",
-              "etc/php/8.2/apache2/conf.d/99-retrode3-rom-upload.ini",
+              "opt/retrode3-web-v2/backend/http_gateway.py",
+              "var/www/retrode3-lighttpd/index.html",
+              "etc/lighttpd/conf-available/99-retrode3-lighttpd.conf",
               "etc/init.d/retrode3-web-v2"),
         TOOLS: ("usr/local/bin/retrode3-admin", "usr/local/bin/retrode3-wlan"),
         UDEV: ("etc/udev/rules.d/70-retrode3-cartridge.rules",),
