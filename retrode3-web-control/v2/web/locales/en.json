@@ -265,5 +265,22 @@
   "ssh_enabled_notice": "SSH enabled.",
   "ssh_disabled_notice": "SSH disabled.",
   "ssh_key_added": "Public key saved.",
-  "ssh_key_removed": "Public key removed."
+  "ssh_key_removed": "Public key removed.",
+  "update_title": "Software updates",
+  "update_note": "Update the web interface and cartridge software from the configured Retrode3 repository. Kernel and bootloader updates are excluded.",
+  "update_idle": "Check for available updates.",
+  "update_check": "Check for updates",
+  "update_install": "Install updates",
+  "update_checking": "Refreshing package lists …",
+  "update_available": "New software packages available.",
+  "update_current": "Software is up to date.",
+  "update_downloading": "Downloading packages …",
+  "update_installing": "Installing updates. Do not switch off Retrode3!",
+  "update_restarting": "Restarting web interface …",
+  "update_done": "Updates installed successfully.",
+  "update_failed": "Update failed.",
+  "update_reconnecting": "Waiting for web interface. Do not switch off Retrode3!",
+  "update_unavailable": "Update status unavailable.",
+  "update_new_package": "New",
+  "update_confirm": "Install updates now? The web interface may briefly be unavailable. Do not switch off Retrode3 during the update."
 }

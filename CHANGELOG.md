@@ -5,6 +5,8 @@ are experimental until hardware testing is complete.
 
 ## Unreleased
 
+- Check for and install software updates directly from the web interface, including new cartridge plugins shipped through the existing package repository. Kernel and bootloader are excluded.
+
 - Improved root password setup for devices with limited memory, with visible progress and more useful error messages. SSH and public-key controls become available after setup.
 - Notifications can now be closed manually and disappear automatically after 12 seconds.
 

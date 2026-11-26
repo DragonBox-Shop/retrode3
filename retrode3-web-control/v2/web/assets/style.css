@@ -112,3 +112,5 @@
 #toast-close{flex:none;background:none;border:0;color:var(--text);font-size:23px;line-height:1;padding:0 3px;margin:-2px -5px 0 0}
 #developer-feedback{min-height:1.4em;margin:8px 0}
 #developer-feedback:empty{visibility:hidden}
+
+#update-packages{max-height:12rem;overflow:auto;overflow-wrap:anywhere}#update-packages p{margin:6px 0}#update-status{min-height:2.8em}

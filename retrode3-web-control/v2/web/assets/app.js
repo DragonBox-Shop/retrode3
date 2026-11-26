@@ -11,6 +11,7 @@
   var wifiOperation = null, wifiStatusSerial = 0;
   var pluginSlotFilter = "";
   var toastTimer = null, developerPending = false, developerState = null, developerSerial = 0;
+  var updateState = null, updatePending = false, updateTimer = null, updatePolling = false;
   var readerOptions = null, readerOptionsLoading = false, readerOptionsRequest = 0;
   var genericWidget = null;
   var writerIdentified = null;
@@ -82,6 +83,7 @@
     renderCores();
     renderWriterState();
     renderGlobalStatus();
+    if (updateState && $("update-panel")) renderUpdate(updateState);
   }
   function setLocale(lang) {
     if (!/^(en|de)$/.test(lang)) lang = "en";
@@ -165,7 +167,8 @@
     return activeJob ? currentJob : slotData && slotData.busy_job || null;
   }
   function hardwareBusy() {
-    return resuming || Boolean(activeJob || (slotData && slotData.busy_job));
+    return resuming || Boolean(activeJob || (slotData && slotData.busy_job)) ||
+      (typeof updateState !== "undefined" && updateState && ["downloading", "installing", "restarting"].indexOf(updateState.phase) !== -1);
   }
   function isWriterJob(job) {
     return !!job && ["probe_flash", "write_flash", "verify_flash", "flash_operation"].indexOf(job.command) !== -1;
@@ -1298,7 +1301,70 @@
       $("ssh-key-text").value = ""; $("ssh-key-file").value = "";
     });
   }
+  function updateInProgress(state) {
+    return !!state && ["checking", "downloading", "installing", "restarting"].indexOf(state.phase) !== -1;
+  }
+  function renderUpdate(data) {
+    updateState = data;
+    var status = t("update_" + data.phase);
+    if (data.message) status += " " + data.message;
+    text($("update-status"), status);
+    var list = $("update-packages");
+    list.textContent = "";
+    (data.packages || []).forEach(function (pkg) {
+      var row = document.createElement("p");
+      text(row, pkg.name + ": " + (pkg.installed || t("update_new_package")) + " → " + pkg.candidate);
+      list.appendChild(row);
+    });
+    var busy = updatePending || updateInProgress(data);
+    $("update-check").disabled = busy;
+    $("update-install").disabled = busy || data.phase !== "available" || hardwareBusy();
+    renderReaderState();
+    renderCores();
+  }
+  function scheduleUpdatePoll() {
+    if (updateTimer !== null) clearTimeout(updateTimer);
+    updateTimer = setTimeout(function () { updateTimer = null; pollUpdate(); }, 2000);
+  }
+  function pollUpdate() {
+    if (!direct || !$("update-panel") || updatePolling || updatePending) return;
+    updatePolling = true;
+    return api("/api/update").then(function (data) {
+      var wasInstalling = updateInProgress(updateState) && updateState.phase !== "checking";
+      renderUpdate(data);
+      if (wasInstalling && data.phase === "done") {
+        // Reload new frontend after its backend and assets were replaced.
+        notify(t("update_done"));
+        window.location.reload();
+      }
+    }).catch(function (err) {
+      if (updateInProgress(updateState)) {
+        text($("update-status"), t("update_reconnecting"));
+      } else if (currentPage === "settings") {
+        text($("update-status"), t("update_unavailable"));
+      }
+    }).then(function () {
+      updatePolling = false;
+      if (currentPage === "settings" || updateInProgress(updateState)) scheduleUpdatePoll();
+    });
+  }
+  function startUpdate(action) {
+    if (updatePending || updateInProgress(updateState)) return;
+    if (action === "install" && (hardwareBusy() || !confirm(t("update_confirm")))) return;
+    updatePending = true;
+    if (updateTimer !== null) { clearTimeout(updateTimer); updateTimer = null; }
+    $("update-check").disabled = $("update-install").disabled = true;
+    text($("update-status"), t(action === "check" ? "update_checking" : "update_downloading"));
+    return api("/api/update", {action: action}).then(function (data) {
+      updatePending = false;
+      renderUpdate(data);
+    }).catch(function (err) {
+      updatePending = false;
+      fail(err);
+    }).then(pollUpdate);
+  }
   function loadSettings() {
+    pollUpdate();
     loadDeveloper();
     loadCores();
     api("/api/settings").then(function (data) {
@@ -1352,6 +1418,10 @@
   }
 
   function bind() {
+    if ($("update-panel")) {
+      $("update-check").addEventListener("click", function () { startUpdate("check"); });
+      $("update-install").addEventListener("click", function () { startUpdate("install"); });
+    }
     $("toast-close").addEventListener("click", dismissToast);
     if ($("core-slot-filter")) $("core-slot-filter").addEventListener("change", function () {
       pluginSlotFilter = this.value; renderCores();
@@ -1491,6 +1561,7 @@
     var saved = (navigator.language || "").toLowerCase().indexOf("de") === 0 ? "de" : "en";
     setLocale(saved);
     loadCores();
+    pollUpdate();
     loadCapabilities().then(resumeJob);
     window.setInterval(refreshSlots, 1500);
   }

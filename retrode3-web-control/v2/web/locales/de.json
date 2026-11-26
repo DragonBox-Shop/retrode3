@@ -265,5 +265,22 @@
   "ssh_enabled_notice": "SSH wurde aktiviert.",
   "ssh_disabled_notice": "SSH wurde deaktiviert.",
   "ssh_key_added": "Public Key gespeichert.",
-  "ssh_key_removed": "Public Key entfernt."
+  "ssh_key_removed": "Public Key entfernt.",
+  "update_title": "Software-Updates",
+  "update_note": "Weboberfläche und Cartridge-Software aus dem eingerichteten Retrode3-Paketrepository aktualisieren. Kernel und Bootloader bleiben unverändert.",
+  "update_idle": "Auf verfügbare Updates prüfen.",
+  "update_check": "Nach Updates suchen",
+  "update_install": "Updates installieren",
+  "update_checking": "Paketlisten werden aktualisiert …",
+  "update_available": "Neue Softwarepakete verfügbar.",
+  "update_current": "Die Software ist auf dem neuesten Stand.",
+  "update_downloading": "Pakete werden heruntergeladen …",
+  "update_installing": "Updates werden installiert. Retrode3 nicht ausschalten!",
+  "update_restarting": "Weboberfläche wird neu gestartet …",
+  "update_done": "Updates erfolgreich installiert.",
+  "update_failed": "Update fehlgeschlagen.",
+  "update_reconnecting": "Warte auf die Weboberfläche. Retrode3 nicht ausschalten!",
+  "update_unavailable": "Update-Status nicht verfügbar.",
+  "update_new_package": "Neu",
+  "update_confirm": "Software jetzt aktualisieren? Die Weboberfläche kann kurz nicht erreichbar sein. Retrode3 während des Updates nicht ausschalten."
 }
