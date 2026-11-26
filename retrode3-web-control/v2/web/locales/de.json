@@ -209,11 +209,16 @@
   "writer_finished_unverified": "Vorgang abgeschlossen, nicht verifiziert.",
   "writer_verify_pass": "Verify-Durchlauf",
   "writer_verify_passes_label": "Durchläufe",
-  "developer_title": "Entwicklereinstellungen",
-  "developer_locked": "Zuerst ein Entwicklerpasswort einrichten (derzeit über die serielle Konsole).",
-  "ssh_warning": "SSH erlaubt Root-Zugriff über alle Netzwerkschnittstellen. Nur in vertrauenswürdigen Netzen verwenden. Das neue Passwort gilt auch für die Root-Konsole. HTTP überträgt Passwörter unverschlüsselt.",
-  "developer_password": "Entwicklerpasswort bestätigen",
-  "ssh_password": "Neues Root-SSH-Passwort (12-72 Bytes)",
+  "developer_title": "Erweiterte Einstellungen / Entwickler",
+  "developer_locked": "Zur Ersteinrichtung direkt per USB verbinden. Bei einem gesperrten bestehenden Root-Konto ist eine lokale Wiederherstellung erforderlich.",
+  "ssh_warning": "SSH erlaubt Root-Zugriff über alle Netzwerkschnittstellen. Es gilt dasselbe Passwort wie für Entwicklereinstellungen und Root-Konsole. HTTP überträgt Passwörter unverschlüsselt; nur in vertrauenswürdigen Netzen verwenden.",
+  "developer_password": "Root-Passwort bestätigen",
   "ssh_enable": "SSH aktivieren",
-  "ssh_disable": "SSH deaktivieren"
+  "ssh_disable": "SSH deaktivieren",
+  "developer_setup_note": "Hier setzt Du das gemeinsame Root- und Entwicklerpasswort. SSH bleibt bis zur ausdrücklichen Aktivierung aus. Nur an einem vertrauenswürdigen USB-Rechner einrichten.",
+  "developer_new": "Neues Root-Passwort (12-72 Bytes)",
+  "developer_repeat": "Neues Passwort wiederholen",
+  "developer_save": "Root-Passwort setzen",
+  "developer_change": "Root-Passwort ändern",
+  "developer_saved": "Root-Passwort gespeichert."
 }

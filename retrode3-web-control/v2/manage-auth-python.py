@@ -7,19 +7,15 @@ import grp
 import os
 from pathlib import Path
 import sys
-import subprocess
 import tempfile
 
-WEB_AUTH = Path("/etc/retrode3-web-control.auth")
-DEV_AUTH = Path("/etc/retrode3-developer.auth")
+AUTH = Path("/etc/retrode3-web-control.auth")
 
 
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("action", choices=("status", "enable", "disable"), nargs="?", default="status")
-    parser.add_argument("--developer", action="store_true", help="Manage separate developer password")
     args = parser.parse_args()
-    AUTH = DEV_AUTH if args.developer else WEB_AUTH
     if os.geteuid() != 0:
         parser.error("Run as root")
     if args.action == "status":
@@ -27,16 +23,12 @@ def main():
               else "Password protection is disabled (default).")
         return
     if args.action == "disable":
-        if args.developer or not DEV_AUTH.is_file():
-            Path("/etc/retrode3/ssh-enabled").unlink(missing_ok=True)
-            if Path("/etc/init.d/retrode3-ssh").is_file():
-                subprocess.run(["/etc/init.d/retrode3-ssh", "stop"], check=True)
         AUTH.unlink(missing_ok=True)
         print("Password protection disabled.")
         return
     if not sys.stdin.isatty():
         parser.error("An interactive terminal is required")
-    password = getpass.getpass("New developer password: " if args.developer else "New optional web password: ")
+    password = getpass.getpass("New optional web password: ")
     if not password or "\0" in password or len(password.encode("utf-8")) > 72:
         parser.error("Password must contain 1-72 UTF-8 bytes and no NUL")
     if password != getpass.getpass("Repeat password: "):
@@ -48,8 +40,8 @@ def main():
     fd, temp = tempfile.mkstemp(prefix=AUTH.name + ".", dir=str(AUTH.parent))
     try:
         with os.fdopen(fd, "w", encoding="ascii") as out:
-            os.fchown(out.fileno(), 0, 0 if args.developer else grp.getgrnam("www-data").gr_gid)
-            os.fchmod(out.fileno(), 0o600 if args.developer else 0o640)
+            os.fchown(out.fileno(), 0, grp.getgrnam("www-data").gr_gid)
+            os.fchmod(out.fileno(), 0o640)
             out.write(stored + "\n")
             out.flush()
             os.fsync(out.fileno())
@@ -57,7 +49,7 @@ def main():
     finally:
         if os.path.exists(temp):
             os.unlink(temp)
-    print("Developer password configured." if args.developer else "Password protection enabled (username: admin).")
+    print("Password protection enabled (username: admin).")
 
 
 if __name__ == "__main__":

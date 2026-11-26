@@ -164,6 +164,26 @@ def store_rom(root, folder, filename, length, stream):
         os.close(rootfd)
 
 
+def direct_usb_peer(headers):
+    # Lighttpd mod_proxy adds the real remote address as the last element.
+    # Never trust an earlier client-supplied X-Forwarded-For value.
+    values = headers.get_all("X-Forwarded-For", [])
+    if len(values) != 1 or len(values[0]) > 2048:
+        return False
+    try:
+        peer = ipaddress.IPv4Address(values[0].rsplit(",", 1)[-1].strip())
+        if peer.is_loopback or peer.is_multicast or peer.is_unspecified:
+            return False
+        result = subprocess.run(
+            ["/sbin/ip", "-j", "-4", "route", "get", str(peer)],
+            capture_output=True, text=True, timeout=2, check=True)
+        routes = service.json.loads(result.stdout)
+        return (len(routes) == 1 and routes[0].get("dev") == "usb0"
+                and not routes[0].get("gateway") and routes[0].get("type", "unicast") == "unicast")
+    except (OSError, ValueError, TypeError, subprocess.SubprocessError):
+        return False
+
+
 class Handler(service.Handler):
     def _gate(self, write=False):
         hosts = self.headers.get_all("Host", [])
@@ -189,6 +209,11 @@ class Handler(service.Handler):
         return True
 
     def _developer_ssh(self, data):
+        if not isinstance(data, dict):
+            raise error(400, "invalid_json", "Expected an object")
+        if data.get("action") == "setup":
+            if self.client_address[0] != "127.0.0.1" or not direct_usb_peer(self.headers):
+                raise error(403, "developer_setup_usb", "Initial developer setup requires the direct USB network")
         try:
             result = subprocess.run(
                 ["/usr/bin/sudo", "-n", "/usr/sbin/retrode3-ssh-control"],
@@ -198,6 +223,10 @@ class Handler(service.Handler):
             raise error(503, "ssh_unavailable", "SSH control unavailable")
         if result.returncode:
             raise error(403, "ssh_failed", body.get("error", "SSH control failed"))
+        if data.get("action") == "status":
+            body["setup_allowed"] = (body.get("setup_needed", False)
+                                     and self.client_address[0] == "127.0.0.1"
+                                     and direct_usb_peer(self.headers))
         self._json(200, body)
 
     def _session(self):

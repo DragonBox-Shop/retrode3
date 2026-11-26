@@ -1008,18 +1008,28 @@
     if (!direct || !$("developer-panel")) return;
     $("developer-panel").hidden = false;
     api("/api/developer/ssh").then(function (data) {
-      $("developer-locked").hidden = data.configured;
+      $("developer-locked").hidden = data.configured || data.setup_allowed;
+      $("developer-setup").hidden = !data.setup_allowed;
       $("developer-controls").hidden = !data.configured;
       text($("ssh-status"), data.running ? t("status_connected") : t("status_disconnected"));
       $("ssh-enable").disabled = data.running;
       $("ssh-disable").disabled = !data.enabled && !data.running;
     }).catch(fail);
   }
+  function saveDeveloperPassword(initial) {
+    var p = $(initial ? "developer-new" : "developer-change-new");
+    var r = $(initial ? "developer-repeat" : "developer-change-repeat");
+    var data = {action: initial ? "setup" : "change_password",
+                new_password: p.value, repeat_password: r.value};
+    if (!initial) data.developer_password = $("developer-password").value;
+    p.value = ""; r.value = ""; $("developer-password").value = "";
+    api("/api/developer/ssh", data).then(function () {
+      notify(t("developer_saved")); loadDeveloper();
+    }).catch(fail);
+  }
   function changeSSH(action) {
-    var data = {action: action, developer_password: $("developer-password").value,
-                ssh_password: $("ssh-password").value};
+    var data = {action: action, developer_password: $("developer-password").value};
     $("developer-password").value = "";
-    $("ssh-password").value = "";
     api("/api/developer/ssh", data).then(loadDeveloper).catch(fail);
   }
   function loadSettings() {
@@ -1043,6 +1053,8 @@
   }
   function bind() {
     if (direct && $("ssh-enable")) {
+      $("developer-save").addEventListener("click", function () { saveDeveloperPassword(true); });
+      $("developer-change-save").addEventListener("click", function () { saveDeveloperPassword(false); });
       $("ssh-enable").addEventListener("click", function () { changeSSH("enable"); });
       $("ssh-disable").addEventListener("click", function () { changeSSH("disable"); });
     }

@@ -209,11 +209,16 @@
   "writer_finished_unverified": "Operation finished, not verified.",
   "writer_verify_pass": "Verify pass",
   "writer_verify_passes_label": "passes",
-  "developer_title": "Developer settings",
-  "developer_locked": "Configure a developer password first (currently via the serial console).",
-  "ssh_warning": "SSH provides root access on all network interfaces. Use only a trusted network. The new password also applies to the root console. HTTP transmits passwords unencrypted.",
-  "developer_password": "Confirm developer password",
-  "ssh_password": "New root SSH password (12-72 bytes)",
+  "developer_title": "Advanced / developer settings",
+  "developer_locked": "Connect directly via USB for first setup. An existing locked root account requires local recovery.",
+  "ssh_warning": "SSH provides root access on all network interfaces. The same password protects advanced settings and the root console. HTTP transmits passwords unencrypted; use only trusted networks.",
+  "developer_password": "Confirm root password",
   "ssh_enable": "Enable SSH",
-  "ssh_disable": "Disable SSH"
+  "ssh_disable": "Disable SSH",
+  "developer_setup_note": "Set the shared root/developer password here. SSH stays off until explicitly enabled. Use a trusted USB-connected computer.",
+  "developer_new": "New root password (12-72 bytes)",
+  "developer_repeat": "Repeat new password",
+  "developer_save": "Set root password",
+  "developer_change": "Change root password",
+  "developer_saved": "Root password saved."
 }
