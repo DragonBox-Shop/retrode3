@@ -48,6 +48,43 @@ Treiber und Device Tree versioniert. Es wird keine separate Konfiguration
 auf Amaterasu gepflegt. Kernel- und U-Boot-Buildrezepte werden aus
 den jeweiligen Repositories ausgefuehrt, nicht als Kopien im OS-Git.
 
+## Isolierte Kernel-Experimente (kein APT-Release)
+
+`buildserver/build-kernel-test.sh FULL_KERNEL_COMMIT_SHA` baut genau
+einen ausgewählten Kernel-Git-Commit in einem separaten rootless Podman
+Container. Als Benutzer `retrode` auf Amaterasu aus dem sauberen
+vorhandenen Image-Worktree aufrufen:
+
+```sh
+BASE=/srv/www/vhosts/retrode.com/buildserver
+IMG="$BASE/src/retrode3-image-dev"
+git -C "$IMG" fetch origin develop
+# Nur wenn kein Image-Build läuft und der Worktree sauber ist:
+git -C "$IMG" switch --detach origin/develop
+bash "$IMG/buildserver/build-kernel-test.sh" FULL_KERNEL_COMMIT_SHA
+```
+
+Der vollständige SHA (40 hexadezimale Zeichen) muss im Kernel-Git
+erreichbar sein. Branch-Namen werden nicht als Input akzeptiert. Der
+Container führt das Paket-Rezept dieses Commits aus. Der Test-Builder
+verwendet die gemeinsame Paket-Build-Sperre, aber einen separaten
+Container-Tag und private, nicht vom normalen Publisher verwendete
+Ausgaben unter `$BASE/private/kernel-tests/run.*`. Es werden weder
+U-Boot noch OS/OSCR neu gebaut, weder APT-Snapshots noch Signaturen
+geändert und keine aktiven Bootdateien oder SD-Karten beschrieben.
+
+Ausgaben: zwei zusammengehörige Kernel-.debs (Version beginnt mit
+`0~retrode3test`), `kernel-bundle.tar.gz` mit Bootdateien und
+passendem Modulbaum, `build.log`, `kernel-test-manifest.json`,
+`SHA256SUMS` und, sofern das Kernel-Rezept sie bereitstellt,
+`effective.config`. Der Testkernel ist ausdrücklich nicht
+hardwarefreigegeben und darf nicht in APT importiert werden.
+Vor Hardwaretests Prüfsummen und effektive Kconfig prüfen. Kernel,
+DTB und Modulbaum nur gemeinsam auf eine separate Test-SD übernehmen;
+bei gleicher Kernel-Release darf der alte Modulbaum nicht mit dem
+neuen vermischt werden. Der reguläre Image-Assembler behält seinen
+Vertrag, ausschließlich signierte APT-Pakete zu konsumieren.
+
 ## Reproduzierbarkeit und Sicherheit
 
 Der Buildserver ist ein **Git-Consumer**, kein Git-Publisher.
