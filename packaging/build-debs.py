@@ -377,7 +377,7 @@ def control_text(package, lock, native=None):
                 "retrode3-tools (>= " + web_version + "), "
                 "retrode3-udev-rules (>= " + web_version + "), "
                 "python3, lighttpd, "
-                "sudo, passwd, adduser, init-system-helpers")
+                "sudo, passwd, adduser, init-system-helpers, dropbear-bin, openssh-sftp-server")
     elif package == TOOLS:
         deps = ("bash, sudo, iw, wireless-tools, net-tools, "
                 "wget, unzip")
@@ -461,7 +461,8 @@ def build_one(work, package, layout, lock, stage, epoch, native=None):
               "opt/retrode3-web-v2/backend/http_gateway.py",
               "var/www/retrode3-lighttpd/index.html",
               "etc/lighttpd/conf-available/99-retrode3-lighttpd.conf",
-              "etc/init.d/retrode3-web-v2"),
+              "etc/init.d/retrode3-web-v2", "etc/init.d/retrode3-ssh",
+              "usr/sbin/retrode3-ssh-control", "etc/sudoers.d/retrode3-ssh"),
         TOOLS: ("usr/local/bin/retrode3-admin", "usr/local/bin/retrode3-wlan"),
         UDEV: ("etc/udev/rules.d/70-retrode3-cartridge.rules",),
         META: ("usr/share/doc/retrode3-cores/README",),

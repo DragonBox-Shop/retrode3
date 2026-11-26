@@ -32,6 +32,12 @@ bash -n buildserver/stage-oscr-plugins.sh
 python3 -m py_compile packaging/build-debs.py
 python3 -m py_compile retrode3-web-control/v2/backend/service.py retrode3-web-control/v2/backend/http_gateway.py
 sh -n image/assets/retrode3-memory.init
+sh -n image/assets/retrode3-usb-network
+sh -n image/assets/retrode3-usb-dhcp-hook
+sh -n image/assets/retrode3-usb-gadget.init
+sh -n packaging/assets/retrode3-ssh.init
+python3 -m py_compile packaging/assets/retrode3-ssh-control
+bash -n buildserver/build-image-from-packages.sh
 python3 -m unittest discover -s image/tests -p 'test_finalize_apt.py' -v
 python3 -m unittest discover -s image/tests -p 'test_verify_lighttpd_offline.py' -v
 python3 -m unittest discover -s packaging/tests -p 'test_*.py' -v

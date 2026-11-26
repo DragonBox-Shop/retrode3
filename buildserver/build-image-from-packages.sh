@@ -52,6 +52,7 @@ else
   tar --numeric-owner -xJf /work/base-rootfs/retrode3-bookworm-mipsel-rootfs.tar.xz \
     -C /work/rootfs
   cp /usr/bin/qemu-mipsel-static /work/rootfs/usr/bin/qemu-mipsel-static
+  rm -f /work/rootfs/etc/resolv.conf
   cp /etc/resolv.conf /work/rootfs/etc/resolv.conf
   cat > /work/rootfs/usr/sbin/policy-rc.d <<'EOF'
 #!/bin/sh
@@ -178,6 +179,7 @@ for core in snes md nes; do
 done
 rm -f /work/rootfs/usr/bin/qemu-mipsel-static \
       /work/rootfs/usr/sbin/policy-rc.d /work/rootfs/etc/resolv.conf
+ln -s /run/resolvconf/resolv.conf /work/rootfs/etc/resolv.conf
 # Debian remains a build-time dependency source only.
 python3 /src/image/finalize-apt.py /work/rootfs
 rm -rf /work/rootfs/var/lib/apt/lists/*

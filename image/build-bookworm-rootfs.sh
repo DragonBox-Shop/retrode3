@@ -123,6 +123,15 @@ EOF
 rm -f "$root/usr/sbin/policy-rc.d" "$root/usr/bin/qemu-mipsel-static"
 rm -f "$root/etc/resolv.conf"
 ln -s /run/resolvconf/resolv.conf "$root/etc/resolv.conf"
+# WLAN DNS precedes the USB Internet-sharing fallback.
+cat > "$root/etc/resolvconf/interface-order" <<'EOF'
+lo*
+wlan*
+wlp*
+eth*
+usb0.retrode3
+*
+EOF
 rm -rf "$root/var/lib/apt/lists/"*
 mkdir -p "$root/var/lib/apt/lists" "$root/boot"
 python3 "$(dirname "$0")/verify-rootfs.py" "$root"

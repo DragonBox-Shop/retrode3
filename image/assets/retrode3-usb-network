@@ -3,7 +3,7 @@
 # Re-evaluate only at physical reconnect or client failure, never run both.
 set -u
 R=/run/retrode3-usb-network
-mkdir -m 0700 -p "$R" || exit 1
+mkdir -m 0755 -p "$R" || exit 1
 child=
 mode=down
 carrier() { [ "$(cat /sys/class/net/usb0/carrier 2>/dev/null)" = 1 ]; }
@@ -20,7 +20,7 @@ cleanup() {
     rm -f "$R/bound" "$R/client.pid" "$R/leases" "$R/server.pid"
     mode=down
 }
-trap 'cleanup; exit 0' TERM INT
+trap 'exit 0' TERM INT
 trap cleanup EXIT
 while [ -d /sys/class/net/usb0 ]; do
     if ! carrier; then
