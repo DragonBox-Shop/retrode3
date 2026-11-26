@@ -105,3 +105,10 @@
 #wifi-networks{height:10rem;overflow:auto;border:1px solid var(--line);border-radius:8px;padding:0 8px;scrollbar-gutter:stable}
 #wifi-diagnostic{min-height:2em;margin:8px 0;padding:10px 12px}
 @media(max-width:650px){.slot-grid{grid-auto-rows:12.5rem;min-height:39rem}.reader-activity{height:11rem}.reader-details>.panel{height:33rem}}
+
+/* Notifications never move page content; dismiss or expire automatically. */
+#toast.visible{display:flex;align-items:flex-start;gap:12px;max-width:min(400px,calc(100vw - 44px))}
+#toast-message{min-width:0;overflow-wrap:anywhere}
+#toast-close{flex:none;background:none;border:0;color:var(--text);font-size:23px;line-height:1;padding:0 3px;margin:-2px -5px 0 0}
+#developer-feedback{min-height:1.4em;margin:8px 0}
+#developer-feedback:empty{visibility:hidden}

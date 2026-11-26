@@ -257,5 +257,13 @@
   "wifi_operation_failed": "Wi-Fi operation failed",
   "slot_disabled_count": "{count} disabled",
   "core_filter_slot": "Filter by slot",
-  "core_all_slots": "All slots"
+  "core_all_slots": "All slots",
+  "notification_close": "Close notification",
+  "developer_saving": "Saving root password …",
+  "developer_password_mismatch": "Enter a non-empty password and repeat it exactly.",
+  "ssh_updating": "Saving SSH settings …",
+  "ssh_enabled_notice": "SSH enabled.",
+  "ssh_disabled_notice": "SSH disabled.",
+  "ssh_key_added": "Public key saved.",
+  "ssh_key_removed": "Public key removed."
 }

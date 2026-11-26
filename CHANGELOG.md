@@ -5,6 +5,9 @@ are experimental until hardware testing is complete.
 
 ## Unreleased
 
+- Improved root password setup for devices with limited memory, with visible progress and more useful error messages. SSH and public-key controls become available after setup.
+- Notifications can now be closed manually and disappear automatically after 12 seconds.
+
 - Reduced empty space on the reader page and removed unnecessary outer panel scrollbars while keeping the layout steady.
 
 - USB networking now uses a fixed device address (172.31.255.1) and immediately offers DHCP to the computer, without changing its Internet gateway or DNS. Wi-Fi obtains its network settings independently.

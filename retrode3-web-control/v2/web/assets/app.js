@@ -10,6 +10,7 @@
   var coreState = null, corePending = false, registryRevision = null;
   var wifiOperation = null, wifiStatusSerial = 0;
   var pluginSlotFilter = "";
+  var toastTimer = null, developerPending = false, developerState = null, developerSerial = 0;
   var readerOptions = null, readerOptionsLoading = false, readerOptionsRequest = 0;
   var genericWidget = null;
   var writerIdentified = null;
@@ -31,9 +32,16 @@
     var el = document.createElement("button");
     el.type = "button"; text(el, label); el.addEventListener("click", handler); return el;
   }
+  function dismissToast() {
+    if (toastTimer !== null) clearTimeout(toastTimer);
+    toastTimer = null;
+    $("toast").classList.remove("visible");
+  }
   function notify(message) {
-    text($("toast"), message); $("toast").classList.add("visible");
-    /* Toast disappears on the next user-triggered action. */
+    dismissToast();
+    text($("toast-message"), message);
+    $("toast").classList.add("visible");
+    toastTimer = setTimeout(dismissToast, 12000);
   }
   function api(route, data, query) {
     var url = apiUrl(route, query);
@@ -60,6 +68,10 @@
   }
   function localize() {
     document.documentElement.lang = locale;
+    if ($("toast-close")) {
+      $("toast-close").setAttribute("aria-label", t("notification_close"));
+      $("toast-close").title = t("notification_close");
+    }
     document.querySelectorAll("[data-i18n]").forEach(function (el) {
       var key = el.getAttribute("data-i18n");
       if (messages[key]) text(el, messages[key]);
@@ -1201,60 +1213,90 @@
       fail(error);
     });
   }
+  function renderDeveloper(data) {
+    developerState = data;
+    $("developer-locked").hidden = data.configured || data.setup_allowed;
+    $("developer-setup").hidden = !data.setup_allowed;
+    $("developer-controls").hidden = !data.configured;
+    text($("ssh-status"), data.running ? t("status_connected") : t("status_disconnected"));
+    if ($("ssh-key-list")) {
+      var list = $("ssh-key-list");
+      list.textContent = "";
+      (data.keys || []).forEach(function (key) {
+        var option = document.createElement("option");
+        option.value = key.fingerprint;
+        text(option, key.type + " " + key.fingerprint + (key.comment ? " " + key.comment : ""));
+        list.appendChild(option);
+      });
+    }
+    developerButtons();
+  }
+  function developerButtons() {
+    var data = developerState || {};
+    $("developer-save").disabled = developerPending || !data.setup_allowed;
+    $("developer-change-save").disabled = developerPending || !data.configured;
+    $("ssh-enable").disabled = developerPending || !data.configured || data.running;
+    $("ssh-disable").disabled = developerPending || !data.configured || (!data.enabled && !data.running);
+    if ($("ssh-key-add")) $("ssh-key-add").disabled = developerPending || !data.configured;
+    if ($("ssh-key-remove")) $("ssh-key-remove").disabled = developerPending || !(data.keys || []).length;
+  }
   function loadDeveloper() {
-    if (!direct || !$("developer-panel")) return;
+    if (!direct || !$("developer-panel") || developerPending) return;
     $("developer-panel").hidden = false;
-    api("/api/developer/ssh").then(function (data) {
-      $("developer-locked").hidden = data.configured || data.setup_allowed;
-      $("developer-setup").hidden = !data.setup_allowed;
-      $("developer-controls").hidden = !data.configured;
-      text($("ssh-status"), data.running ? t("status_connected") : t("status_disconnected"));
-      $("ssh-enable").disabled = data.running;
-      $("ssh-disable").disabled = !data.enabled && !data.running;
-      if ($("ssh-key-list")) {
-        var list = $("ssh-key-list");
-        list.textContent = "";
-        (data.keys || []).forEach(function (key) {
-          var option = document.createElement("option");
-          option.value = key.fingerprint;
-          text(option, key.type + " " + key.fingerprint + (key.comment ? " " + key.comment : ""));
-          list.appendChild(option);
-        });
-        $("ssh-key-remove").disabled = !(data.keys || []).length;
-      }
+    var serial = ++developerSerial;
+    return api("/api/developer/ssh").then(function (data) {
+      if (serial === developerSerial) renderDeveloper(data);
     }).catch(fail);
   }
+  function developerAction(data, progress, success, onSuccess) {
+    if (developerPending) return;
+    developerPending = true;
+    ++developerSerial;
+    developerButtons();
+    text($("developer-feedback"), t(progress));
+    return api("/api/developer/ssh", data).then(function (result) {
+      renderDeveloper(result);
+      if (onSuccess) onSuccess();
+      notify(t(success));
+    }).catch(fail).then(function () {
+      developerPending = false;
+      developerButtons();
+      text($("developer-feedback"), "");
+    });
+  }
   function saveDeveloperPassword(initial) {
+    if (developerPending) return;
     var p = $(initial ? "developer-new" : "developer-change-new");
     var r = $(initial ? "developer-repeat" : "developer-change-repeat");
+    if (!p.value || p.value !== r.value) {
+      notify(t("developer_password_mismatch")); return;
+    }
     var data = {action: initial ? "setup" : "change_password",
                 new_password: p.value, repeat_password: r.value};
     if (!initial) data.developer_password = $("developer-password").value;
     p.value = ""; r.value = ""; $("developer-password").value = "";
-    api("/api/developer/ssh", data).then(function () {
-      notify(t("developer_saved")); loadDeveloper();
-    }).catch(fail);
+    return developerAction(data, "developer_saving", "developer_saved");
   }
   function changeSSH(action) {
+    if (developerPending) return;
     var data = {action: action, developer_password: $("developer-password").value};
     $("developer-password").value = "";
-    api("/api/developer/ssh", data).then(loadDeveloper).catch(fail);
+    return developerAction(data, "ssh_updating", action === "enable" ? "ssh_enabled_notice" : "ssh_disabled_notice");
   }
   function changeSSHKey(action) {
+    if (developerPending) return;
     var data = {action: action, developer_password: $("developer-password").value};
     if (action === "add_key") {
       data.public_key = $("ssh-key-text").value;
       if (/PRIVATE KEY/.test(data.public_key)) { fail(new Error(t("ssh_key_invalid"))); return; }
-    }
-    else {
+    } else {
       data.fingerprint = $("ssh-key-list").value;
       if (!data.fingerprint) return;
     }
     $("developer-password").value = "";
-    api("/api/developer/ssh", data).then(function () {
+    return developerAction(data, "ssh_updating", action === "add_key" ? "ssh_key_added" : "ssh_key_removed", function () {
       $("ssh-key-text").value = ""; $("ssh-key-file").value = "";
-      loadDeveloper();
-    }).catch(fail);
+    });
   }
   function loadSettings() {
     loadDeveloper();
@@ -1310,6 +1352,7 @@
   }
 
   function bind() {
+    $("toast-close").addEventListener("click", dismissToast);
     if ($("core-slot-filter")) $("core-slot-filter").addEventListener("change", function () {
       pluginSlotFilter = this.value; renderCores();
     });

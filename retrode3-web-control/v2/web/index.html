@@ -118,7 +118,7 @@
 <button id="connect-wifi" class="btn primary" data-i18n="connect">Connect</button><p class="muted small" data-i18n="wifi_warning">Changing network settings may interrupt your connection.</p></div>
 <div class="panel"><h2 data-i18n="localization">Language &amp; time</h2><div class="keyval"><span data-i18n="device_time">Device time</span><strong id="device-time">…</strong></div><div class="keyval"><span data-i18n="timezone">Time zone</span><strong id="device-timezone">…</strong></div><p class="muted small" data-i18n="time_note">Time and time zone are currently read-only. Language files can be added without changing the backend.</p></div>
 <div id="developer-panel" class="panel" hidden><details><summary data-i18n="developer_title">Advanced / developer settings</summary>
-<p id="developer-locked" data-i18n="developer_locked">Connect directly via USB to set the root password first.</p>
+<p id="developer-feedback" class="muted small" role="status"></p><p id="developer-locked" data-i18n="developer_locked">Connect directly via USB to set the root password first.</p>
 <div id="developer-setup" hidden>
 <p class="muted small" data-i18n="developer_setup_note">Set the shared root/developer password. SSH remains off until you enable it.</p>
 <label for="developer-new" data-i18n="developer_new">New root password</label><input id="developer-new" type="password" autocomplete="new-password" maxlength="512">
@@ -166,5 +166,5 @@
 </div>
 </div>
 </section>
-<div id="toast" role="status" aria-live="polite"></div>
+<div id="toast"><span id="toast-message" role="status" aria-live="polite"></span><button id="toast-close" type="button" aria-label="Close notification" title="Close notification">×</button></div>
 </main></div></body></html>

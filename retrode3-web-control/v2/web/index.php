@@ -144,5 +144,5 @@ header("Content-Security-Policy: default-src 'self'; img-src 'self'; style-src '
 </div>
 </div>
 </section>
-<div id="toast" role="status" aria-live="polite"></div>
+<div id="toast"><span id="toast-message" role="status" aria-live="polite"></span><button id="toast-close" type="button" aria-label="Close notification" title="Close notification">×</button></div>
 </main></div></body></html>

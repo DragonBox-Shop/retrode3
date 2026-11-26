@@ -30,14 +30,34 @@ class SSHControlTests(unittest.TestCase):
         self.addCleanup(patcher.stop)
 
     def test_short_password(self):
-        with patch.object(ssh, "root_hash", return_value="$6$test$hash"), \
-             patch.object(ssh.subprocess, "run") as run:
+        saved = {}
+        def apply(args, **kwargs):
+            self.assertEqual(args, ["/usr/sbin/chpasswd", "-e"])
+            hashed = kwargs["input"].strip().split(":", 1)[1]
+            self.assertTrue(hashed.startswith("$6$"))
+            self.assertEqual(ssh.crypt.crypt("x", hashed), hashed)
+            saved["hash"] = hashed
+            return ssh.subprocess.CompletedProcess(args, 0)
+        with patch.object(ssh, "root_hash", side_effect=lambda: saved["hash"]), \
+             patch.object(ssh.subprocess, "run", side_effect=apply) as run:
             ssh.set_password({"new_password": "x", "repeat_password": "x"})
-            self.assertEqual(run.call_args.kwargs["input"], "root:x\n")
             for value in ("", "a\nb", "a\x00b"):
                 with self.assertRaises(ValueError):
                     ssh.set_password({"new_password": value, "repeat_password": value})
             self.assertEqual(run.call_count, 1)
+
+    def test_password_update_failure(self):
+        with patch.object(ssh.subprocess, "run",
+                          return_value=ssh.subprocess.CompletedProcess([], 1)):
+            with self.assertRaisesRegex(ValueError, "chpasswd exit code 1"):
+                ssh.set_password({"new_password": "x", "repeat_password": "x"})
+
+    def test_password_update_readback_mismatch(self):
+        with patch.object(ssh.subprocess, "run",
+                          return_value=ssh.subprocess.CompletedProcess([], 0)), \
+             patch.object(ssh, "root_hash", return_value="!"):
+            with self.assertRaisesRegex(ValueError, "could not be verified"):
+                ssh.set_password({"new_password": "x", "repeat_password": "x"})
 
     def test_keys_add_deduplicate_remove_preserve_other_entries(self):
         first, second = key(1), key(2)

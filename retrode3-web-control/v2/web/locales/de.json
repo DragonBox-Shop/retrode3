@@ -257,5 +257,13 @@
   "wifi_operation_failed": "WLAN-Vorgang fehlgeschlagen",
   "slot_disabled_count": "{count} deaktiviert",
   "core_filter_slot": "Nach Slot filtern",
-  "core_all_slots": "Alle Slots"
+  "core_all_slots": "Alle Slots",
+  "notification_close": "Meldung schließen",
+  "developer_saving": "Root-Passwort wird gespeichert …",
+  "developer_password_mismatch": "Bitte ein nichtleeres Passwort eingeben und identisch wiederholen.",
+  "ssh_updating": "SSH-Einstellungen werden gespeichert …",
+  "ssh_enabled_notice": "SSH wurde aktiviert.",
+  "ssh_disabled_notice": "SSH wurde deaktiviert.",
+  "ssh_key_added": "Public Key gespeichert.",
+  "ssh_key_removed": "Public Key entfernt."
 }
