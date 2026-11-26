@@ -189,8 +189,6 @@ class Handler(service.Handler):
         return True
 
     def _developer_ssh(self, data):
-        if not AUTH_FILE.is_file():
-            raise error(403, "developer_locked", "Configure a web password first")
         try:
             result = subprocess.run(
                 ["/usr/bin/sudo", "-n", "/usr/sbin/retrode3-ssh-control"],
@@ -249,10 +247,7 @@ class Handler(service.Handler):
             elif path == "/api/session":
                 self._session()
             elif path == "/api/developer/ssh":
-                if not AUTH_FILE.is_file():
-                    self._json(200, {"configured": False, "enabled": False, "running": False})
-                else:
-                    self._developer_ssh({"action": "status"})
+                self._developer_ssh({"action": "status"})
             else:
                 super().do_GET()
         except service.ApiError as exc:

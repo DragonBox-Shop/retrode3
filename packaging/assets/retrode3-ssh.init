@@ -12,7 +12,8 @@ PID=/run/retrode3-ssh.pid
 DAEMON=/usr/sbin/dropbear
 case "${1:-}" in
     start)
-        [ -f /etc/retrode3/ssh-enabled ] && [ -f /etc/retrode3-web-control.auth ] || exit 0
+        [ -f /etc/retrode3/ssh-enabled ] || exit 0
+        { [ -f /etc/retrode3-developer.auth ] || [ -f /etc/retrode3-web-control.auth ]; } || exit 0
         [ -x /usr/lib/openssh/sftp-server ] || exit 1
         [ -n "$(getent shadow root | cut -d: -f2 | grep -E '^\$[^!*]')" ] || exit 1
         install -d -o root -g root -m 0700 /etc/dropbear

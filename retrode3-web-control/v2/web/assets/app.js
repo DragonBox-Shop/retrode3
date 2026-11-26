@@ -1016,7 +1016,7 @@
     }).catch(fail);
   }
   function changeSSH(action) {
-    var data = {action: action, web_password: $("developer-password").value,
+    var data = {action: action, developer_password: $("developer-password").value,
                 ssh_password: $("ssh-password").value};
     $("developer-password").value = "";
     $("ssh-password").value = "";

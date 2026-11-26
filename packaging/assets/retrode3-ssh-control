@@ -10,18 +10,24 @@ import spwd
 import stat
 import subprocess
 import sys
+import time
 from pathlib import Path
 
-AUTH = Path("/etc/retrode3-web-control.auth")
+AUTH = Path("/etc/retrode3-developer.auth")
+WEB_AUTH = Path("/etc/retrode3-web-control.auth")
 MARKER = Path("/etc/retrode3/ssh-enabled")
 SERVICE = "/etc/init.d/retrode3-ssh"
 
+def auth_path():
+    return AUTH if os.path.lexists(AUTH) else WEB_AUTH
+
 def valid_auth():
     try:
-        st = AUTH.lstat()
+        path = auth_path()
+        st = path.lstat()
         return (stat.S_ISREG(st.st_mode) and st.st_uid == 0
                 and not st.st_mode & 0o022
-                and re.fullmatch(r"\$2[aby]\$\d\d\$[./A-Za-z0-9]{53}", AUTH.read_text().strip()))
+                and re.fullmatch(r"\$2[aby]\$\d\d\$[./A-Za-z0-9]{53}", path.read_text().strip()))
     except (OSError, UnicodeError):
         return False
 
@@ -49,14 +55,19 @@ def main():
             return {"configured": bool(valid_auth()),
                     "enabled": MARKER.is_file(), "running": run("status") == 0}
         if action not in ("enable", "disable") or not valid_auth():
-            raise ValueError("Developer access requires a configured web password")
-        password = data.get("web_password")
+            raise ValueError("Developer access requires a configured developer or web password")
+        password = data.get("developer_password")
         if not isinstance(password, str) or not 1 <= len(password.encode()) <= 72 or "\0" in password:
             raise ValueError("Invalid developer password")
-        stored = AUTH.read_text().strip()
+        failure = runtime / "last-failure"
+        if failure.exists() and time.monotonic() - float(failure.read_text()) < 3:
+            raise ValueError("Retry developer authentication after three seconds")
+        stored = auth_path().read_text().strip()
         check = crypt.crypt(password, stored)
         if not check or not hmac.compare_digest(check, stored):
+            failure.write_text(str(time.monotonic()))
             raise ValueError("Invalid developer password")
+        failure.unlink(missing_ok=True)
         if action == "disable":
             MARKER.unlink(missing_ok=True)
             if run("stop"):
