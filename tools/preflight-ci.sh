@@ -47,7 +47,9 @@ sh -n packaging/assets/retrode3-wlan.init
 sh -n packaging/assets/retrode3-wlan-dhcp-hook
 visudo -cf packaging/assets/retrode3-tools.sudoers
 python3 -m py_compile retrode3-tools/usr/local/bin/retrode3-wlan
-python3 -m py_compile packaging/assets/retrode3-ssh-control
+python3 -m py_compile packaging/assets/retrode3-ssh-control packaging/assets/retrode3-update-control
+visudo -cf packaging/assets/retrode3-update.sudoers
+node --check retrode3-web-control/v2/tests/test_frontend_update.js
 bash -n buildserver/build-image-from-packages.sh
 bash -n buildserver/run-image.sh
 python3 -m unittest discover -s image/tests -p 'test_publish_development_image.py' -v
@@ -69,6 +71,7 @@ node retrode3-web-control/v2/tests/test_frontend_slot_card.js
 node retrode3-web-control/v2/tests/test_frontend_slot_poll.js
 node retrode3-web-control/v2/tests/test_frontend_wifi_activity.js
 node retrode3-web-control/v2/tests/test_frontend_developer_feedback.js
+node retrode3-web-control/v2/tests/test_frontend_update.js
 node retrode3-web-control/v2/tests/test_documentation_links.js
 
 ! grep -Eq 'nes-choice|nes-manual-toggle|mapping-control|size-control' retrode3-web-control/v2/web/index.php

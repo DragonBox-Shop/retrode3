@@ -152,6 +152,11 @@ def worker(action, lock_fd, bus_fd):
                 raise ValueError("Web backend did not stop")
             # Never impose a timeout on a running dpkg transaction.
             command(base + ["-y", "--no-download", "install"] + targets, log)
+            for pkg in plan:
+                actual = capture(["/usr/bin/dpkg-query", "-W",
+                                  "-f=${db:Status-Status}\t${Version}", pkg["name"]])
+                if actual.strip() != "installed\t" + pkg["candidate"]:
+                    raise ValueError("Could not verify installed package: " + pkg["name"])
             save("restarting", plan)
             command([WEB, "start"], log, 30)
             stopped = False
@@ -184,16 +189,16 @@ def start(action):
         except BlockingIOError:
             raise ValueError("An update operation is already running") from None
         plan = state()
-        if action == "install":
-            if plan["phase"] != "available" or not plan["packages"]:
-                raise ValueError("Check for available updates first")
-            bus_fd = os.open(BUS, os.O_RDWR | os.O_NOFOLLOW)
-            if not stat.S_ISREG(os.fstat(bus_fd).st_mode):
-                raise ValueError("Invalid cartridge bus lock")
-            try:
-                fcntl.flock(bus_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
-            except BlockingIOError:
-                raise ValueError("Cartridge hardware busy; try again when idle") from None
+        if action == "install" and (plan["phase"] != "available" or not plan["packages"]):
+            raise ValueError("Check for available updates first")
+        # Even refreshing APT lists uses RAM; do not compete with a dump.
+        bus_fd = os.open(BUS, os.O_RDWR | os.O_NOFOLLOW)
+        if not stat.S_ISREG(os.fstat(bus_fd).st_mode):
+            raise ValueError("Invalid cartridge bus lock")
+        try:
+            fcntl.flock(bus_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            raise ValueError("Cartridge hardware busy; try again when idle") from None
         data = save("checking" if action == "check" else "downloading",
                     plan["packages"] if action == "install" else [])
         fds = (lock_fd,) if bus_fd < 0 else (lock_fd, bus_fd)

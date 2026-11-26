@@ -8,6 +8,7 @@ from __future__ import print_function
 
 import argparse
 import datetime
+import fcntl
 import json
 import os
 import re
@@ -55,13 +56,30 @@ UPDATE_STATE = '/run/retrode3-update/status.json'
 def update_status():
     try:
         with open(UPDATE_STATE, 'r') as stream:
-            return json.load(stream)
+            data = json.load(stream)
     except FileNotFoundError:
         return {'phase': 'idle', 'packages': [], 'message': ''}
+    if data['phase'] in ('checking', 'downloading', 'installing', 'restarting'):
+        try:
+            with open(os.path.join(os.path.dirname(UPDATE_STATE), 'lock'), 'r') as lock:
+                try:
+                    fcntl.flock(lock, fcntl.LOCK_SH | fcntl.LOCK_NB)
+                except BlockingIOError:
+                    return data
+                # Re-read after acquiring the lock: the worker may have just
+                # completed between the first read and the lock acquisition.
+                with open(UPDATE_STATE, 'r') as stream:
+                    data = json.load(stream)
+        except FileNotFoundError:
+            pass
+        if data['phase'] in ('checking', 'downloading', 'installing', 'restarting'):
+            return {'phase': 'failed', 'packages': data['packages'],
+                    'message': 'Update process interrupted; check package status before retrying.'}
+    return data
 
 
 def update_busy():
-    return update_status()['phase'] in ('downloading', 'installing', 'restarting')
+    return update_status()['phase'] in ('checking', 'downloading', 'installing', 'restarting')
 
 
 class ApiError(Exception):

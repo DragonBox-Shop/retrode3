@@ -233,10 +233,8 @@ class Handler(service.Handler):
         if not isinstance(data, dict) or set(data) != {"action"} or data["action"] not in ("check", "install"):
             raise error(400, "invalid_update", "Only check or install is supported")
         with service.MANAGER.lock:
-            if data["action"] == "install" and (service.MANAGER.active is not None or
-                    not service.MANAGER.bus_lock.acquire(False)):
+            if service.MANAGER.active is not None or not service.MANAGER.bus_lock.acquire(False):
                 raise error(409, "busy", "Cartridge hardware busy")
-            reserved = data["action"] == "install"
             try:
                 result = subprocess.run(
                     ["/usr/bin/sudo", "-n", "/usr/sbin/retrode3-update-control"],
@@ -245,8 +243,7 @@ class Handler(service.Handler):
             except (OSError, ValueError, subprocess.SubprocessError):
                 raise error(503, "update_unavailable", "Update control unavailable")
             finally:
-                if reserved:
-                    service.MANAGER.bus_lock.release()
+                service.MANAGER.bus_lock.release()
             if result.returncode:
                 raise error(409, "update_failed", body.get("error", "Update control failed"))
         self._json(202, body)

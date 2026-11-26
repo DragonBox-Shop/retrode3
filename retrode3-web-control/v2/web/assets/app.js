@@ -168,7 +168,7 @@
   }
   function hardwareBusy() {
     return resuming || Boolean(activeJob || (slotData && slotData.busy_job)) ||
-      (typeof updateState !== "undefined" && updateState && ["downloading", "installing", "restarting"].indexOf(updateState.phase) !== -1);
+      (typeof updateState !== "undefined" && updateState && ["checking", "downloading", "installing", "restarting"].indexOf(updateState.phase) !== -1);
   }
   function isWriterJob(job) {
     return !!job && ["probe_flash", "write_flash", "verify_flash", "flash_operation"].indexOf(job.command) !== -1;
@@ -1317,7 +1317,7 @@
       list.appendChild(row);
     });
     var busy = updatePending || updateInProgress(data);
-    $("update-check").disabled = busy;
+    $("update-check").disabled = busy || hardwareBusy();
     $("update-install").disabled = busy || data.phase !== "available" || hardwareBusy();
     renderReaderState();
     renderCores();
@@ -1334,7 +1334,7 @@
       renderUpdate(data);
       if (wasInstalling && data.phase === "done") {
         // Reload new frontend after its backend and assets were replaced.
-        notify(t("update_done"));
+        try { sessionStorage.setItem("retrode3-update-complete", "1"); } catch (_) {}
         window.location.reload();
       }
     }).catch(function (err) {
@@ -1350,7 +1350,7 @@
   }
   function startUpdate(action) {
     if (updatePending || updateInProgress(updateState)) return;
-    if (action === "install" && (hardwareBusy() || !confirm(t("update_confirm")))) return;
+    if (hardwareBusy() || (action === "install" && !confirm(t("update_confirm")))) return;
     updatePending = true;
     if (updateTimer !== null) { clearTimeout(updateTimer); updateTimer = null; }
     $("update-check").disabled = $("update-install").disabled = true;
@@ -1561,6 +1561,12 @@
     var saved = (navigator.language || "").toLowerCase().indexOf("de") === 0 ? "de" : "en";
     setLocale(saved);
     loadCores();
+    try {
+      if (sessionStorage.getItem("retrode3-update-complete") === "1") {
+        sessionStorage.removeItem("retrode3-update-complete");
+        showTab("settings");
+      }
+    } catch (_) {}
     pollUpdate();
     loadCapabilities().then(resumeJob);
     window.setInterval(refreshSlots, 1500);
