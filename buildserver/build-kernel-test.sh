@@ -89,7 +89,10 @@ if (root / "effective.config").is_file():
 hashes = {}
 for p in files:
     with p.open("rb") as f:
-        hashes[p.name] = hashlib.file_digest(f, "sha256").hexdigest()
+        h = hashlib.sha256()
+        for chunk in iter(lambda: f.read(1024 * 1024), b""):
+            h.update(chunk)
+        hashes[p.name] = h.hexdigest()
 doc = dict(schema=1, kind="kernel-test", commit=commit, version=version,
            kernel_release=release, builder_image_id=image, recipe_sha256=recipe,
            apt_published=False, hardware_accepted=False, files=hashes)
