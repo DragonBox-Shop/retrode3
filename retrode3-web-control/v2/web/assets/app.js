@@ -1165,7 +1165,10 @@
   }
   function changeSSHKey(action) {
     var data = {action: action, developer_password: $("developer-password").value};
-    if (action === "add_key") data.public_key = $("ssh-key-text").value;
+    if (action === "add_key") {
+      data.public_key = $("ssh-key-text").value;
+      if (/PRIVATE KEY/.test(data.public_key)) { fail(new Error(t("ssh_key_invalid"))); return; }
+    }
     else {
       data.fingerprint = $("ssh-key-list").value;
       if (!data.fingerprint) return;

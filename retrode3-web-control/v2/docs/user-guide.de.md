@@ -104,3 +104,8 @@ Die [ausführliche Entwickleranleitung](developer-guide.de.md) beschreibt den in
 - [Technischer Web-v2-/CLI-Vertrag](cli-integration.md)
 
 Der neue Web-v2-Quellstand liegt auf `master`. Debian-Paketkandidaten werden getrennt auf `develop` getestet; ein freigegebener Quellstand ist noch kein vollständig geprüftes Kunden-SD-Image.
+
+
+## SSH und Public Keys
+
+Unter Einstellungen > Erweiterte Einstellungen / Entwickler kannst Du bei der Ersteinrichtung per USB ein beliebiges nichtleeres Root-Passwort setzen. SSH bleibt standardmäßig ausgeschaltet. Nach Bestätigung des Root-Passworts kannst Du SSH aktivieren sowie öffentliche SSH-Schlüssel aus einer .pub-Datei oder per Einfügen hinzufügen und anhand ihres Fingerabdrucks entfernen. Private Schlüssel bleiben auf Deinem Rechner. Schlüssel erlauben die SSH-Anmeldung ohne Root-Passworteingabe; das Root-Passwort bleibt für Änderungen der Entwicklereinstellungen erforderlich.

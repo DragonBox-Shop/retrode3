@@ -102,3 +102,8 @@ The [full developer guide](developer-guide.en.md) documents the interactive NDJS
 - [Web v2 / CLI integration contract](cli-integration.md)
 
 Web v2 source has been promoted to `master`. Debian package candidates are tested separately on `develop`; source promotion does not imply a fully verified customer SD image.
+
+
+## SSH and public keys
+
+Under Settings > Advanced / developer settings, use a direct USB connection for first setup and choose a non-empty root password. SSH is off by default. Confirm the root password to enable SSH, add a public SSH key by pasting it or selecting a .pub file, or remove a key by its fingerprint. Keep private keys on your computer. Public-key SSH login does not require the root password; changes to developer settings still do.
