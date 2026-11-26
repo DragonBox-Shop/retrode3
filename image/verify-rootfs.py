@@ -68,6 +68,10 @@ def verify(root, with_retrode3=False):
     inittab = (root / "etc/inittab").read_text(encoding="utf-8")
     if not re.search(r"^id:2:initdefault:", inittab, re.MULTILINE):
         raise ValueError("missing SysV runlevel")
+    for level in (0, 2, 6):
+        entry = "l{0}:{0}:wait:/etc/init.d/rc {0}".format(level)
+        if entry not in inittab.splitlines():
+            raise ValueError("missing SysV runlevel action: " + entry)
     if "ttyS2" not in inittab:
         raise ValueError("missing serial console")
     fstab = (root / "etc/fstab").read_text(encoding="utf-8")

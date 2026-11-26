@@ -114,7 +114,9 @@ EOF
 cat > "$root/etc/inittab" <<'EOF'
 id:2:initdefault:
 si::sysinit:/etc/init.d/rcS
+l0:0:wait:/etc/init.d/rc 0
 l2:2:wait:/etc/init.d/rc 2
+l6:6:wait:/etc/init.d/rc 6
 ca:12345:ctrlaltdel:/sbin/shutdown -r now
 s2:2345:respawn:/sbin/getty -L 115200 ttyS2 vt102
 EOF
