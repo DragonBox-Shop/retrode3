@@ -120,6 +120,35 @@ def command(args, log, timeout=None):
         raise ValueError("Package command failed (exit %d); see /var/log/retrode3-update.log" % result.returncode)
 
 
+def sync_clock(log):
+    """Best-effort NTP recovery before network APT operations.
+
+    A valid RTC may already provide correct time without an NTP server.
+    Never bypass APT's own signed Release date or TLS checks.
+    """
+    def chrony(*args, timeout=3):
+        try:
+            return subprocess.run(["/usr/bin/chronyc", "-n", *args],
+                                  stdin=subprocess.DEVNULL, stdout=log,
+                                  stderr=subprocess.STDOUT, env=ENV,
+                                  timeout=timeout).returncode == 0
+        except (OSError, subprocess.TimeoutExpired):
+            return False
+
+    log.write(b"Checking clock synchronization before APT...\n")
+    log.flush()
+    if chrony("waitsync", "1", "1.0", "0", "1"):
+        return
+    # The WLAN/DNS may not have been ready when chronyd started.
+    chrony("refresh")
+    chrony("online")
+    chrony("burst", "4/4")
+    if not chrony("waitsync", "15", "1.0", "0", "1", timeout=20):
+        log.write(b"WARNING: NTP synchronization not confirmed; "
+                  b"continuing with normal APT time validation.\n")
+        log.flush()
+
+
 def worker(action, lock_fd, bus_fd):
     stopped = False
     plan = []
@@ -129,6 +158,7 @@ def worker(action, lock_fd, bus_fd):
         with os.fdopen(fd, "wb") as log:
             os.fchmod(log.fileno(), 0o600)
             if action == "check":
+                sync_clock(log)
                 command(base + ["-o", "APT::Update::Error-Mode=any", "update"], log, 180)
                 plan = simulate(base, installed())
                 save("available" if plan else "current", plan)
@@ -140,6 +170,7 @@ def worker(action, lock_fd, bus_fd):
             if simulate(base, targets) != plan:
                 raise ValueError("Exact update plan changed. Check again.")
             save("downloading", plan)
+            sync_clock(log)
             command(base + ["-y", "--download-only", "install"] + targets, log, 600)
             if simulate(base, targets) != plan:
                 raise ValueError("Update plan changed after download")
