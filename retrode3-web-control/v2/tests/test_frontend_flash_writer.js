@@ -39,7 +39,7 @@ const vm = require("vm");
       manufacturer_id: 127, device_id: 8953,
       capacity_bytes: 4194304, sector_count: 71
     }},
-    activeJob: null, csrf: "csrf", writerSourcePath: "MD/game.md",
+    activeJob: null, direct: false, csrf: "csrf", writerSourcePath: "MD/game.md",
     writerUploading: false, writerUploadSerial: 0,
     t: key => key, humanSize: n => n + " bytes",
     text: (element, v) => {element.textContent = String(v);},
@@ -131,6 +131,17 @@ const vm = require("vm");
   assert.strictEqual(ctx.writerSourcePath, "MD/uploaded.md");
   assert.strictEqual(el["writer-start"].disabled, true,
     "uploaded file must not bypass chip identification");
+
+  // Direct mode sends the browser File as the body, without multipart.
+  ctx.direct = true;
+  ctx.uploadWriterFile();
+  await new Promise(resolve => setImmediate(resolve));
+  assert.strictEqual(uploaded.url, "/api/files/upload?folder=MD&filename=game.md");
+  assert.strictEqual(uploaded.options.body, el["writer-file"].files[0]);
+  assert.strictEqual(uploaded.options.headers["Content-Type"], "application/octet-stream");
+  assert.strictEqual(uploaded.options.headers["X-CSRF-Token"], "csrf");
+  assert.strictEqual(ctx.writerSourcePath, "MD/uploaded.md");
+  assert.strictEqual(el["writer-start"].disabled, true);
 
   // The browser displays the monotonic-CLI throughput, rather than
   // guessing from network or polling delays.
