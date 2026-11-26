@@ -52,6 +52,9 @@ visudo -cf packaging/assets/retrode3-update.sudoers
 node --check retrode3-web-control/v2/tests/test_frontend_update.js
 bash -n buildserver/build-image-from-packages.sh
 bash -n buildserver/run-image.sh
+for script in auto-package.sh run-debs.sh publish-debs.sh package-develop-all.sh install-launchers.sh; do
+    bash -n "buildserver/$script"
+done
 python3 -m unittest discover -s image/tests -p 'test_publish_development_image.py' -v
 python3 -m unittest discover -s image/tests -p 'test_finalize_apt.py' -v
 python3 -m unittest discover -s image/tests -p 'test_verify_memory_service.py' -v
