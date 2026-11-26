@@ -27,11 +27,11 @@ Keine zweite native Reader-Implementierung in diesem Repo anlegen.
   Das Build-Manifest fixiert OS-, OSCR-, Sanni- und Plattform-Revisionen
   sowie Paketpruefsummen. Image-Builds verlangen weiterhin beide Release-Tags.
 - Danach folgen Paketinstallation, Updates, Rollback und Hardwaretests.
-  **Erst nach ausfuehrlicher Abnahme kommt genau der getaggte Stand in
+  **Erst nach ausfuehrlicher Abnahme kommt genau der getestete Stand in
   `master`**, nicht der inzwischen weitergewanderte `develop`-HEAD.
   `master` muss stets ein funktionsfaehiger, getesteter Release-Stand sein.
-  Wenn der Tag in der Master-Historie vorwaerts integrierbar ist,
-  Fast-Forward bevorzugen, damit Master-Commit und Tag identisch bleiben.
+  Wenn der getestete Commit in der Master-Historie vorwaerts integrierbar
+  ist, Fast-Forward bevorzugen. Tags sind fuer Images reserviert.
   Bei abweichender Historie zuerst explizit aufloesen, niemals blind
   zusammenfuehren, squaschen oder force-pushen.
 - **Keine dauerhaften Feature-/Plugin-Branches.** Kurzlebige Branches nur
