@@ -5,6 +5,8 @@ are experimental until hardware testing is complete.
 
 ## Unreleased
 
+- Automatically enable 32 MiB of compressed RAM swap during package upgrades and on boot, without a swapfile on the SD card or a dependency on procps.
+
 - Software updates now tolerate temporary web server interruptions, pause background cartridge polling during installation, and clearly display a green success message instead of leaving the package list visible. Unnecessary APT planner logging is disabled during web updates.
 
 ## 2026.11.26-rc5

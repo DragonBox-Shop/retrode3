@@ -51,6 +51,7 @@ TOOL_FILES = (
     ("retrode3-tools/usr/local/bin/retrode3-wlan",
      "usr/local/bin/retrode3-wlan", 0o755),
     ("packaging/assets/retrode3-wlan.init", "etc/init.d/retrode3-wlan", 0o755),
+    ("image/assets/retrode3-memory.init", "etc/init.d/retrode3-memory", 0o755),
     ("packaging/assets/retrode3-wlan-dhcp-hook", "usr/lib/retrode3/wlan-dhcp-hook", 0o755),
     ("packaging/assets/retrode3-tools.sudoers",
      "etc/sudoers.d/retrode3", 0o440),
@@ -388,7 +389,7 @@ def control_text(package, lock, native=None):
                 "sudo, passwd, adduser, init-system-helpers, dropbear-bin, openssh-sftp-server, apt")
     elif package == TOOLS:
         deps = ("bash, sudo, iw, iproute2, python3, wpasupplicant, isc-dhcp-client, "
-                "resolvconf, init-system-helpers, net-tools, wget, unzip")
+                "resolvconf, init-system-helpers, net-tools, wget, unzip, kmod, util-linux, mount")
     elif package == UDEV:
         deps = ("udev, retrode3-core-runtime (>= " + native_version + ")")
     else:
@@ -478,7 +479,8 @@ def build_one(work, package, layout, lock, stage, epoch, native=None):
               "usr/sbin/retrode3-ssh-control", "etc/sudoers.d/retrode3-ssh",
               "usr/sbin/retrode3-update-control", "etc/sudoers.d/retrode3-update"),
         TOOLS: ("usr/local/bin/retrode3-admin", "usr/local/bin/retrode3-wlan",
-                "etc/init.d/retrode3-wlan", "usr/lib/retrode3/wlan-dhcp-hook"),
+                "etc/init.d/retrode3-wlan", "usr/lib/retrode3/wlan-dhcp-hook",
+                "etc/init.d/retrode3-memory"),
         UDEV: ("etc/udev/rules.d/70-retrode3-cartridge.rules",),
         META: ("usr/share/doc/retrode3-cores/README",),
     }

@@ -2,4 +2,10 @@
 set -e
 if [ "$1" = configure ]; then
     update-rc.d retrode3-wlan defaults
+    update-rc.d retrode3-memory defaults
+    # Respect policy-rc.d in offline image builds. Older target kernels may
+    # not support zram; do not fail an otherwise valid package upgrade.
+    if ! invoke-rc.d retrode3-memory start; then
+        echo 'Warning: Retrode3 compressed swap could not be activated' >&2
+    fi
 fi

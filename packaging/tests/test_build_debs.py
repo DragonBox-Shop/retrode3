@@ -88,6 +88,7 @@ class TestPackaging(unittest.TestCase):
                 elif name == pkg.TOOLS:
                     self.assertIn("./usr/local/bin/retrode3-admin", contents)
                     self.assertIn("./usr/local/bin/retrode3-wlan", contents)
+                    self.assertIn("./etc/init.d/retrode3-memory", contents)
                     self.assertIn("./etc/sudoers.d/retrode3", contents)
                     self.assertIn("Architecture: all", info)
                     self.assertNotIn("letux-config-etc", info)

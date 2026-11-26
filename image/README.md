@@ -14,7 +14,7 @@ the production Retrode3. No block-device access or SD writing is implemented.
 - No running SSH server, Web UI, cartridge cores, developer tools or rsyslog in base.
   The small dropbear-bin package is present but never starts without an
   explicitly provisioned SSH public key in a test image.
-- No SD swapfile. zram and RAM-only diagnostics follow after RAM measurements.
+- No SD swapfile. Package images use 32 MiB LZO-RLE compressed swap, managed by retrode3-tools.
 
 The normal Web UI will be optionally password-free. Developer settings
 will always require a configured administrator password and independent,
@@ -185,7 +185,7 @@ Module.symvers/config and a real Retrode3 board boot.
    modifications on the development Retrode.
 4. Install and test signed Retrode3 APT packages and Web stack.
 5. Implement secure first-run admin provisioning, developer settings,
-   optional SSH, bounded in-RAM logs and a measured zram policy.
+   optional SSH and bounded in-RAM logs; compressed swap is managed by retrode3-tools.
 6. Plan independent security maintenance for Debian 12/MIPSEL:
    this architecture has no official Debian LTS security coverage.
 7. Verify cold boot and rollback using a **separate** SD card.

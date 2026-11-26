@@ -3,6 +3,7 @@
 # Provides:          retrode3-memory
 # Required-Start:    $local_fs
 # Required-Stop:     $local_fs
+# X-Start-Before:    retrode3-web-v2 retrode3-wlan
 # Default-Start:     2 3 4 5
 # Default-Stop:      0 1 6
 # Short-Description: Compressed swap for Retrode3
@@ -11,21 +12,34 @@ set -eu
 Z=/sys/block/zram0
 case "${1:-}" in
     start)
-        sysctl -w vm.watermark_boost_factor=0 vm.swappiness=100
-        if grep -q '^/dev/zram0 ' /proc/swaps; then exit 0; fi
-        modprobe zram num_devices=1
-        [ -b /dev/zram0 ] && [ -w "$Z/disksize" ] || exit 1
-        [ "$(cat "$Z/disksize")" = 0 ] || exit 1
-        echo lzo-rle > "$Z/comp_algorithm"
-        echo 32M > "$Z/disksize"
-        if ! mkswap /dev/zram0 || ! swapon -p 100 /dev/zram0; then
-            echo 1 > "$Z/reset"
-            exit 1
+        # Do not touch any pre-existing swap configuration or reset an
+        # active/initialized device. devtmpfs may populate the node slightly
+        # after modprobe returns.
+        if ! grep -q '^/dev/zram0[[:space:]]' /proc/swaps; then
+            modprobe zram num_devices=1
+            for attempt in 1 2 3 4 5; do
+                if [ -b /dev/zram0 ] && [ -w "$Z/disksize" ]; then break; fi
+                sleep 1
+            done
+            [ -b /dev/zram0 ] && [ -w "$Z/disksize" ] || exit 1
+            [ "$(cat "$Z/disksize")" = 0 ] || exit 1
+            echo lzo-rle > "$Z/comp_algorithm"
+            echo 33554432 > "$Z/disksize"
+            if ! mkswap /dev/zram0 || ! swapon -p 100 /dev/zram0; then
+                # Only reset the device initialized by this invocation.
+                if ! grep -q '^/dev/zram0[[:space:]]' /proc/swaps; then
+                    echo 1 > "$Z/reset"
+                fi
+                exit 1
+            fi
         fi
+        # Minimal Bookworm deliberately has no procps/sysctl.
+        echo 0 > /proc/sys/vm/watermark_boost_factor
+        echo 100 > /proc/sys/vm/swappiness
         ;;
     stop)
         # Shutdown handles swap. Avoid swapoff under memory pressure.
         ;;
-    status) grep -q '^/dev/zram0 ' /proc/swaps ;;
+    status) grep -q '^/dev/zram0[[:space:]]' /proc/swaps ;;
     *) echo "Usage: $0 {start|stop|status}" >&2; exit 2 ;;
 esac

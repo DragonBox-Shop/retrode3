@@ -1,5 +1,8 @@
 #!/bin/sh
 set -e
 case "$1" in
-    remove|deconfigure) invoke-rc.d retrode3-wlan stop ;;
+    remove|deconfigure)
+        invoke-rc.d retrode3-wlan stop
+        invoke-rc.d retrode3-memory stop
+        ;;
 esac
