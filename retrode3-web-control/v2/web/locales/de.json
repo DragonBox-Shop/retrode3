@@ -208,5 +208,12 @@
   "writer_not_verified_hint": "Verify ist deaktiviert: Der Inhalt wird nach dem Vorgang nicht vollständig geprüft.",
   "writer_finished_unverified": "Vorgang abgeschlossen, nicht verifiziert.",
   "writer_verify_pass": "Verify-Durchlauf",
-  "writer_verify_passes_label": "Durchläufe"
+  "writer_verify_passes_label": "Durchläufe",
+  "developer_title": "Entwicklereinstellungen",
+  "developer_locked": "Zuerst ein Webpasswort einrichten (derzeit über die serielle Konsole).",
+  "ssh_warning": "SSH erlaubt Root-Zugriff über alle Netzwerkschnittstellen. Nur in vertrauenswürdigen Netzen verwenden. Das neue Passwort gilt auch für die Root-Konsole. HTTP überträgt Passwörter unverschlüsselt.",
+  "developer_password": "Webpasswort bestätigen",
+  "ssh_password": "Neues Root-SSH-Passwort (12-72 Bytes)",
+  "ssh_enable": "SSH aktivieren",
+  "ssh_disable": "SSH deaktivieren"
 }

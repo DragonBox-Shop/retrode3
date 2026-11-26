@@ -1004,7 +1004,26 @@
       fail(error);
     });
   }
+  function loadDeveloper() {
+    if (!direct || !$("developer-panel")) return;
+    $("developer-panel").hidden = false;
+    api("/api/developer/ssh").then(function (data) {
+      $("developer-locked").hidden = data.configured;
+      $("developer-controls").hidden = !data.configured;
+      text($("ssh-status"), data.running ? t("status_connected") : t("status_disconnected"));
+      $("ssh-enable").disabled = data.running;
+      $("ssh-disable").disabled = !data.enabled && !data.running;
+    }).catch(fail);
+  }
+  function changeSSH(action) {
+    var data = {action: action, web_password: $("developer-password").value,
+                ssh_password: $("ssh-password").value};
+    $("developer-password").value = "";
+    $("ssh-password").value = "";
+    api("/api/developer/ssh", data).then(loadDeveloper).catch(fail);
+  }
   function loadSettings() {
+    loadDeveloper();
     loadCores();
     api("/api/settings").then(function (data) {
       text($("device-time"), data.time); text($("device-timezone"), data.timezone);
@@ -1023,6 +1042,10 @@
     }).catch(fail);
   }
   function bind() {
+    if (direct && $("ssh-enable")) {
+      $("ssh-enable").addEventListener("click", function () { changeSSH("enable"); });
+      $("ssh-disable").addEventListener("click", function () { changeSSH("disable"); });
+    }
     $("locale").addEventListener("change", function () { setLocale(this.value); });
     $("refresh-cores").addEventListener("click", loadCores);
     document.querySelectorAll(".tab").forEach(function (tab) {

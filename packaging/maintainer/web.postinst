@@ -42,6 +42,7 @@ case "${1:-}" in
         else
             ln -s ../conf-available/99-retrode3-lighttpd.conf "$link"
         fi
+        update-rc.d retrode3-ssh defaults
         update-rc.d retrode3-web-v2 defaults
         # invoke-rc.d respects policy-rc.d in offline Bookworm image chroots.
         # Running hardware still gets ordinary SysV starts/restarts.

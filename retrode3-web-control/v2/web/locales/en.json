@@ -208,5 +208,12 @@
   "writer_not_verified_hint": "Verify is disabled: the cartridge content will not be fully checked.",
   "writer_finished_unverified": "Operation finished, not verified.",
   "writer_verify_pass": "Verify pass",
-  "writer_verify_passes_label": "passes"
+  "writer_verify_passes_label": "passes",
+  "developer_title": "Developer settings",
+  "developer_locked": "Configure a web password first (currently via the serial console).",
+  "ssh_warning": "SSH provides root access on all network interfaces. Use only a trusted network. The new password also applies to the root console. HTTP transmits passwords unencrypted.",
+  "developer_password": "Confirm web password",
+  "ssh_password": "New root SSH password (12-72 bytes)",
+  "ssh_enable": "Enable SSH",
+  "ssh_disable": "Disable SSH"
 }

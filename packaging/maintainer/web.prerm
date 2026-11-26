@@ -2,6 +2,8 @@
 set -e
 case "${1:-}" in
     remove|deconfigure)
+        rm -f /etc/retrode3/ssh-enabled
+        if [ -x /etc/init.d/retrode3-ssh ]; then /etc/init.d/retrode3-ssh stop; fi
         if [ -x /etc/init.d/retrode3-web-v2 ]; then
             /etc/init.d/retrode3-web-v2 stop
         fi

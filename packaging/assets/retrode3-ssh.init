@@ -1,0 +1,30 @@
+#!/bin/sh
+### BEGIN INIT INFO
+# Provides:          retrode3-ssh
+# Required-Start:    $local_fs $network
+# Required-Stop:     $local_fs $network
+# Default-Start:     2 3 4 5
+# Default-Stop:      0 1 6
+# Short-Description: Optional Retrode3 developer SSH
+### END INIT INFO
+set -eu
+PID=/run/retrode3-ssh.pid
+DAEMON=/usr/sbin/dropbear
+case "${1:-}" in
+    start)
+        [ -f /etc/retrode3/ssh-enabled ] && [ -f /etc/retrode3-web-control.auth ] || exit 0
+        [ -x /usr/lib/openssh/sftp-server ] || exit 1
+        [ -n "$(getent shadow root | cut -d: -f2 | grep -E '^\$[^!*]')" ] || exit 1
+        install -d -o root -g root -m 0700 /etc/dropbear
+        if "$0" status; then exit 0; fi
+        "$DAEMON" -R -j -k -p 22 -P "$PID"
+        ;;
+    stop)
+        start-stop-daemon --stop --pidfile "$PID" --exec "$DAEMON" --retry TERM/5/KILL/2 --oknodo
+        rm -f "$PID"
+        ;;
+    status)
+        start-stop-daemon --stop --test --quiet --pidfile "$PID" --exec "$DAEMON" ;;
+    restart|force-reload) "$0" stop; "$0" start ;;
+    *) exit 2 ;;
+esac

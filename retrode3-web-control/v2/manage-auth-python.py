@@ -7,6 +7,7 @@ import grp
 import os
 from pathlib import Path
 import sys
+import subprocess
 import tempfile
 
 AUTH = Path("/etc/retrode3-web-control.auth")
@@ -23,6 +24,9 @@ def main():
               else "Password protection is disabled (default).")
         return
     if args.action == "disable":
+        Path("/etc/retrode3/ssh-enabled").unlink(missing_ok=True)
+        if Path("/etc/init.d/retrode3-ssh").is_file():
+            subprocess.run(["/etc/init.d/retrode3-ssh", "stop"], check=True)
         AUTH.unlink(missing_ok=True)
         print("Password protection disabled.")
         return

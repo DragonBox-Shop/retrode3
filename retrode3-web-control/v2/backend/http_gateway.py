@@ -13,6 +13,7 @@ import re
 import secrets
 import socket
 import stat
+import subprocess
 import threading
 from http.cookies import SimpleCookie, CookieError
 from pathlib import Path
@@ -187,6 +188,20 @@ class Handler(service.Handler):
                 raise error(400, "invalid_length", "Invalid request framing")
         return True
 
+    def _developer_ssh(self, data):
+        if not AUTH_FILE.is_file():
+            raise error(403, "developer_locked", "Configure a web password first")
+        try:
+            result = subprocess.run(
+                ["/usr/bin/sudo", "-n", "/usr/sbin/retrode3-ssh-control"],
+                input=service.json.dumps(data), text=True, capture_output=True, timeout=45)
+            body = service.json.loads(result.stdout)
+        except (OSError, ValueError, subprocess.SubprocessError):
+            raise error(503, "ssh_unavailable", "SSH control unavailable")
+        if result.returncode:
+            raise error(403, "ssh_failed", body.get("error", "SSH control failed"))
+        self._json(200, body)
+
     def _session(self):
         token = session_from_cookie(self.headers.get("Cookie", "")) or secrets.token_hex(32)
         body = service.json.dumps({"csrf": token}).encode("ascii")
@@ -233,6 +248,11 @@ class Handler(service.Handler):
                 self._index()
             elif path == "/api/session":
                 self._session()
+            elif path == "/api/developer/ssh":
+                if not AUTH_FILE.is_file():
+                    self._json(200, {"configured": False, "enabled": False, "running": False})
+                else:
+                    self._developer_ssh({"action": "status"})
             else:
                 super().do_GET()
         except service.ApiError as exc:
@@ -247,6 +267,8 @@ class Handler(service.Handler):
             url = urlsplit(self.path)
             if url.path == "/api/files/upload":
                 self._upload(url)
+            elif url.path == "/api/developer/ssh":
+                self._developer_ssh(self._body())
             else:
                 super().do_POST()
         except service.ApiError as exc:

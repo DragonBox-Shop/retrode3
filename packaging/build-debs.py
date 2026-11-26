@@ -67,11 +67,15 @@ WEB_EXTRA = (
      "etc/lighttpd/conf-available/99-retrode3-lighttpd.conf", 0o644),
     ("packaging/assets/retrode3-corectl.sudoers",
      "etc/sudoers.d/retrode3-corectl", 0o440),
+    ("packaging/assets/retrode3-ssh-control", "usr/sbin/retrode3-ssh-control", 0o755),
+    ("packaging/assets/retrode3-ssh.init", "etc/init.d/retrode3-ssh", 0o755),
+    ("packaging/assets/retrode3-ssh.sudoers", "etc/sudoers.d/retrode3-ssh", 0o440),
 )
 CONFFILES = {
     "retrode3-core-runtime": ("/etc/init.d/retrode3-core-runtime",),
     WEB: ("/etc/init.d/retrode3-web-v2", "/etc/default/retrode3-web-v2",
-          "/etc/sudoers.d/retrode3-corectl",
+          "/etc/sudoers.d/retrode3-corectl", "/etc/sudoers.d/retrode3-ssh",
+          "/etc/init.d/retrode3-ssh",
           "/etc/lighttpd/conf-available/99-retrode3-lighttpd.conf"),
     TOOLS: ("/etc/sudoers.d/retrode3",),
     UDEV: ("/etc/udev/rules.d/70-retrode3-cartridge.rules",)
