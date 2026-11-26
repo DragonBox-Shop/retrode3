@@ -3,7 +3,8 @@
   "use strict";
   var locale = "en", messages = {}, capabilities = null, activeJob = null;
   var fileFolder = "", jobTimer = null, slotData = null, slotFingerprint = null;
-  var selectedReader = "";
+  var selectedReader = "", currentPage = "reader", currentJob = null;
+  var slotPollSerial = 0, slotAppliedSerial = 0, resuming = true;
   var detectedBySlot = {}, probeTarget = null, autoNames = {};
   var manualReaderBySlot = {};
   var coreState = null, corePending = false, registryRevision = null;
@@ -85,11 +86,8 @@
     document.querySelectorAll(".page").forEach(function (el) {
       el.classList.toggle("active", el.id === id);
     });
-    if (id === "writer") {
-      $("writer-progress-anchor").appendChild($("job-panel"));
-    } else {
-      $("reader-progress-anchor").appendChild($("job-panel"));
-    }
+    currentPage = id;
+    syncJobPanel();
     if (id === "files") listFiles();
     if (id === "reader") loadCapabilities();
     if (id === "writer") renderWriterState();
@@ -146,16 +144,59 @@
     else if (genericWidget.active()) genericWidget.reset();
     renderReaderState();
   }
+  function busyJob() {
+    return activeJob ? currentJob : slotData && slotData.busy_job || null;
+  }
+  function hardwareBusy() {
+    return resuming || Boolean(activeJob || (slotData && slotData.busy_job));
+  }
+  function isWriterJob(job) {
+    return !!job && ["probe_flash", "write_flash", "verify_flash", "flash_operation"].indexOf(job.command) !== -1;
+  }
+  function jobTerminal(job) {
+    return !!job && ["done", "failed", "cancelled"].indexOf(job.status) !== -1;
+  }
+  function jobSlot(job) {
+    return job && (job.slot || (readerById(job.system) || {}).slot) || "";
+  }
+  function syncJobPanel() {
+    var job = currentJob, panel = $("job-panel");
+    if (!job) { panel.hidden = true; return; }
+    var writer = isWriterJob(job);
+    var show = writer ? currentPage === "writer" :
+      currentPage === "reader" && !jobTerminal(job) && jobSlot(job) === selectedSlotId();
+    // Writer keeps its terminal verification result, reader replaces progress
+    // with the slot-specific ROM result. Never move a read into the writer.
+    (writer ? $("writer-progress-anchor") : $("reader-progress-anchor")).appendChild(panel);
+    panel.hidden = !show;
+    $("cancel").disabled = !activeJob || activeJob === "pending" || jobTerminal(job);
+  }
+  function renderGlobalStatus() {
+    var job = busyJob(), busy = hardwareBusy(), status = $("global-job-status");
+    var label = job && job.command === "read_rom" ? t("read_busy") : t("hardware_busy");
+    var reader = job && readerById(job.system);
+    var progress = job && job.progress && job.progress.percent;
+    if (reader) label = reader.name + " · " + label;
+    if (typeof progress === "number" && isFinite(progress))
+      label += " · " + Math.floor(Math.max(0, Math.min(100, progress))) + "%";
+    status.hidden = !busy;
+    text($("global-job-label"), label);
+    $("global-job-cancel").hidden = !activeJob || activeJob === "pending" || !job || jobTerminal(job);
+    text($("read-busy-hint"), busy ? (job && job.command === "read_rom" ? t("read_busy_hint") : t("hardware_busy_hint")) : "");
+    $("read-busy-hint").hidden = !busy;
+  }
   function renderReaderState() {
     var reader = readerById(selectedReader);
     text($("selected-reader"), reader ? reader.name : t("choose_reader"));
     text($("reader-support"), reader ? reader.name : t("reader_unavailable"));
     var commands = reader && reader.capabilities && reader.capabilities.commands || [];
-    $("probe").disabled = !reader || commands.indexOf("probe") === -1 || Boolean(activeJob);
+    $("probe").disabled = !reader || commands.indexOf("probe") === -1 || hardwareBusy();
     $("read").disabled = !reader || commands.indexOf("read_rom") === -1 ||
-      Boolean(activeJob) || readerOptionsLoading || !genericSchema() ||
+      hardwareBusy() || readerOptionsLoading || !genericSchema() ||
       !genericWidget || !genericWidget.allowed();
     renderWriterState();
+    renderGlobalStatus();
+    syncJobPanel();
   }
   function selectReader(id) {
     var previous = selectedReader;
@@ -220,6 +261,36 @@
       box.appendChild(empty);
     }
     renderGenericOptions();
+    renderReadResult();
+  }
+  function renderReadResult() {
+    var box = $("slot-read-result");
+    box.innerHTML = "";
+    var slot = slotData && slotData.slots.filter(function (s) { return s.id === selectedSlotId(); })[0];
+    var result = slot && slot.status === "occupied" && slot.read_result;
+    box.hidden = !result || result.system !== selectedReader;
+    if (box.hidden) return;
+    var verification = result.verification || {};
+    var heading = document.createElement("strong");
+    heading.className = verification.status === "mismatch" ? "read-result-warning" : "read-result-ok";
+    text(heading, t(verification.status === "mismatch" ? "read_complete_mismatch" : "read_complete"));
+    box.appendChild(heading);
+    var fields = [["detected_title", result.title], ["filename", result.filename],
+      ["detected_size", result.size_bytes == null ? null : humanSize(result.size_bytes)],
+      ["read_crc32", result.crc32], ["read_verification", verification.status ? t("verification_" + verification.status) : t("verification_not_checked")],
+      ["read_layout", result.layout_id]];
+    if (verification.status === "mismatch" && verification.expected && verification.actual)
+      fields.push(["read_checksum_compare", verification.expected + " / " + verification.actual]);
+    if (result.read_configuration && typeof result.read_configuration === "object")
+      fields.push(["read_configuration", Object.keys(result.read_configuration).map(function (key) {
+        return key + ": " + result.read_configuration[key];
+      }).join(" · ")]);
+    fields.forEach(function (pair) {
+      if (pair[1] == null || pair[1] === "") return;
+      var row = document.createElement("div"), left = document.createElement("span"), right = document.createElement("strong");
+      row.className = "keyval"; text(left, t(pair[0])); text(right, pair[1]);
+      row.appendChild(left); row.appendChild(right); box.appendChild(row);
+    });
   }
   function voltageLabel(millivolts) {
     if (typeof millivolts !== "number" || !isFinite(millivolts) ||
@@ -319,6 +390,20 @@
           main.appendChild(voltageNotice);
         }
       }
+      var operation = busyJob();
+      if (operation && operation.command === "read_rom" && jobSlot(operation) === slot.id) {
+        var activity = document.createElement("small");
+        activity.className = "slot-read-busy";
+        text(activity, t("read_busy"));
+        main.appendChild(activity);
+      } else if (slot.status === "occupied" && slot.read_result &&
+                 (!identified || identified.reader.id === slot.read_result.system)) {
+        var complete = document.createElement("small");
+        var mismatch = (slot.read_result.verification || {}).status === "mismatch";
+        complete.className = mismatch ? "read-result-warning" : "read-result-ok";
+        text(complete, t(mismatch ? "read_complete_mismatch" : "read_complete"));
+        main.appendChild(complete);
+      }
       card.appendChild(main);
       var picker = null;
       if (manualChoice) {
@@ -333,7 +418,7 @@
         picker.id = pickerId;
         picker.className = "slot-manual-select";
         picker.setAttribute("data-slot", slot.id);
-        picker.disabled = Boolean(activeJob);
+        picker.disabled = hardwareBusy();
         var placeholder = document.createElement("option");
         placeholder.value = "";
         text(placeholder, t("slot_manual_placeholder"));
@@ -387,8 +472,10 @@
     });
   }
   function refreshSlots() {
+    var serial = ++slotPollSerial;
     return api("/api/slots").then(function (data) {
-      if (!data || !Array.isArray(data.slots)) return;
+      if (!data || !Array.isArray(data.slots) || serial < slotAppliedSerial) return;
+      slotAppliedSerial = serial;
       if (typeof data.registry_revision === "number") {
         var changed = registryRevision !== null && registryRevision !== data.registry_revision;
         registryRevision = data.registry_revision;
@@ -403,6 +490,7 @@
           if (!activeJob) probeTarget = null;
           if (genericWidget) genericWidget.reset();
           slotData = data;
+          adoptBusyJob(data);
           slotFingerprint = null;
           renderSelectedProbe();
           loadCores();
@@ -430,11 +518,12 @@
         }
       });
       slotData = data;
+      adoptBusyJob(data);
       var fingerprint = data.slots.map(function (slot) { return slot.id + ":" + slot.status; }).join("|");
       if (probeTarget && data.slots.some(function (slot) {
         return slot.id === probeTarget.slot && slot.status !== probeTarget.status;
       })) probeTarget = null;
-      if (fingerprint !== slotFingerprint && !activeJob) {
+      if (fingerprint !== slotFingerprint && !activeJob && !(data.busy_job && !data.busy_job.automatic)) {
         slotFingerprint = fingerprint;
         var occupied = data.slots.filter(function (slot) { return slot.status === "occupied"; });
         // Never implicitly select the first adapter for an unrecognized slot.
@@ -457,7 +546,7 @@
         var current = slot.detection || {};
         var previous = previousSlots.filter(function (entry) { return entry.id === slot.id; })[0];
         var prior = previous && previous.detection || {};
-        if (!activeJob && slot.status === "occupied" &&
+        if (!activeJob && !(data.busy_job && !data.busy_job.automatic) && slot.status === "occupied" &&
             current.state === "detected" && current.core_id && current.result &&
             current.result.system_detected !== false &&
             (prior.state !== "detected" || prior.core_id !== current.core_id ||
@@ -595,11 +684,11 @@
     var selected = erase || write || verify;
     var sourceReady = Boolean(writerSourcePath) && !writerUploading;
     var sourceRequired = write || verify;
-    $("writer-verify-passes").disabled = !verify || Boolean(activeJob);
+    $("writer-verify-passes").disabled = !verify || hardwareBusy();
     $("writer-detect").disabled = !flashSupports(reader, "probe_flash") ||
-      Boolean(activeJob);
+      hardwareBusy();
     $("writer-start").disabled = !writerIdentified || !selected || !validPasses ||
-      (sourceRequired && !sourceReady) || writerUploading || Boolean(activeJob) ||
+      (sourceRequired && !sourceReady) || writerUploading || hardwareBusy() ||
       !flashSupports(reader, "flash_operation");
     text($("writer-operation-hint"), !selected ? t("writer_choose_operation") :
       !validPasses ? t("writer_bad_passes") :
@@ -621,7 +710,7 @@
       text($("writer-upload-status"), t("writer_upload_bad_size"));
       return;
     }
-    if (activeJob || writerUploading) return;
+    if (hardwareBusy() || writerUploading) return;
     writerUploading = true;
     renderWriterState();
     text($("writer-upload-status"), t("writer_uploading"));
@@ -662,7 +751,7 @@
   }
   function startFlashJob(action) {
     var reader = flashReader();
-    if (!reader || !flashSupports(reader, action) || activeJob) return;
+    if (!reader || !flashSupports(reader, action) || hardwareBusy()) return;
     var payload = {system: reader.id, command: action};
     if (action === "probe_flash") {
       writerIdentified = null;
@@ -685,19 +774,11 @@
       // uploaded, erase just the sectors covering its length.
       if (writerSourcePath) payload.source = writerSourcePath;
     } else return;
-    renderWriterState();
-    api("/api/jobs", payload).then(function (job) {
-      activeJob = job.id;
-      $("job-panel").hidden = false;
-      $("cancel").disabled = false;
-      $("writer-progress-anchor").appendChild($("job-panel"));
-      renderJob(job);
-      renderWriterState();
-      schedulePoll();
-    }).catch(function (err) { renderWriterState(); fail(err); });
+    submitJob(payload, reader);
   }
   function startJob(command) {
     var reader = readerById(selectedReader);
+    if (hardwareBusy()) return;
     if (!reader || (reader.capabilities.commands || []).indexOf(command) === -1)
       return notify(t("choose_reader"));
     var payload = {system: selectedReader, command: command};
@@ -707,7 +788,6 @@
         return notify(t("generic_invalid"));
       payload.selection = genericWidget.selection();
     }
-    $("read").disabled = $("probe").disabled = true;
     if (command === "probe") {
       var target = selectedSlotId();
       probeTarget = target ? {slot: target, reader: selectedReader,
@@ -718,17 +798,7 @@
         renderSlots();
       }
     }
-    api("/api/jobs", payload).then(function (job) {
-      activeJob = job.id;
-      renderCores();
-      $("job-panel").hidden = false;
-      $("cancel").disabled = false;
-      renderJob(job);
-      schedulePoll();
-    }).catch(function (err) {
-      if (command === "probe") probeTarget = null;
-      $("read").disabled = $("probe").disabled = false; fail(err);
-    });
+    submitJob(payload, reader);
   }
   function renderJob(job) {
     var progress = job.progress || {};
@@ -856,20 +926,63 @@
       notify(t("cancelled"));
     }
   }
+  function adoptBusyJob(data) {
+    var job = data.busy_job;
+    if (!activeJob && job && !job.automatic && !jobTerminal(job)) {
+      activeJob = job.id;
+      currentJob = job;
+      // A browser opened during a read should see its correct slot by default.
+      if (!selectedReader && readerById(job.system)) selectReader(job.system);
+      renderJob(job);
+      schedulePoll();
+    }
+    renderReaderState();
+  }
+  function submitJob(payload, reader) {
+    // Set busy before POST; slot switching/polling cannot reopen the controls.
+    activeJob = "pending";
+    currentJob = {system: reader.id, slot: reader.slot, command: payload.command, status: "queued"};
+    if (payload.command === "read_rom" || payload.command === "write_flash" ||
+        payload.command === "flash_operation") {
+      var slot = slotData && slotData.slots.filter(function (s) { return s.id === reader.slot; })[0];
+      if (slot) slot.read_result = null;
+    }
+    renderJob(currentJob);
+    renderReaderState();
+    renderCores();
+    api("/api/jobs", payload).then(function (job) {
+      activeJob = job.id;
+      currentJob = job;
+      renderJob(job);
+      renderReaderState();
+      renderCores();
+      schedulePoll();
+    }).catch(function (err) {
+      activeJob = null;
+      currentJob = null;
+      if (payload.command === "probe") probeTarget = null;
+      renderReaderState(); renderCores();
+      refreshSlots(); fail(err);
+    });
+  }
   function schedulePoll() {
     if (jobTimer) clearTimeout(jobTimer);
     jobTimer = setTimeout(pollJob, 650);
   }
   function pollJob() {
-    if (!activeJob) return;
-    api("/api/jobs/" + activeJob).then(function (job) {
+    if (!activeJob || activeJob === "pending") return;
+    var id = activeJob;
+    api("/api/jobs/" + id).then(function (job) {
+      if (activeJob !== id) return;
+      currentJob = job;
       renderJob(job);
+      renderReaderState();
       if (["done", "failed", "cancelled"].indexOf(job.status) === -1) schedulePoll();
       else {
         activeJob = null;
+        if (!isWriterJob(job)) currentJob = null;
         renderCores();
-        renderWriterState();
-        $("cancel").disabled = true;
+        renderReaderState();
         loadCapabilities();
         loadCores();
       }
@@ -986,7 +1099,7 @@
           });
       });
       toggle.className = "btn secondary";
-      toggle.disabled = !coreState.control_enabled || corePending || Boolean(activeJob) ||
+      toggle.disabled = !coreState.control_enabled || corePending || hardwareBusy() ||
         (core.enabled ? ["ready", "discovered", "incompatible"].indexOf(core.status) === -1 :
                         core.status !== "disabled");
       card.appendChild(toggle);
@@ -1102,7 +1215,10 @@
       $(id).addEventListener("input", renderWriterState);
     });
     $("cancel").addEventListener("click", function () {
-      if (activeJob) api("/api/jobs/" + activeJob + "/cancel", {}).catch(fail);
+      if (activeJob && activeJob !== "pending") api("/api/jobs/" + activeJob + "/cancel", {}).catch(fail);
+    });
+    $("global-job-cancel").addEventListener("click", function () {
+      if (activeJob && activeJob !== "pending") api("/api/jobs/" + activeJob + "/cancel", {}).catch(fail);
     });
     $("refresh-files").addEventListener("click", listFiles);
     $("new-folder").addEventListener("click", function () {
@@ -1138,21 +1254,21 @@
     });
   }
   function resumeJob() {
-    api("/api/jobs/active").then(function (job) {
-      if (!job.id || job.automatic) return;
-      if (["probe_flash", "write_flash", "verify_flash", "flash_operation"].indexOf(job.command) !== -1) {
-        showTab("writer");
-        $("writer-system").value = job.system;
-      }
-      $("job-panel").hidden = false;
-      renderJob(job);
-      if (["done", "failed", "cancelled"].indexOf(job.status) === -1) {
+    return api("/api/jobs/active").then(function (job) {
+      if (!activeJob && job.id && !job.automatic && !jobTerminal(job)) {
         activeJob = job.id;
-        $("cancel").disabled = false;
-        $("read").disabled = $("probe").disabled = true;
+        currentJob = job;
+        if (isWriterJob(job)) {
+          showTab("writer");
+          $("writer-system").value = job.system;
+        } else if (readerById(job.system)) selectReader(job.system);
+        renderJob(job);
         schedulePoll();
-      } else $("cancel").disabled = true;
-    }).catch(function () { /* Older backends may not support /active. */ });
+      }
+    }).catch(fail).then(function () {
+      resuming = false;
+      renderReaderState();
+    });
   }
   function start() {
     bind();

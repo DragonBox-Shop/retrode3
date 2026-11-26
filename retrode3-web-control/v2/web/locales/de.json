@@ -220,5 +220,16 @@
   "developer_repeat": "Neues Passwort wiederholen",
   "developer_save": "Root-Passwort setzen",
   "developer_change": "Root-Passwort ändern",
-  "developer_saved": "Root-Passwort gespeichert."
+  "developer_saved": "Root-Passwort gespeichert.",
+  "read_busy": "ROM wird ausgelesen",
+  "hardware_busy": "Hardwarezugriff läuft",
+  "read_busy_hint": "Ein Auslesevorgang läuft bereits. Bitte warte, bis er beendet ist.",
+  "hardware_busy_hint": "Die Retrode3 ist beschäftigt. Weitere Hardwarezugriffe sind momentan gesperrt.",
+  "read_complete": "ROM ausgelesen",
+  "read_complete_mismatch": "ROM ausgelesen – Prüfsumme abweichend",
+  "read_crc32": "CRC32",
+  "read_verification": "Verifizierung",
+  "read_layout": "ROM-Layout",
+  "read_checksum_compare": "Erwartet / tatsächlich",
+  "read_configuration": "Lesekonfiguration"
 }

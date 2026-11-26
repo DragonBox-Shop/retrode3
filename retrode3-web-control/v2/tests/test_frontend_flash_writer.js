@@ -39,7 +39,8 @@ const vm = require("vm");
       manufacturer_id: 127, device_id: 8953,
       capacity_bytes: 4194304, sector_count: 71
     }},
-    activeJob: null, direct: false, csrf: "csrf", writerSourcePath: "MD/game.md",
+    activeJob: null, hardwareBusy: () => Boolean(ctx.activeJob),
+    submitJob: (data) => {sent = JSON.parse(JSON.stringify(data)); ctx.activeJob = "job";}, direct: false, csrf: "csrf", writerSourcePath: "MD/game.md",
     writerUploading: false, writerUploadSerial: 0,
     t: key => key, humanSize: n => n + " bytes",
     text: (element, v) => {element.textContent = String(v);},

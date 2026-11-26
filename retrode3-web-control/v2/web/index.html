@@ -20,6 +20,7 @@
 <button class="tab" data-tab="settings" data-i18n="settings">General Settings</button>
 <button class="tab" data-tab="help" data-i18n="help_tab">Help &amp; Documentation</button>
 </nav>
+<div id="global-job-status" class="global-job-status" hidden><strong id="global-job-label" role="status"></strong><button id="global-job-cancel" type="button" class="btn danger" data-i18n="cancel" hidden>Cancel</button></div>
 <main>
 <section id="reader" class="page active">
 <div class="section-head"><div><p class="eyebrow" data-i18n="reader_small">ROM DUMPING</p><h1 data-i18n="reader_title">Read your cartridge</h1><p class="muted" data-i18n="reader_desc">Detect a game and save a ROM dump to shared storage.</p></div></div>
@@ -32,6 +33,8 @@
 <p class="muted small" data-i18n="systems_note">Select an automatically identified cartridge, or choose its system directly in the occupied slot.</p>
 <button id="probe" class="btn secondary" data-i18n="detect">Detect cartridge</button>
 <div id="game-info" class="game-info"><p class="muted" data-i18n="not_detected">No cartridge examined yet.</p></div>
+<div id="slot-read-result" class="game-info slot-read-result" hidden></div>
+<div id="reader-progress-anchor"><div id="job-panel" class="job-panel" hidden><div class="progress-line"><strong id="job-label"></strong><div class="progress-numbers"><strong id="job-speed" class="job-speed" hidden></strong><span id="job-percent"></span></div></div><div class="progress"><div id="job-fill"></div></div><p id="job-detail" class="muted small"></p><p id="job-result-details" class="muted small" aria-live="polite"></p><button id="cancel" class="btn danger" data-i18n="cancel">Cancel</button></div></div>
 </div>
 <div class="panel"><h2 data-i18n="read_options">Read options</h2>
 <label for="filename" data-i18n="filename">File name</label><input id="filename" maxlength="64" value="SNES-Dump" autocomplete="off">
@@ -56,7 +59,7 @@
   </div>
 </div>
 <button id="read" class="btn primary" data-i18n="start_read">Read ROM</button>
-<div id="reader-progress-anchor"><div id="job-panel" class="job-panel" hidden><div class="progress-line"><strong id="job-label"></strong><div class="progress-numbers"><strong id="job-speed" class="job-speed" hidden></strong><span id="job-percent"></span></div></div><div class="progress"><div id="job-fill"></div></div><p id="job-detail" class="muted small"></p><p id="job-result-details" class="muted small" aria-live="polite"></p><button id="cancel" class="btn danger" data-i18n="cancel">Cancel</button></div></div>
+<p id="read-busy-hint" class="muted small" role="status" hidden></p>
 </div></div>
 </section>
 <section id="files" class="page"><p class="eyebrow" data-i18n="shared_storage">SHARED STORAGE</p><h1 data-i18n="files_title">Your game library</h1><p class="muted" data-i18n="files_desc">Browse, rename, move, download or delete ROM files in shared storage.</p>

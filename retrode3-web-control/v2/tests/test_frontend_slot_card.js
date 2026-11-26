@@ -51,7 +51,8 @@ const ctx = {
   readers: function () { return readers; },
   slotData: {slots: [slot]},
   detectedBySlot: {},
-  selectedReader: "md", activeJob: null,
+  selectedReader: "md", activeJob: null, hardwareBusy: () => Boolean(ctx.activeJob),
+  busyJob: () => null,
   manualReaderBySlot: {},
   selectReader: function (id) { chosen = id; ctx.selectedReader = id; },
   notify: function (message) { notices.push(message); }

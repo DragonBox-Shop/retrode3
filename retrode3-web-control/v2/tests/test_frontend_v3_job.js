@@ -16,6 +16,8 @@ const elements = {filename: {value: "Custom filename"}, read: {disabled: false},
   cancel: {disabled: true}};
 const ctx = {
   selectedReader: "future-core", activeJob: null,
+  hardwareBusy: () => false,
+  submitJob: (data) => {payload = data; created = true;},
   $: function (id) {return elements[id];},
   readerById: function (id) { return {id: id, slot: "md",
     capabilities: {commands: ["probe", "read_rom"]}}; },

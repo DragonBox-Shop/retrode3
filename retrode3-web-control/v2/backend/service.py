@@ -598,6 +598,7 @@ class Job(object):
         self.action = action
         self.label = label
         self.output = None
+        self.presence_generation = None
         self.status = "queued"
         self.events = []
         self.progress = None
@@ -611,7 +612,7 @@ class Job(object):
     def snapshot(self):
         with self.lock:
             return {"id": self.id, "command": self.action, "system": self.reader_id,
-                    "automatic": self.automatic,
+                    "automatic": self.automatic, "slot": self.reader.get("slot"),
                     "status": self.status, "events": self.events[-32:],
                     "progress": self.progress, "result": self.result,
                     "error": self.error, "output": self.output, "created": self.created}
@@ -784,6 +785,8 @@ class Job(object):
                             pass
                     process.stdout.close()
                 with self.manager.lock:
+                    if self.action == "read_rom" and self.status == "done":
+                        self.manager.remember_read(self)
                     if self.manager.active is self:
                         self.manager.active = None
 
@@ -794,6 +797,51 @@ class JobManager(object):
         self.active = None
         self.lock = threading.RLock()
         self.bus_lock = threading.Lock()
+        self.slot_presence = {}
+        self.read_results = {}
+
+    def observe_slot(self, slot_id, presence):
+        """Invalidate a result on every confirmed physical presence transition."""
+        with self.lock:
+            previous = self.slot_presence.get(slot_id)
+            if previous is None or previous[0] != presence:
+                self.slot_presence[slot_id] = (presence, uuid.uuid4().hex)
+                self.read_results.pop(slot_id, None)
+            return self.slot_presence[slot_id][1]
+
+    def remember_read(self, job):
+        # Only a physically occupied slot can retain a cartridge-specific
+        # result. A sense-independent header cannot prove continuous presence.
+        slot = job.reader["slot"]
+        current = next((s for s in slot_snapshot()["slots"] if s["id"] == slot), None)
+        with self.lock:
+            generation = self.observe_slot(slot, current["status"] if current else "unknown")
+            if not current or current["status"] != "occupied" or generation != job.presence_generation:
+                return
+            result = job.result or {}
+            identity = result.get("identity") or {}
+            verification = result.get("verification") or {}
+            self.read_results[slot] = {
+                "system": job.reader_id, "job_id": job.id,
+                "title": identity.get("title") or result.get("title"),
+                "filename": os.path.basename(job.output or ""),
+                "size_bytes": result.get("size_bytes", result.get("bytes_written",
+                    result.get("bytes", (job.progress or {}).get("bytes_total")))),
+                "crc32": result.get("crc32"), "layout_id": result.get("layout_id"),
+                "read_configuration": result.get("read_configuration"),
+                "verification": {k: verification.get(k) for k in
+                    ("status", "actual", "expected", "verified")},
+            }
+
+    def slot_job_state(self):
+        with self.lock:
+            job = self.active
+            if job is None:
+                return None
+            with job.lock:
+                return {"id": job.id, "system": job.reader_id, "slot": job.reader.get("slot"),
+                        "command": job.action, "status": job.status, "automatic": job.automatic,
+                        "progress": {"percent": (job.progress or {}).get("percent")}}
 
     def submit(self, data, automatic=False):
         reader_id = data.get("system")
@@ -881,6 +929,14 @@ class JobManager(object):
                              key=lambda j: j.created)
                 if old:
                     del self.jobs[old[0].id]
+            if action == "read_rom" or action in ("write_flash", "flash_operation"):
+                slot_id = cap["slot"]
+                current = next((s for s in slot_snapshot()["slots"] if s["id"] == slot_id), None)
+                job.presence_generation = self.observe_slot(
+                    slot_id, current["status"] if current else "unknown")
+                # A new dump or potentially destructive flash operation makes
+                # the previous completion marker no longer authoritative.
+                self.read_results.pop(slot_id, None)
             self.jobs[job.id] = job
             self.active = job
         thread = threading.Thread(target=job.run)
@@ -976,6 +1032,9 @@ class AutomaticDetection(object):
         with self.lock:
             self.registry_revision += 1
             self.fallback_slots = None
+            with self.manager.lock:
+                self.manager.read_results.clear()
+                self.manager.slot_presence.clear()
             for slot_id, record in list(self.records.items()):
                 if record["state"] == "detecting":
                     try:
@@ -1025,6 +1084,7 @@ class AutomaticDetection(object):
         current = next((s for s in slot_snapshot()["slots"] if s["id"] == slot_id), None)
         if current is None or current["status"] != expected:
             return
+        self.manager.observe_slot(slot_id, expected)
         if sense == "empty":
             self._cancel_removed_slot(slot_id)
         with self.lock:
@@ -1078,6 +1138,7 @@ class AutomaticDetection(object):
             for slot in slots:
                 slot_id = slot["id"]
                 status = slot["status"]
+                self.manager.observe_slot(slot_id, status)
                 record = self.records.get(slot_id)
                 if record is None or record["presence"] != status:
                     if status == "empty" and record and record["presence"] == "occupied":
@@ -1252,7 +1313,11 @@ class AutomaticDetection(object):
         result = slot_snapshot()
         with self.lock:
             result["registry_revision"] = self.registry_revision
+            result["busy_job"] = self.manager.slot_job_state()
             for slot in result["slots"]:
+                self.manager.observe_slot(slot["id"], slot["status"])
+                with self.manager.lock:
+                    slot["read_result"] = self.manager.read_results.get(slot["id"])
                 record = self.records.get(slot["id"])
                 if record is not None and record["presence"] == slot["status"]:
                     # Keep passive sense separately; a confirmed header is

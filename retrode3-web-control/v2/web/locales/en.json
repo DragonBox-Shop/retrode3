@@ -220,5 +220,16 @@
   "developer_repeat": "Repeat new password",
   "developer_save": "Set root password",
   "developer_change": "Change root password",
-  "developer_saved": "Root password saved."
+  "developer_saved": "Root password saved.",
+  "read_busy": "Reading ROM",
+  "hardware_busy": "Hardware operation in progress",
+  "read_busy_hint": "A ROM read is already in progress. Wait for it to finish.",
+  "hardware_busy_hint": "Retrode3 is busy. Other hardware operations are temporarily disabled.",
+  "read_complete": "ROM dumped",
+  "read_complete_mismatch": "ROM dumped – checksum mismatch",
+  "read_crc32": "CRC32",
+  "read_verification": "Verification",
+  "read_layout": "ROM layout",
+  "read_checksum_compare": "Expected / actual",
+  "read_configuration": "Read configuration"
 }

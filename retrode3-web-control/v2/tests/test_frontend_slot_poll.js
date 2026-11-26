@@ -28,7 +28,8 @@ const elements = {
   filename: {value: ""}, "slots-summary": {textContent: ""}
 };
 const ctx = {
-  slotData: {slots: []}, slotFingerprint: null,
+  slotData: {slots: []}, slotFingerprint: null, slotPollSerial: 0, slotAppliedSerial: 0,
+  adoptBusyJob: () => {},
   selectedReader: "", activeJob: null, probeTarget: null,
   manualReaderBySlot: {}, detectedBySlot: {}, autoNames: {},
   genericWidget: null, document: {activeElement: null},
