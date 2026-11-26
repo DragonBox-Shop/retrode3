@@ -254,5 +254,8 @@
   "wifi_connect_timeout": "Not connected yet. Check Wi-Fi status and password.",
   "wifi_disconnecting": "Disconnecting Wi-Fi …",
   "wifi_disconnect_done": "Wi-Fi disconnected.",
-  "wifi_operation_failed": "Wi-Fi operation failed"
+  "wifi_operation_failed": "Wi-Fi operation failed",
+  "slot_disabled_count": "{count} disabled",
+  "core_filter_slot": "Filter by slot",
+  "core_all_slots": "All slots"
 }

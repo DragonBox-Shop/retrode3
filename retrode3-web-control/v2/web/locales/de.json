@@ -254,5 +254,8 @@
   "wifi_connect_timeout": "Noch keine Verbindung. Bitte WLAN-Status und Passwort prüfen.",
   "wifi_disconnecting": "WLAN wird getrennt …",
   "wifi_disconnect_done": "WLAN getrennt.",
-  "wifi_operation_failed": "WLAN-Vorgang fehlgeschlagen"
+  "wifi_operation_failed": "WLAN-Vorgang fehlgeschlagen",
+  "slot_disabled_count": "{count} deaktiviert",
+  "core_filter_slot": "Nach Slot filtern",
+  "core_all_slots": "Alle Slots"
 }

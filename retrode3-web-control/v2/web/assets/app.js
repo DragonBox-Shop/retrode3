@@ -9,6 +9,7 @@
   var manualReaderBySlot = {};
   var coreState = null, corePending = false, registryRevision = null;
   var wifiOperation = null, wifiStatusSerial = 0;
+  var pluginSlotFilter = "";
   var readerOptions = null, readerOptionsLoading = false, readerOptionsRequest = 0;
   var genericWidget = null;
   var writerIdentified = null;
@@ -81,7 +82,8 @@
       .then(function (data) { messages = data; localize(); })
       .catch(fail);
   }
-  function showTab(id) {
+  function showTab(id, slotFilter) {
+    if (id === "plugins") pluginSlotFilter = slotFilter || "";
     document.querySelectorAll(".tab").forEach(function (el) {
       el.classList.toggle("active", el.getAttribute("data-tab") === id);
     });
@@ -495,12 +497,15 @@
           var pluginHint = document.createElement("p");
           pluginHint.className = "slot-plugin-hint";
           text(pluginHint, t("slot_disabled_plugins") + ": " +
-            disabled.map(function (core) { return core.name; }).join(", "));
+            disabled.slice(0, 2).map(function (core) {
+              return core.name.length > 36 ? core.name.slice(0, 35) + "…" : core.name;
+            }).join(", ") + (disabled.length > 2 ? ", …" : ""));
           card.appendChild(pluginHint);
           var pluginLink = document.createElement("button");
           pluginLink.type = "button";
-          text(pluginLink, t("slot_open_plugins"));
-          pluginLink.addEventListener("click", function () { showTab("plugins"); });
+          text(pluginLink, t("slot_open_plugins") + " (" +
+            t("slot_disabled_count").replace("{count}", disabled.length) + ")");
+          pluginLink.addEventListener("click", function () { showTab("plugins", slot.id); });
           pluginLink.className = "slot-plugin-link";
           card.appendChild(pluginLink);
         }
@@ -1105,11 +1110,28 @@
         "core_cli_missing" : "core_cli_error"));
       return;
     }
-    text($("cores-summary"), coreState.cores.length ?
-      coreState.cores.length + " " + t("core_found") +
+    var filter = $("core-slot-filter");
+    if (filter) {
+      filter.innerHTML = "";
+      var all = document.createElement("option");
+      all.value = ""; text(all, t("core_all_slots")); filter.appendChild(all);
+      var slots = Array.from(new Set(coreState.cores.map(function (core) { return core.slot; }))).sort();
+      slots.forEach(function (id) {
+        var option = document.createElement("option"); option.value = id;
+        var physical = slotData && slotData.slots.find(function (slot) { return slot.id === id; });
+        text(option, physical ? physical.name : id.toUpperCase()); filter.appendChild(option);
+      });
+      if (pluginSlotFilter && slots.indexOf(pluginSlotFilter) === -1) pluginSlotFilter = "";
+      filter.value = pluginSlotFilter;
+    }
+    var visible = coreState.cores.filter(function (core) {
+      return !pluginSlotFilter || core.slot === pluginSlotFilter;
+    });
+    text($("cores-summary"), visible.length ?
+      visible.length + " " + t("core_found") +
       (!coreState.control_enabled ? " · " + t("core_readonly") : "") :
       t("core_none_installed"));
-    coreState.cores.forEach(function (core) {
+    visible.forEach(function (core) {
       var card = document.createElement("div");
       card.className = "core-card";
       var header = document.createElement("div");
@@ -1277,6 +1299,9 @@
   }
 
   function bind() {
+    if ($("core-slot-filter")) $("core-slot-filter").addEventListener("change", function () {
+      pluginSlotFilter = this.value; renderCores();
+    });
     if (direct && $("ssh-enable")) {
       $("developer-save").addEventListener("click", function () { saveDeveloperPassword(true); });
       $("developer-change-save").addEventListener("click", function () { saveDeveloperPassword(false); });

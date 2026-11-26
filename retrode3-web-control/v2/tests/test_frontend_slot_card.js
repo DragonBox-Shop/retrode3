@@ -51,7 +51,7 @@ const ctx = {
   readers: function () { return readers; },
   slotData: {slots: [slot]},
   coreState: null,
-  showTab: function (tab) { chosen = tab; },
+  showTab: function (tab, slot) { chosen = tab; ctx.openedSlot = slot; },
   detectedBySlot: {},
   selectedReader: "md", activeJob: null, hardwareBusy: () => Boolean(ctx.activeJob),
   busyJob: () => null,
@@ -223,6 +223,14 @@ assert(allText(node).includes("slot_disabled_plugins: SMS"));
 assert(!allText(node).includes("Other"));
 node.children.find(part => part.className === "slot-plugin-link").handlers.click();
 assert.strictEqual(chosen, "plugins");
+assert.strictEqual(ctx.openedSlot, "md");
+ctx.coreState.cores.push(...["GB", "GBA", "Extra"].map(name => ({name, slot:"md", enabled:false, status:"disabled"})));
+node = card();
+assert(allText(node).includes("SMS, GB, …"));
+assert(!allText(node).includes("GBA"));
+assert(!allText(node).includes("Extra"));
+assert(allText(node).includes("slot_disabled_count"));
+ctx.coreState.cores.splice(2);
 ctx.coreState.cores[0].enabled = true;
 assert(!allText(card()).includes("slot_disabled_plugins"));
 console.log("confirmed slot card identity, single-core and inline picker tests passed");
