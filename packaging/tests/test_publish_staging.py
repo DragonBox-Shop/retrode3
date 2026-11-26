@@ -1,6 +1,9 @@
 """Publisher regression checks for one signed export after staged imports."""
 from pathlib import Path
+import os
 import re
+import subprocess
+import tempfile
 import unittest
 
 
@@ -87,10 +90,10 @@ class BuildOnlyContractTests(unittest.TestCase):
         publish = self.script.index('failure_stage="apt-publication"', built)
         self.assertLess(build_only, publish)
         self.assertIn('exit 0', self.script[build_only:publish])
-        self.assertIn('BUILD ONLY: tagged candidate ready', self.script[build_only:publish])
+        self.assertIn('BUILD ONLY: source candidate ready', self.script[build_only:publish])
 
     def test_build_only_reuses_existing_candidate_without_publishing(self):
-        match = self.script.index('echo "Resuming exact tagged candidate: $run"')
+        match = self.script.index('echo "Resuming exact source candidate: $run"')
         build_only = self.script.index('if [[ "$build_only" == 1 ]]', match)
         publish = self.script.index(
             'bash "$script_dir/publish-debs.sh" "$branch" "$run"',
@@ -100,15 +103,24 @@ class BuildOnlyContractTests(unittest.TestCase):
         self.assertIn('exit 0', self.script[build_only:publish])
 
 
-    def test_release_tag_is_mandatory_for_publication(self):
-        self.assertIn('APT publication requires selected OS and OSCR release tags',
-                      PUBLISHER.read_text())
-        self.assertIn('source worktree is not the selected release tag',
-                      PUBLISHER.read_text())
+    def test_manifest_tags_match_selected_source(self):
         self.assertIn('package manifest source tags do not match selected tags',
                       PUBLISHER.read_text())
 
-    def test_automation_builds_exact_tagged_snapshot(self):
+    def test_image_launcher_explicitly_requires_tag_mode(self):
+        script = (AUTOMATION.parent / "run-image.sh").read_text()
+        self.assertIn('RETRODE3_SOURCE_MODE=tag RETRODE3_BUILD_ONLY=0 bash "$vhost/package_$branch.sh"',
+                      script)
+        self.assertIn('selection="$(python3 "$selector" "$checkout" "$branch")"', script)
+        self.assertIn('selection="$(python3 "$selector" "$oscr_history" "$branch")"', script)
+        self.assertIn('verify-image-snapshot.py', script)
+        self.assertIn('"$published" "$suite" "$branch" "$os_tag" "$os_sha" "$oscr_tag" "$oscr_sha"',
+                      script)
+
+    def test_automation_builds_exact_source_snapshot(self):
+        self.assertIn('source_mode="${RETRODE3_SOURCE_MODE:-branch}"', self.script)
+        self.assertIn('os_sha="$(git -C "$checkout" rev-parse "refs/heads/$branch")"', self.script)
+        self.assertIn('oscr_sha="$(git --git-dir="$oscr_history" rev-parse "refs/heads/$branch")"', self.script)
         self.assertIn('select-release-tag.py', self.script)
         self.assertIn('git clone --quiet --no-local', self.script)
         self.assertIn('checkout --quiet --detach "$os_sha"', self.script)
@@ -124,6 +136,74 @@ class BuildOnlyContractTests(unittest.TestCase):
         self.assertIn('save_published_manifest "$run/build-manifest.json"',
                       self.script)
 
+
+
+class SourceSelectionTests(unittest.TestCase):
+    def test_publication_source_gate(self):
+        # Stop at the missing-candidate gate, before any APT/GPG access.
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            env = {key: value for key, value in os.environ.items()
+                   if not key.startswith(("RETRODE3_", "GIT_"))}
+
+            def git(repo, *args):
+                return subprocess.check_output(
+                    ["git", "-C", str(repo), *args], env=env,
+                    stderr=subprocess.STDOUT, text=True).strip()
+
+            def history(name):
+                repo = base / name
+                repo.mkdir()
+                git(repo, "init", "-q", "-b", "develop")
+                for version in ("old", "new"):
+                    git(repo, "-c", "user.name=Preflight", "-c",
+                        "user.email=preflight@example.invalid", "-c",
+                        "commit.gpgsign=false", "commit", "--allow-empty",
+                        "-qm", name + "-" + version)
+                    git(repo, "-c", "tag.gpgsign=false", "tag", version)
+                return repo, git(repo, "rev-parse", "old"), git(repo, "rev-parse", "HEAD")
+
+            root, os_old, os_head = history("os")
+            native, native_old, native_head = history("oscr")
+            bare = base / "oscr.git"
+            git(native, "clone", "-q", "--bare", str(native), str(bare))
+            env.update(RETRODE3_PACKAGE_SOURCE_ROOT=str(root),
+                       RETRODE3_RELEASE_COMMIT=os_head,
+                       RETRODE3_OSCR_COMMIT=native_head,
+                       RETRODE3_OSCR_HISTORY=str(bare),
+                       RETRODE3_FOLLOW_OSCR_BRANCH="1")
+            cases = (
+                ("default branch without tags", True, {}),
+                ("explicit branch without tags", True, {"RETRODE3_SOURCE_MODE": "branch"}),
+                ("branch with tag", False, {"RETRODE3_RELEASE_TAG": "new"}),
+                ("branch stale native commit", False, {"RETRODE3_OSCR_COMMIT": native_old}),
+                ("branch wrong OS commit", False, {"RETRODE3_RELEASE_COMMIT": os_old}),
+                ("tag mode without tags", False, {"RETRODE3_SOURCE_MODE": "tag"}),
+                ("tag mode missing OSCR tag", False, {"RETRODE3_SOURCE_MODE": "tag", "RETRODE3_RELEASE_TAG": "new"}),
+                ("tag mode missing OS tag", False, {"RETRODE3_SOURCE_MODE": "tag", "RETRODE3_OSCR_TAG": "new"}),
+                ("tag mode matching tags", True, {"RETRODE3_SOURCE_MODE": "tag", "RETRODE3_RELEASE_TAG": "new", "RETRODE3_OSCR_TAG": "new"}),
+                ("tag mode wrong tag", False, {"RETRODE3_SOURCE_MODE": "tag", "RETRODE3_RELEASE_TAG": "new", "RETRODE3_OSCR_TAG": "old"}),
+                ("unknown mode", False, {"RETRODE3_SOURCE_MODE": "invalid"}),
+            )
+
+            def check(accepted, overrides):
+                result = subprocess.run(
+                    ["bash", str(PUBLISHER), "develop", str(base / "missing-run")],
+                    env=dict(env, **overrides), capture_output=True, text=True)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertEqual("use an absolute build run directory" in result.stderr,
+                                 accepted, result.stderr)
+
+            for label, accepted, overrides in cases:
+                with self.subTest(label=label):
+                    check(accepted, overrides)
+
+            # Even repositories that have never had a release tag may build.
+            git(root, "tag", "-d", "old", "new")
+            git(bare, "tag", "-d", "old", "new")
+            check(True, {})
+            check(False, {"RETRODE3_SOURCE_MODE": "tag",
+                          "RETRODE3_RELEASE_TAG": "new", "RETRODE3_OSCR_TAG": "new"})
 
 
 class LauncherIsolationTests(unittest.TestCase):
