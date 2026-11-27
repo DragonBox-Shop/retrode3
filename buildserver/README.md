@@ -277,6 +277,32 @@ after invocation. It does not update firmware, kernel modules, rootfs images
 or customer devices. The build is deliberately cross-compiled against
 Debian Bookworm, not a verified legacy-device sysroot.
 
+## Independent package versions
+
+Automatic builds stage and validate the complete pinned OS/OSCR source set.
+Each package has an independent content fingerprint including installed files,
+file modes, maintainer scripts, conffiles, compatibility dependencies and ABI.
+The automatic version timestamp and source provenance alone do not change
+this fingerprint. The complete candidate reuses byte-identical previously
+published archives with their existing versions and original build provenance;
+only changed/new packages are assembled with new Debian versions.
+
+The first run of this scheme creates a new baseline. Retain the candidate
+matching the last-published manifest to enable reuse. Missing cached archives
+are rebuilt; corrupt matching archives fail validation. No APT package is
+replaced at an existing version. Dependency floors use the tracked base
+versions instead of automatic build timestamps. Raise the appropriate base
+version when introducing incompatible runtime/tool requirements. The core
+meta-package depends on the released core set at those floors, not their
+individual automatic versions; newly added cores therefore update the
+meta-package, but ordinary mapper changes do not.
+
+The manifest records the exact version, SHA256, content fingerprint and
+original source commits of each archive. The image assembler uses these
+individual versions with the existing signed snapshot/tag gates.
+All native staging/host tests still run; incremental compiler builds are a
+separate optimization.
+
 ## Source selection and repeated builds
 
 Normal package runs pin the current OS and OSCR commits of the matching
