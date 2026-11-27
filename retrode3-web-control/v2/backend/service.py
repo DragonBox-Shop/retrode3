@@ -51,9 +51,17 @@ FILE_STEM = re.compile(r"[^A-Za-z0-9_. -]+")
 PROTOCOL = "retrode3-ndjson"
 MAX_BODY = 16384
 UPDATE_STATE = '/run/retrode3-update/status.json'
+KERNEL_REBOOT_REQUIRED = '/run/retrode3-kernel-reboot-required'
 
 
 def update_status():
+    data = read_update_status()
+    if os.path.isfile(KERNEL_REBOOT_REQUIRED):
+        data['reboot_required'] = True
+    return data
+
+
+def read_update_status():
     try:
         with open(UPDATE_STATE, 'r') as stream:
             data = json.load(stream)

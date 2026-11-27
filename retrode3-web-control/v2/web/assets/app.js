@@ -1338,6 +1338,7 @@
     updateState = data;
     var status = t("update_" + data.phase);
     if (data.message) status += " " + data.message;
+    if (data.reboot_required) status += " " + t("update_kernel_reboot");
     var statusNode = $("update-status");
     statusNode.className = data.phase === "done" ? "update-success" : data.phase === "failed" ? "update-failure" : "muted small";
     text(statusNode, status);

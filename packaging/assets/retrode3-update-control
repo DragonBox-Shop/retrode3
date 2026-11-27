@@ -1,5 +1,5 @@
 #!/usr/bin/python3
-"""Asynchronous, restricted Retrode3 userland updates."""
+"""Asynchronous, restricted Retrode3 software and kernel updates."""
 import fcntl
 import json
 import os
@@ -21,8 +21,11 @@ PACKAGE = re.compile(r"retrode3-(?:web-control|tools|udev-rules|cores|core-runti
 VERSION = re.compile(r"[0-9][a-zA-Z0-9.+:~_-]*")
 
 
+KERNEL_PACKAGES = {"retrode3-linux-image", "retrode3-linux-modules"}
+
+
 def allowed(name):
-    return bool(PACKAGE.fullmatch(name))
+    return name in KERNEL_PACKAGES or bool(PACKAGE.fullmatch(name))
 
 
 def save(phase, packages=None, message=""):
@@ -109,8 +112,27 @@ def parse_plan(output):
     return sorted(result, key=lambda p: p["name"])
 
 
+def validate_kernel_plan(plan):
+    kernel = [p for p in plan if p["name"] in KERNEL_PACKAGES]
+    if not kernel:
+        return
+    if ({p["name"] for p in kernel} != KERNEL_PACKAGES or len(kernel) != 2 or
+            len({p["candidate"] for p in kernel}) != 1):
+        raise ValueError("Kernel and modules must be updated together at the same version")
+    for pkg in kernel:
+        info = capture(["/usr/bin/apt-cache",
+                        "-o", "Dir::Etc::sourcelist=" + str(SOURCE),
+                        "-o", "Dir::Etc::sourceparts=-", "show",
+                        pkg["name"] + "=" + pkg["candidate"]])
+        # Do not advertise historical staged-only candidates as usable updates.
+        if not re.search(r"(?m)^X-Retrode3-Kernel-Layout: live-v1\s*$", info):
+            raise ValueError("Selected kernel package is staged-only; an installable kernel update is required")
+
+
 def simulate(base, targets):
-    return parse_plan(capture(base + ["-s", "install"] + targets))
+    plan = parse_plan(capture(base + ["-s", "install"] + targets))
+    validate_kernel_plan(plan)
+    return plan
 
 
 def command(args, log, timeout=None):

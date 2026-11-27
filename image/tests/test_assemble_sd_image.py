@@ -52,6 +52,17 @@ class ImageSafety(unittest.TestCase):
         module.check_archive(self.bundle, bundle=True, release=REL)
         module.verify_boot_files(self.base / "payload", REL)
 
+    def test_existing_dpkg_module_tree_must_match_bundle(self):
+        payload = self.create_bundle()
+        source = payload / "lib/modules" / REL
+        rootmodules = self.base / "installed"
+        rootmodules.mkdir()
+        module.install_or_verify_modules(rootmodules, source, REL)
+        module.install_or_verify_modules(rootmodules, source, REL)
+        (rootmodules / REL / "test.ko").write_bytes(b"other module")
+        with self.assertRaisesRegex(ValueError, "differ"):
+            module.install_or_verify_modules(rootmodules, source, REL)
+
     def test_reject_path_traversal(self):
         self.create_bundle("../../outside")
         with self.assertRaisesRegex(ValueError, "unsafe"):

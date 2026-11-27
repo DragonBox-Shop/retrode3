@@ -94,7 +94,7 @@ PY
 if [[ "$resume" == 0 ]]; then
   echo "=== Installing OS/OSCR and platform boot packages from signed APT ==="
   chroot /work/rootfs /usr/bin/apt-get update
-  chroot /work/rootfs /usr/bin/apt-get -y --no-install-recommends install \
+  RETRODE3_OFFLINE_IMAGE=1 chroot /work/rootfs /usr/bin/apt-get -y --no-install-recommends install \
     "${packages[@]}"
 else
   echo "=== RESUME: checking already-installed package versions against signed APT snapshot ==="
@@ -110,8 +110,8 @@ for spec in "${packages[@]}"; do
 done
 # Verify the actual Lighttpd payload and enabled configuration offline.
 python3 /src/image/verify-lighttpd-offline.py /work/rootfs
-# APT installs boot candidates into *staging*, never directly over a live
-# kernel/bootloader. The offline assembler selects the exact package versions.
+# The offline image flag suppresses the live FAT mount hook. The assembler
+# selects packaged boot files and the exact installed module tree.
 mapfile -t platform_versions < <(python3 - <<'PY'
 import json
 d=json.load(open("/work/published-platform.json"))
@@ -127,7 +127,12 @@ kernel_root="/work/rootfs/usr/lib/retrode3/kernel-candidates/$kver"
 uboot_root="/work/rootfs/usr/lib/retrode3/bootloader-candidates/x1600/$uver"
 krel="$(cat "$kernel_root/kernel-release")"
 [[ "$krel" =~ ^[A-Za-z0-9.+_-]+$ ]] || exit 1
-module_root="$kernel_root/lib/modules/$krel"
+layout="$(chroot /work/rootfs dpkg-query -W -f='${X-Retrode3-Kernel-Layout}' retrode3-linux-image)"
+case "$layout" in
+  live-v1) module_root="/work/rootfs/lib/modules/$krel" ;;
+  "") module_root="$kernel_root/lib/modules/$krel" ;; # historical signed package
+  *) echo "Unexpected kernel package layout: $layout" >&2; exit 1 ;;
+esac
 ko="$module_root/kernel/drivers/misc/retrode3/retrode3.ko"
 [[ -s "$kernel_root/boot/uImage" &&
    -s "$kernel_root/boot/ingenic/lx16-retrode-2.9.5.dtb" &&
@@ -157,8 +162,8 @@ mkimage -A mips -O linux -T script -C none \
   -n "Retrode3 Bookworm bootargs" \
   -d /src/image/assets/retrode3-bootargs.txt /work/stage/boot/bootargs.scr
 cp -a "$module_root" "/work/stage/lib/modules/$krel"
-# The SD assembler installs the matching module tree exactly once into
-# the final disk rootfs. Do not pre-populate /lib/modules here.
+# The SD assembler verifies the dpkg-owned tree or injects it once for
+# historical staged-only packages.
 tar -C /work/stage --numeric-owner -czf /work/kernel-bundle.tar.gz boot lib
 # Native packages deliberately do not ship mutable /etc runtime state.
 # The privileged corectl fails closed unless the enablement directory

@@ -80,6 +80,21 @@ def check_archive(path, bundle=False, release=""):
                 fail("boot bundle missing files: " + ", ".join(sorted(required - names)))
 
 
+def install_or_verify_modules(rootmodules, source, release):
+    destination = rootmodules / release
+    if destination.is_symlink():
+        fail("unsafe installed kernel module directory")
+    if destination.exists():
+        # New packages already own these files in the rootfs. Never overwrite
+        # them with a different tree or duplicate the installed modules.
+        try:
+            call("diff", "-qr", "--no-dereference", str(source), str(destination))
+        except subprocess.CalledProcessError:
+            fail("installed kernel modules differ from boot bundle")
+    else:
+        call("cp", "-a", str(source), str(destination))
+
+
 def check_preboot(path, migrate_stale_gpt=False):
     """Retain the board's raw SD loader, but not its old partition table."""
     if not path.is_file() or path.stat().st_size != BOOT_START * SECTOR_SIZE:
@@ -261,10 +276,8 @@ def compose(args):
         rootmodules = root / "lib/modules"
         # Debian Bookworm can use merged /usr: preserve the rootfs symlinks.
         rootmodules.mkdir(parents=True, exist_ok=True)
-        if (rootmodules / args.kernel_release).exists():
-            fail("rootfs already has this kernel's modules")
-        call("cp", "-a", str(boot / "lib/modules" / args.kernel_release),
-             str(rootmodules / args.kernel_release))
+        install_or_verify_modules(rootmodules, boot / "lib/modules" / args.kernel_release,
+                                  args.kernel_release)
         if args.with_retrode3:
             if args.ssh_authorized_key:
                 fail("developer SSH keys are not supported in package images")

@@ -72,13 +72,28 @@ class UpdateTests(unittest.TestCase):
             {"name": "retrode3-web-control", "installed": "2.0-1", "candidate": "2.0-2"}])
 
     def test_reject_unsafe_plans(self):
-        for row in ("Remv retrode3-core-md [1]", "Inst retrode3-linux-image (2 repo)",
-                    "Inst retrode3-linux-modules (2 repo)", "Inst retrode3-uboot-x1600 (2 repo)",
+        for row in ("Remv retrode3-core-md [1]", "Inst retrode3-uboot-x1600 (2 repo)",
                     "Inst retrode3-esp-firmware (2 repo)", "Inst libc6 (2 repo)",
                     "Conf libc6 (2 repo)", "Inst retrode3-web-control [2] (1 repo)",
                     "Inst retrode3-core-md malformed"):
             with self.subTest(row=row), self.assertRaises(ValueError):
                 update.parse_plan(row)
+
+    def test_kernel_plan_requires_matching_installable_pair(self):
+        plan = update.parse_plan(
+            "Inst retrode3-linux-image [1] (2 repo)\n"
+            "Inst retrode3-linux-modules [1] (2 repo)\n")
+        with patch.object(update, "capture",
+                          return_value="X-Retrode3-Kernel-Layout: live-v1\n") as capture:
+            update.validate_kernel_plan(plan)
+            self.assertEqual(capture.call_count, 2)
+        with patch.object(update, "capture", return_value="Package: old\n"):
+            with self.assertRaisesRegex(ValueError, "staged-only"):
+                update.validate_kernel_plan(plan)
+        with self.assertRaisesRegex(ValueError, "updated together"):
+            update.validate_kernel_plan(plan[:1])
+        with self.assertRaisesRegex(ValueError, "same version"):
+            update.validate_kernel_plan([plan[0], dict(plan[1], candidate="3")])
 
     def test_status_atomic_and_public(self):
         with tempfile.TemporaryDirectory() as folder, patch.object(update, "RUNTIME", Path(folder)):

@@ -32,6 +32,8 @@ ctx.renderUpdate({phase:"done",packages:[{name:"retrode3-tools",installed:"1",ca
 assert(nodes["update-packages"].hidden);
 assert.strictEqual(nodes["update-status"].className,"update-success");
 assert.strictEqual(nodes["update-status"].textContent,"update_done");
+ctx.renderUpdate({phase:"current",packages:[],reboot_required:true});
+assert(nodes["update-status"].textContent.includes("update_kernel_reboot"));
 async function reconnect(){
   ctx.renderUpdate({phase:"installing",packages:[]});
   ctx.api=()=>Promise.reject(Object.assign(new Error("offline"),{transport:true}));

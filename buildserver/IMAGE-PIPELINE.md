@@ -103,13 +103,16 @@ einer neuen Paketversion. Kandidaten haben Manifeste, Checksums und
 Debian-Metadatentests. Die Signatur-Passphrase verbleibt im privaten
 0600-Serverfile und wird niemals in einen Container gemountet.
 
-Ein frisch aus dem Paket installiertes Kernel-/Bootloader-Kandidat
-ueberschreibt **weder** den aktiven `/boot`-Inhalt noch rohe
-MMC-Sektoren. Das Ausrollen auf laufende Geraete erfordert einen
-separat getesteten, stromausfallsicheren Aktivierungs- und
-Rollback-Prozess. Der Offline-Assembler darf dagegen ein Image als
-normale Datei bauen. Er schreibt niemals direkt nach `/dev/mmcblk*`,
-`/dev/sd*` oder auf irgendeine eingesteckte SD-Karte.
+Installierbare Kernelpakete (live-v1) besitzen ihre Module unter
+/lib/modules/<eindeutige Kernelrelease>. Das Image-Paket aktualisiert
+bei einer normalen APT-Installation die FAT-Bootpartition per postinst
+und verlangt einen Neustart. Es gibt keine dauerhafte Rollback-Kopie;
+bei einem fehlgeschlagenen Boot kann die SD-Karte neu geflasht werden.
+U-Boot und Bootargumente bleiben bei diesem Update unveraendert.
+Der Offline-Assembler setzt RETRODE3_OFFLINE_IMAGE=1, um die Live-Mounts
+zu unterbinden, und verwendet die identischen Paketdateien zum Bau
+eines normalen Image-Files. Er schreibt niemals direkt nach
+/dev/mmcblk*, /dev/sd* oder auf eine eingesteckte SD-Karte.
 
 Das Image-Manifest nennt alle Source-Commits, Release-Tags,
 Paketversionen, SHA256-Werte und den Bootloaderstatus. **Bootfaehig
