@@ -159,6 +159,7 @@ export RETRODE3_BUILD_PIDS="${RETRODE3_BUILD_PIDS:-256}"
 export RETRODE3_OUTPUT_BASE="$base/artifacts/candidates/$suite"
 export GNUPGHOME="$base/repository/gnupg"
 state="$base/cache/last-published-$branch.json"
+export RETRODE3_PREVIOUS_MANIFEST="$state"
 repo_base="$base/repository"
 
 failure_stage=release-state-check
@@ -188,9 +189,10 @@ try:
             indexed.add(tuple(payload.rsplit(" ", 1)))
     for record in data["packages"]:
         name = record["package"]
-        version = (data["web_version"] if name in
-                   ("retrode3-web-control", "retrode3-tools", "retrode3-udev-rules")
-                   else data["native_version"])
+        version = (record["version"] if data.get("package_version_scheme") == 2 else
+                   (data["web_version"] if name in
+                    ("retrode3-web-control", "retrode3-tools", "retrode3-udev-rules")
+                    else data["native_version"]))
         if (name, version) not in indexed:
             sys.exit(1)
 except (OSError, ValueError, KeyError, subprocess.CalledProcessError):
