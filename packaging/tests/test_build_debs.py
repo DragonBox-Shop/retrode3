@@ -116,6 +116,66 @@ class TestPackaging(unittest.TestCase):
                     self.assertIn("./usr/lib/retrode3/cores-available/" +
                                   core + ".core", contents)
 
+    def test_independent_package_versions_reuse_only_unchanged_payload(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            stage = self.fixture_stage(base)
+            native = pkg.verify_stage(stage, LAYOUT, check_symbols=False)
+            old_lock = pkg.auto_version_lock(LOCK, "a" * 40, 1795132800,
+                                             oscr_commit="b" * 40)
+            next_lock = pkg.auto_version_lock(
+                dict(LOCK, oscr_commit="c" * 40, sanni_commit="d" * 40),
+                "e" * 40, 1795132801, oscr_commit="c" * 40)
+            old = base / "old"
+            new = base / "new"
+            old.mkdir()
+            new.mkdir()
+            records = {}
+            names = tuple(native) + pkg.BOOKWORM_ALL + (pkg.META,)
+            for name in names:
+                root = pkg.prepare_package(old, name, LAYOUT, old_lock, stage,
+                                           1795132800, native)
+                base_version = (LOCK["web_version"] if name in pkg.BOOKWORM_ALL
+                                else LOCK["native_version"])
+                fingerprint = pkg.package_content_hash(root, base_version)
+                filename, archive = pkg.archive_package(
+                    old, root, name, old_lock, 1795132800, native)
+                records[name] = {
+                    "package": name, "filename": filename,
+                    "version": pkg.package_version(name, old_lock),
+                    "sha256": pkg.hashlib.sha256(archive.read_bytes()).hexdigest(),
+                    "content_sha256": fingerprint, "reused": False}
+            nes = "retrode3-core-nes"
+            changed = stage / pkg.CORE_DIRECTORY / "nes.so"
+            changed.write_bytes(changed.read_bytes() + b"new mapper")
+            for name in names:
+                root = pkg.prepare_package(new, name, LAYOUT, next_lock, stage,
+                                           1795132801, native)
+                base_version = (LOCK["web_version"] if name in pkg.BOOKWORM_ALL
+                                else LOCK["native_version"])
+                fingerprint = pkg.package_content_hash(root, base_version)
+                reused = pkg.reuse_package(old, records, name, fingerprint, new)
+                if name == nes:
+                    self.assertIsNone(reused)
+                    self.assertNotEqual(fingerprint, records[name]["content_sha256"])
+                else:
+                    self.assertTrue(reused["reused"], name)
+                    self.assertEqual(reused["version"], records[name]["version"])
+                    self.assertEqual((new / reused["filename"]).read_bytes(),
+                                     (old / reused["filename"]).read_bytes())
+            self.assertIn("retrode3-core-nes (>= " + LOCK["native_version"] + ")",
+                          pkg.meta_dependencies(native, next_lock))
+            self.assertEqual(pkg.meta_dependencies(native, old_lock),
+                             pkg.meta_dependencies(native, next_lock))
+            expanded = dict(native, **{"retrode3-core-lynx": ()})
+            self.assertNotEqual(pkg.meta_dependencies(expanded, next_lock),
+                                pkg.meta_dependencies(native, next_lock))
+            core = "retrode3-core-md"
+            (old / records[core]["filename"]).write_bytes(b"damaged")
+            with self.assertRaisesRegex(ValueError, "checksum mismatch"):
+                pkg.reuse_package(old, records, core,
+                                  records[core]["content_sha256"], new)
+
     def test_package_directories_under_private_umask(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
