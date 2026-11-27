@@ -285,7 +285,8 @@ file modes, maintainer scripts, conffiles, compatibility dependencies and ABI.
 The automatic version timestamp and source provenance alone do not change
 this fingerprint. The complete candidate reuses byte-identical previously
 published archives with their existing versions and original build provenance;
-only changed/new packages are assembled with new Debian versions.
+only changed/new packages are assembled with new Debian versions. Reused
+archives are hard-linked on the host when supported, rather than duplicated.
 
 The first run of this scheme creates a new baseline. Retain the candidate
 matching the last-published manifest to enable reuse. Missing cached archives
