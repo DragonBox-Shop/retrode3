@@ -28,6 +28,19 @@ image=localhost/retrode3-deb-builder:bookworm
 podman --runtime=crun --cgroup-manager=systemd build \
     --network=slirp4netns -f "$root/buildserver/Containerfile" \
     -t "$image" "$root/buildserver"
+# Only mount the immutable candidate matching the last published manifest.
+# Never expose APT signing material or the public website to Podman.
+previous_mount=()
+if [[ -f "${RETRODE3_PREVIOUS_MANIFEST:-}" && ! -L "$RETRODE3_PREVIOUS_MANIFEST" ]]; then
+    for prior in "$outbase"/run.*; do
+        [[ -d "$prior" && ! -L "$prior" && -f "$prior/build-manifest.json" &&
+           ! -L "$prior/build-manifest.json" ]] || continue
+        if cmp -s "$prior/build-manifest.json" "$RETRODE3_PREVIOUS_MANIFEST"; then
+            previous_mount=(-v "$prior:/previous:ro")
+            break
+        fi
+    done
+fi
 podman --runtime=crun --cgroup-manager=systemd run --rm \
     --network=slirp4netns --userns=keep-id \
     --user "$(id -u):$(id -g)" --cap-drop=all \
@@ -36,6 +49,7 @@ podman --runtime=crun --cgroup-manager=systemd run --rm \
     --memory "${RETRODE3_BUILD_MEMORY:-2g}" \
     --pids-limit "${RETRODE3_BUILD_PIDS:-256}" \
     -v "$root:/src:ro" -v "$out:/out:rw" \
+    "${previous_mount[@]}" \
     -e "SOURCE_DATE_EPOCH=$epoch" \
     -e "RETRODE3_AUTO_VERSION=${RETRODE3_AUTO_VERSION:-0}" \
     -e "RETRODE3_FOLLOW_OSCR_BRANCH=${RETRODE3_FOLLOW_OSCR_BRANCH:-0}" \
