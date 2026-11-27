@@ -233,8 +233,15 @@ try:
     if os.path.isfile(sys.argv[8]):
         with open(sys.argv[8]) as stream:
             old = json.load(stream)
-        for key in ("native_version", "web_version"):
-            if subprocess.call(["dpkg", "--compare-versions", m[key], "ge", old[key]]):
+        def versions(doc):
+            return {p["package"]: (p["version"] if doc.get("package_version_scheme") == 2 else
+                    doc["web_version"] if p["package"] in
+                    ("retrode3-web-control", "retrode3-tools", "retrode3-udev-rules")
+                    else doc["native_version"]) for p in doc["packages"]}
+        previous_versions = versions(old)
+        for name, version in versions(m).items():
+            if name in previous_versions and subprocess.call(
+                    ["dpkg", "--compare-versions", version, "ge", previous_versions[name]]):
                 sys.exit(1)
 except (OSError, ValueError, KeyError):
     sys.exit(1)
