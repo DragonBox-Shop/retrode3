@@ -167,9 +167,32 @@ for file in files:
     ]
     if len(info) != 3 or info[0] != expected[file.name]["package"]:
         sys.exit("error: package metadata mismatch: " + file.name)
-    if info[1] != (lock["web_version"] if info[0] in
-                   ("retrode3-web-control", "retrode3-tools", "retrode3-udev-rules")
-                   else lock["native_version"]):
+    record = expected[file.name]
+    nominal = (lock["web_version"] if info[0] in
+               ("retrode3-web-control", "retrode3-tools", "retrode3-udev-rules")
+               else lock["native_version"])
+    if manifest.get("package_version_scheme") == 2:
+        if ("dependency_native_version" not in lock or
+                not re.fullmatch(r"[0-9][A-Za-z0-9.+:~_-]*", record.get("version", "")) or
+                not re.fullmatch(r"[0-9a-f]{64}", record.get("content_sha256", "")) or
+                type(record.get("reused")) is not bool):
+            sys.exit("error: invalid independent package version record: " + file.name)
+        if info[1] != record["version"]:
+            sys.exit("error: version mismatch: " + file.name)
+        origin = record.get("built_from")
+        if (not isinstance(origin, dict) or set(origin) !=
+                {"os_commit", "oscr_commit", "sanni_commit"} or
+                any(not isinstance(value, str) or not re.fullmatch(r"[0-9a-f]{40}", value)
+                    for value in origin.values())):
+            sys.exit("error: invalid package build provenance: " + file.name)
+        if record["reused"]:
+            # An unchanged archive must already be published in this suite.
+            # The exact hash and pool file are checked below.
+            if previous.get(info[0]) != info[1]:
+                sys.exit("error: reused package is not indexed in this suite: " + file.name)
+        elif info[1] != nominal or any(origin[key] != manifest[key] for key in origin):
+            sys.exit("error: newly built package differs from selected source: " + file.name)
+    elif info[1] != nominal:
         sys.exit("error: version mismatch: " + file.name)
     if info[2] != ("all" if info[0] in
                    ("retrode3-web-control", "retrode3-tools", "retrode3-udev-rules")
