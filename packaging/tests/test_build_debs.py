@@ -154,7 +154,7 @@ class TestPackaging(unittest.TestCase):
                 base_version = (LOCK["web_version"] if name in pkg.BOOKWORM_ALL
                                 else LOCK["native_version"])
                 fingerprint = pkg.package_content_hash(root, base_version)
-                reused = pkg.reuse_package(old, records, name, fingerprint, new)
+                reused = pkg.reuse_package(old, records, name, fingerprint, new, base_version)
                 if name == nes:
                     self.assertIsNone(reused)
                     self.assertNotEqual(fingerprint, records[name]["content_sha256"])
@@ -174,7 +174,7 @@ class TestPackaging(unittest.TestCase):
             (old / records[core]["filename"]).write_bytes(b"damaged")
             with self.assertRaisesRegex(ValueError, "checksum mismatch"):
                 pkg.reuse_package(old, records, core,
-                                  records[core]["content_sha256"], new)
+                                  records[core]["content_sha256"], new, LOCK["native_version"])
 
     def test_package_directories_under_private_umask(self):
         with tempfile.TemporaryDirectory() as tmp:
