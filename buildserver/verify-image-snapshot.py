@@ -52,6 +52,13 @@ def verify(snapshot, suite, branch, os_tag, os_sha, oscr_tag, oscr_sha):
     if any(not isinstance(name, str) or
            not re.fullmatch(r"retrode3-[a-z0-9-]+", name) for name in names):
         raise ValueError("Unsafe package name")
+    if snapshot.get("package_version_scheme") == 2:
+        for item in packages:
+            version = item.get("version")
+            if not isinstance(version, str) or not re.fullmatch(r"[0-9][A-Za-z0-9.+:~_-]*", version):
+                raise ValueError("Missing or invalid exact package version: " + item["package"])
+            if not re.fullmatch(r"[0-9a-f]{64}", item.get("sha256", "")):
+                raise ValueError("Missing exact package checksum: " + item["package"])
     return snapshot
 
 
