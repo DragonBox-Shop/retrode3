@@ -2,7 +2,8 @@ name: Retrode3 Debian packaging (offline mocks)
 
 on:
   push:
-    branches: [develop, master]
+    branches: [master]
+    tags: ['apt-*']
     paths:
       - 'packaging/**'
       - 'buildserver/**'
@@ -15,6 +16,7 @@ on:
       - 'tools/preflight-ci.sh'
       - '.github/workflows/debian-packaging.yml'
   pull_request:
+    branches: [master]
     paths:
       - 'packaging/**'
       - 'retrode3.qcodeproj'
@@ -24,6 +26,7 @@ on:
       - 'make-all'
       - 'tools/preflight-ci.sh'
       - '.github/workflows/debian-packaging.yml'
+  workflow_dispatch:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}

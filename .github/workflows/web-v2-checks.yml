@@ -2,16 +2,19 @@ name: Retrode3 Web Control v2 checks
 
 on:
   push:
-    branches: [develop, feature/web-control-v2]
+    branches: [master]
+    tags: ['apt-*']
     paths:
       - 'retrode3-web-control/v2/**'
       - 'tools/preflight-ci.sh'
       - '.github/workflows/web-v2-checks.yml'
   pull_request:
+    branches: [master]
     paths:
       - 'retrode3-web-control/v2/**'
       - 'tools/preflight-ci.sh'
       - '.github/workflows/web-v2-checks.yml'
+  workflow_dispatch:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}

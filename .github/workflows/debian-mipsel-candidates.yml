@@ -3,12 +3,14 @@ name: Build actual mipsel Debian test candidates
 on:
   workflow_dispatch:
   push:
-    branches: [develop, master]
+    branches: [master]
+    tags: ['apt-*']
     paths:
       - 'packaging/**'
       - 'buildserver/**'
       - '.github/workflows/debian-mipsel-candidates.yml'
   pull_request:
+    branches: [master]
     paths:
       - 'packaging/**'
       - 'buildserver/**'
@@ -38,9 +40,18 @@ jobs:
         run: |
           set -eu
           OSCR_BRANCH="${{ github.base_ref || github.ref_name }}"
-          case "$OSCR_BRANCH" in master|develop) ;; *) exit 1 ;; esac
           git clone https://github.com/DragonBox-Shop/retrode3-oscr.git "$RUNNER_TEMP/retrode3-oscr"
-          OSCR_COMMIT="$(git ls-remote --exit-code             https://github.com/DragonBox-Shop/retrode3-oscr.git "refs/heads/$OSCR_BRANCH" | cut -f1)"
+          if [ "${{ github.ref_type }}" = tag ]; then
+            # Image checkpoints are tagged on develop. Use a tagged OSCR
+            # snapshot, never the moving development HEAD for this test.
+            OSCR_BRANCH=develop
+            OSCR_TAG="$(git -C "$RUNNER_TEMP/retrode3-oscr" for-each-ref --merged refs/remotes/origin/develop --sort=-creatordate --count=1 --format='%(refname)' 'refs/tags/apt-*')"
+            test -n "$OSCR_TAG"
+            OSCR_COMMIT="$(git -C "$RUNNER_TEMP/retrode3-oscr" rev-parse "$OSCR_TAG^{commit}")"
+          else
+            case "$OSCR_BRANCH" in master|develop) ;; *) exit 1 ;; esac
+            OSCR_COMMIT="$(git ls-remote --exit-code https://github.com/DragonBox-Shop/retrode3-oscr.git "refs/heads/$OSCR_BRANCH" | cut -f1)"
+          fi
           git -C "$RUNNER_TEMP/retrode3-oscr" checkout --detach "$OSCR_COMMIT"
           git -C "$RUNNER_TEMP/retrode3-oscr" submodule update --init third_party/oscr-firmware
           SANNI_COMMIT="$(git -C "$RUNNER_TEMP/retrode3-oscr" rev-parse HEAD:third_party/oscr-firmware)"
