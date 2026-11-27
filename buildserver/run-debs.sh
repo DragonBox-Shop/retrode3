@@ -31,11 +31,13 @@ podman --runtime=crun --cgroup-manager=systemd build \
 # Only mount the immutable candidate matching the last published manifest.
 # Never expose APT signing material or the public website to Podman.
 previous_mount=()
+previous_dir=
 if [[ -f "${RETRODE3_PREVIOUS_MANIFEST:-}" && ! -L "$RETRODE3_PREVIOUS_MANIFEST" ]]; then
     for prior in "$outbase"/run.*; do
         [[ -d "$prior" && ! -L "$prior" && -f "$prior/build-manifest.json" &&
            ! -L "$prior/build-manifest.json" ]] || continue
         if cmp -s "$prior/build-manifest.json" "$RETRODE3_PREVIOUS_MANIFEST"; then
+            previous_dir="$prior"
             previous_mount=(-v "$prior:/previous:ro")
             break
         fi
@@ -60,4 +62,41 @@ podman --runtime=crun --cgroup-manager=systemd run --rm \
     -e "RETRODE3_RELEASE_COMMIT=${RETRODE3_RELEASE_COMMIT:-}" \
     -e "RETRODE3_OSCR_TAG=${RETRODE3_OSCR_TAG:-}" \
     "$image" bash /src/buildserver/build-debs.sh
+# The complete candidate remains self-contained for offline verification.
+# Hard-link already verified immutable archives on the host filesystem
+# instead of retaining a separate physical copy in every build directory.
+if [[ -n "$previous_dir" ]]; then
+    python3 - "$previous_dir" "$out" <<'PY'
+import hashlib
+import json
+import os
+from pathlib import Path
+import re
+import sys
+import tempfile
+
+previous, current = map(Path, sys.argv[1:])
+manifest = json.loads((current / "build-manifest.json").read_text())
+for record in manifest.get("packages", []):
+    if not record.get("reused"):
+        continue
+    name = record["filename"]
+    if not re.fullmatch(r"[a-z0-9-]+_[0-9][A-Za-z0-9.+:~_-]*_(?:all|mipsel)\.deb", name):
+        sys.exit("Unsafe reused archive filename")
+    old, new = previous / name, current / name
+    for file in (old, new):
+        if file.is_symlink() or not file.is_file() or (
+                hashlib.sha256(file.read_bytes()).hexdigest() != record["sha256"]):
+            sys.exit("Reused archive changed: " + name)
+    # Both files are immutable candidates. If the filesystem cannot link
+    # them, the already-verified copy remains a valid complete candidate.
+    with tempfile.TemporaryDirectory(prefix=".reuse-", dir=current) as temp:
+        target = Path(temp) / name
+        try:
+            os.link(old, target)
+        except OSError:
+            continue
+        os.replace(target, new)
+PY
+fi
 echo "Unpublished packages: $out"
