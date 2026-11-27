@@ -94,7 +94,13 @@ def auto_version_lock(lock, os_commit, epoch, oscr_commit=None, version_stamp=No
             error("invalid OSCR source revision")
         suffix += "." + oscr_commit[:12]
     effective = dict(lock)
+    # Dependency floors are intentional compatibility versions, never the
+    # timestamp of an unrelated rebuild. Bump the relevant base in the
+    # tracked lock when a new runtime/tool interface is required.
+    effective["dependency_native_version"] = lock["native_version"]
+    effective["dependency_web_version"] = lock["web_version"]
     for field in ("native_version", "web_version"):
+
         version = lock[field]
         if "-" not in version:
             error("automatic Debian version requires an explicit -revision")
@@ -294,10 +300,18 @@ def maintainer_scripts(root, package):
         put(root, HERE / "maintainer" / name, "DEBIAN/" + target, 0o755)
 
 
+def package_version(package, lock):
+    return lock["web_version"] if package == WEB else lock["native_version"]
+
+
+def package_arch(package):
+    return "all" if package == WEB else "mipsel"
+
+
 def control_text(package, lock):
-    native_version = lock["native_version"]
-    version = lock["web_version"] if package == WEB else native_version
-    arch = "all" if package == WEB else "mipsel"
+    native_version = lock.get("dependency_native_version", lock["native_version"])
+    version = package_version(package, lock)
+    arch = package_arch(package)
     if package == "retrode3-core-runtime":
         deps = "libc6, libstdc++6, passwd, adduser, init-system-helpers"
     elif package == WEB:
@@ -327,7 +341,7 @@ def control_text(package, lock):
     return "\n".join(lines) + "\n"
 
 
-def build_one(work, package, layout, lock, stage, epoch, native=None):
+def prepare_package(work, package, layout, lock, stage, epoch, native=None):
     if native is None:
         native = discover_native_packages(stage, layout)
     if package not in native and package != WEB:
@@ -354,13 +368,77 @@ def build_one(work, package, layout, lock, stage, epoch, native=None):
     if package in CONFFILES:
         put_text(root, "DEBIAN/conffiles", "\n".join(CONFFILES[package]) + "\n")
     maintainer_scripts(root, package)
+    os.chmod(str(root), 0o755)
     for parent, dirs, files in os.walk(str(root)):
+        for name in dirs:
+            os.chmod(os.path.join(parent, name), 0o755)
         for name in dirs + files:
             p = os.path.join(parent, name)
             os.utime(p, (epoch, epoch), follow_symlinks=False)
     os.utime(str(root), (epoch, epoch))
-    version = lock["web_version"] if package == WEB else lock["native_version"]
-    filename = "{}_{}_{}.deb".format(package, version, "all" if package == WEB else "mipsel")
+    return root
+
+
+def package_content_hash(root, base_version):
+    """Fingerprint installed files, modes and control policy, not build provenance.
+
+    Changes to any maintainer script, dependency, conffile, ABI or installed
+    byte are significant. Directory/file mtimes and the automatically assigned
+    Version / source provenance fields deliberately are not.
+    """
+    digest = hashlib.sha256()
+    digest.update(json.dumps(["retrode3-package-content-v1", base_version]).encode() + b"\n")
+    for path in sorted(root.rglob("*")):
+        relative = path.relative_to(root).as_posix()
+        mode = stat.S_IMODE(path.stat().st_mode)
+        if path.is_symlink() or not (path.is_dir() or path.is_file()):
+            error("unexpected package tree entry: " + relative)
+        data = b"" if path.is_dir() else path.read_bytes()
+        if relative == "DEBIAN/control":
+            data = b"\n".join(line for line in data.splitlines()
+                              if not line.startswith((b"Version: ",
+                                  b"X-Retrode3-OSCR-Commit: ",
+                                  b"X-Retrode3-Sanni-Commit: "))) + b"\n"
+        digest.update(json.dumps([relative, mode, path.is_dir(),
+                                  hashlib.sha256(data).hexdigest()]).encode() + b"\n")
+    return digest.hexdigest()
+
+
+def reuse_package(previous_dir, previous, package, fingerprint, work, base_version):
+    """Copy the exact immutable previously published archive if still equivalent."""
+    record = previous.get(package)
+    if not record or record.get("content_sha256") != fingerprint:
+        return None
+    version = record.get("version", "")
+    if not isinstance(version, str) or not re.fullmatch(r"[0-9][A-Za-z0-9.+:~_-]*", version):
+        error("invalid cached package version: " + package)
+    filename = "{}_{}_{}.deb".format(package, version, package_arch(package))
+    if record.get("filename") != filename:
+        error("invalid cached package filename: " + package)
+    source = previous_dir / filename
+    if not source.is_file() or source.is_symlink():
+        return None
+    digest = hashlib.sha256(source.read_bytes()).hexdigest()
+    if digest != record.get("sha256"):
+        error("cached package checksum mismatch: " + package)
+    if cmd(["dpkg-deb", "-f", str(source), "Package"]) != package or (
+            cmd(["dpkg-deb", "-f", str(source), "Version"]) != version or
+            cmd(["dpkg-deb", "-f", str(source), "Architecture"]) != package_arch(package)):
+        error("cached package metadata mismatch: " + package)
+    # Verify the cached archive really has the same installed content, not
+    # merely a matching claim in an old JSON manifest.
+    with tempfile.TemporaryDirectory(prefix=".verify-reuse-", dir=work) as folder:
+        extracted = Path(folder) / "package"
+        subprocess.check_call(["dpkg-deb", "-R", str(source), str(extracted)])
+        if package_content_hash(extracted, base_version) != fingerprint:
+            error("cached package content fingerprint mismatch: " + package)
+    shutil.copyfile(source, work / filename)
+    return dict(record, reused=True)
+
+
+def archive_package(work, root, package, lock, epoch, native):
+    version = package_version(package, lock)
+    filename = "{}_{}_{}.deb".format(package, version, package_arch(package))
     destination = work / filename
     environment = os.environ.copy()
     environment["SOURCE_DATE_EPOCH"] = str(epoch)
@@ -376,6 +454,13 @@ def build_one(work, package, layout, lock, stage, epoch, native=None):
         if "./" + required not in names:
             error("missing installed payload from deb: " + required)
     return filename, destination
+
+
+def build_one(work, package, layout, lock, stage, epoch, native=None):
+    if native is None:
+        native = discover_native_packages(stage, layout)
+    root = prepare_package(work, package, layout, lock, stage, epoch, native)
+    return archive_package(work, root, package, lock, epoch, native)
 
 
 def symbol_version_report(stage, native):
@@ -401,6 +486,8 @@ def main():
                         help="OSCR build/migration/stage with MIPS little-endian binaries")
     parser.add_argument("--output", required=True,
                         help="offline output directory, never installed automatically")
+    parser.add_argument("--previous", type=Path,
+                        help="read-only previous published candidate directory")
     args = parser.parse_args()
     lock = json.loads(Path(args.source_lock).read_text(encoding="utf-8"))
     layout = json.loads((HERE / "retrode3-core-layout.json").read_text(encoding="utf-8"))
@@ -438,18 +525,43 @@ def main():
     epoch = int(os.environ.get("SOURCE_DATE_EPOCH", "1795132800"))
     if epoch < 0:
         error("invalid SOURCE_DATE_EPOCH")
+    previous = {}
+    if auto_version and args.previous is not None:
+        prior = json.loads((args.previous / "build-manifest.json").read_text())
+        if (prior.get("package_version_scheme") == 2 and
+                prior.get("release_channel") == release_channel):
+            previous = {record["package"]: record for record in prior["packages"]}
+            if len(previous) != len(prior["packages"]):
+                error("duplicate previous package records")
     with tempfile.TemporaryDirectory(prefix=".retrode3-debs-", dir=str(out)) as temp:
         work = Path(temp)
         records = []
         for package in tuple(native) + (WEB,):
-            filename, archive = build_one(work, package, layout, lock,
-                                          stage, epoch, native)
-            digest = hashlib.sha256(archive.read_bytes()).hexdigest()
-            records.append({"filename": filename, "sha256": digest,
-                            "package": package})
+            root = prepare_package(work, package, layout, lock, stage, epoch, native)
+            base_version = (lock.get("dependency_web_version", lock["web_version"])
+                            if package == WEB else
+                            lock.get("dependency_native_version", lock["native_version"]))
+            fingerprint = package_content_hash(root, base_version)
+            record = reuse_package(args.previous, previous, package, fingerprint, work, base_version)
+            if record is not None:
+                print("Reusing unchanged package:", package, record["version"])
+            else:
+                filename, archive = archive_package(work, root, package, lock, epoch, native)
+                digest = hashlib.sha256(archive.read_bytes()).hexdigest()
+                record = {"filename": filename, "sha256": digest, "package": package,
+                          "version": package_version(package, lock),
+                          "content_sha256": fingerprint, "reused": False,
+                          "built_from": {"os_commit": (os_commit if auto_version else
+                              cmd(["git", "-c", "safe.directory=" + str(REPO),
+                                   "rev-parse", "HEAD"], cwd=REPO)),
+                              "oscr_commit": lock["oscr_commit"],
+                              "sanni_commit": lock["sanni_commit"]}}
+                print("Built changed/new package:", package, record["version"])
+            records.append(record)
         for record in records:
             os.replace(str(work / record["filename"]), str(out / record["filename"]))
         manifest = {"release_channel": release_channel,
+                    "package_version_scheme": 2 if auto_version else 1,
                     "auto_versioned": auto_version,
                     "oscr_branch": (os.environ.get("RETRODE3_OSCR_BRANCH")
                                     if os.environ.get("RETRODE3_FOLLOW_OSCR_BRANCH") == "1"
