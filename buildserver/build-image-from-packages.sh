@@ -76,9 +76,10 @@ platform=json.load(open("/work/published-platform.json"))
 names=set()
 for p in base["packages"]:
     name=p["package"]
-    version=(base["web_version"] if name in
-             ("retrode3-web-control","retrode3-tools","retrode3-udev-rules")
-             else base["native_version"])
+    version=(p["version"] if base.get("package_version_scheme") == 2 else
+             (base["web_version"] if name in
+              ("retrode3-web-control","retrode3-tools","retrode3-udev-rules")
+              else base["native_version"]))
     if name in names:
         raise ValueError("Duplicate OS package")
     names.add(name)
