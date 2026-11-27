@@ -41,6 +41,19 @@ class TaggedImageContractTests(unittest.TestCase):
     def test_accepts_published_exact_tag_pair(self):
         self.assertEqual(check(published())["os_commit"], OS_SHA)
 
+    def test_individual_versions_required_for_new_snapshot_format(self):
+        doc = published()
+        doc["package_version_scheme"] = 2
+        for n, package in enumerate(doc["packages"]):
+            package["version"] = "1.0~dev-" + str(n)
+            package["sha256"] = "d" * 64
+        self.assertEqual(check(doc)["packages"], doc["packages"])
+        for field in ("version", "sha256"):
+            broken = copy.deepcopy(doc)
+            del broken["packages"][0][field]
+            with self.assertRaises(ValueError):
+                check(broken)
+
     def test_rejects_wrong_os_tag_and_sha(self):
         for options in ({"os_tag": "new-rc"}, {"os_sha": "d" * 40}):
             with self.subTest(options=options), self.assertRaises(ValueError):
