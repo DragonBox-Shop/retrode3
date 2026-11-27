@@ -57,10 +57,10 @@ temp_pkg="$(mktemp "$vhost/.retrode3-package-XXXXXXXX")"
 temp_img="$(mktemp "$vhost/.retrode3-image-XXXXXXXX")"
 trap 'rm -f -- "$temp_pkg" "$temp_img"' EXIT
 cat > "$temp_pkg" <<EOF
-#!/usr/bin/env bash
+#!/bin/sh
 # Managed by Retrode3 buildserver/install-image-launcher.sh
-set -euo pipefail
-if [[ "\${RETRODE3_BUILD_ONLY:-0}" == 1 ]]; then
+set -eu
+if [ "\${RETRODE3_BUILD_ONLY:-0}" = 1 ]; then
   exec bash "$image_checkout/buildserver/package-develop-all.sh" --build-only
 fi
 exec bash "$image_checkout/buildserver/package-develop-all.sh" --publish-testing
@@ -71,6 +71,7 @@ cat > "$temp_img" <<EOF
 set -euo pipefail
 exec bash "$image_checkout/buildserver/run-image.sh" develop
 EOF
+sh -n "$temp_pkg"
 install -m 750 "$temp_pkg" "$package_target"
 install -m 750 "$temp_img" "$target"
 echo "Installed: $package_target (OS, OSCR, kernel, U-Boot -> signed testing)"
