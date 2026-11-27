@@ -495,7 +495,7 @@ def package_content_hash(root, base_version):
     return digest.hexdigest()
 
 
-def reuse_package(previous_dir, previous, package, fingerprint, work):
+def reuse_package(previous_dir, previous, package, fingerprint, work, base_version):
     """Copy the exact immutable previously published archive if still equivalent."""
     record = previous.get(package)
     if not record or record.get("content_sha256") != fingerprint:
@@ -516,6 +516,13 @@ def reuse_package(previous_dir, previous, package, fingerprint, work):
             cmd(["dpkg-deb", "-f", str(source), "Version"]) != version or
             cmd(["dpkg-deb", "-f", str(source), "Architecture"]) != package_arch(package)):
         error("cached package metadata mismatch: " + package)
+    # Verify the cached archive really has the same installed content, not
+    # merely a matching claim in an old JSON manifest.
+    with tempfile.TemporaryDirectory(prefix=".verify-reuse-", dir=work) as folder:
+        extracted = Path(folder) / "package"
+        subprocess.check_call(["dpkg-deb", "-R", str(source), str(extracted)])
+        if package_content_hash(extracted, base_version) != fingerprint:
+            error("cached package content fingerprint mismatch: " + package)
     shutil.copyfile(source, work / filename)
     return dict(record, reused=True)
 
@@ -646,7 +653,7 @@ def main():
                             if package in BOOKWORM_ALL else
                             lock.get("dependency_native_version", lock["native_version"]))
             fingerprint = package_content_hash(root, base_version)
-            record = reuse_package(args.previous, previous, package, fingerprint, work)
+            record = reuse_package(args.previous, previous, package, fingerprint, work, base_version)
             if record is not None:
                 print("Reusing unchanged package:", package, record["version"])
             else:
