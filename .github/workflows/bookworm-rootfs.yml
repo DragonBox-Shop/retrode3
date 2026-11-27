@@ -3,11 +3,13 @@ name: Debian 12 mipsel SysV rootfs candidate (not bootable)
 on:
   workflow_dispatch:
   push:
-    branches: [develop]
+    branches: [master]
+    tags: ['apt-*']
     paths:
       - 'image/**'
       - '.github/workflows/bookworm-rootfs.yml'
   pull_request:
+    branches: [master]
     paths:
       - 'image/**'
       - 'buildserver/**'

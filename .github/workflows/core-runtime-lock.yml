@@ -1,16 +1,13 @@
 name: Retrode3 SysV cartridge bus lock
 on:
   push:
-    branches:
-      - develop
-      - master
+    branches: [master]
+    tags: ['apt-*']
     paths:
       - 'retrode3-core-runtime/etc/init.d/retrode3-core-runtime'
       - '.github/workflows/core-runtime-lock.yml'
   pull_request:
-    branches:
-      - develop
-      - master
+    branches: [master]
     paths:
       - 'retrode3-core-runtime/etc/init.d/retrode3-core-runtime'
       - '.github/workflows/core-runtime-lock.yml'
