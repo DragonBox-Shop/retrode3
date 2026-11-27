@@ -9,6 +9,17 @@ The tracked `packaging/native-source-lock.json` remains a deliberate
 fallback for offline, pinned/manual candidate builds and tests, **not**
 the source selector for automated APT releases.
 No rootfs or SD images are created.
+
+Automatic builds reuse byte-identical previously published archives from
+the same APT suite. The first run establishes the independent-version
+baseline. Each package has its own payload fingerprint, Debian version,
+checksum and original build provenance. Changed dependencies, maintainer
+scripts, file modes and installed files trigger a new version. Automatic
+build timestamps and unrelated Git commits do not. Keep the candidate
+matching the last-published manifest to enable reuse. Missing archives
+are rebuilt, damaged archives are rejected. The stable package payloads
+and legacy system dependencies are unchanged. The OSCR compilation and
+host tests still run in full.
 The source stays in Git; this directory is usable on any Linux host with
 Podman, crun and rootless user namespaces.
 

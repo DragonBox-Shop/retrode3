@@ -78,6 +78,7 @@ if [[ "$(git --git-dir="$oscr_history" rev-parse "refs/heads/$branch")" != "$osc
 fi
 echo "OS Git $branch: $sha; OSCR $branch: $oscr_sha; APT: $suite"
 state="$base/cache/last-published-$branch.json"
+export RETRODE3_PREVIOUS_MANIFEST="$state"
 repo_base="$base/repository"
 if [[ -f "$state" ]] && python3 - "$state" "$repo_base" "$suite" "$sha" "$checkout" "$oscr_sha" "$oscr_history" <<'PY'
 import json
@@ -95,7 +96,7 @@ try:
         not re.fullmatch(r"[0-9a-f]{40}", previous) or
         manifest.get("release_channel") != suite or
         manifest.get("oscr_branch") != ("master" if suite == "stable" else "develop") or
-        not manifest.get("auto_versioned")):
+        not manifest.get("auto_versioned") or manifest.get("package_version_scheme") != 2):
         sys.exit(1)
     classifier = Path(checkout) / "buildserver/release-changes.py"
     if previous != sha:
@@ -129,8 +130,9 @@ try:
         sys.exit(1)
     for record in records:
         pkg = record["package"]
-        version = (manifest["web_version"] if pkg == "retrode3-web-control"
-                   else manifest["native_version"])
+        version = (record["version"] if manifest.get("package_version_scheme") == 2 else
+                   (manifest["web_version"] if pkg == "retrode3-web-control"
+                    else manifest["native_version"]))
         if (pkg, version) not in indexed:
             sys.exit(1)
 except (OSError, ValueError, KeyError, subprocess.CalledProcessError):
@@ -172,7 +174,7 @@ try:
     if (m.get("release_channel") != sys.argv[2] or
         m.get("oscr_commit") != sys.argv[3] or
         m.get("oscr_branch") != ("master" if sys.argv[2] == "stable" else "develop") or
-        not m.get("auto_versioned") or
+        not m.get("auto_versioned") or m.get("package_version_scheme") != 2 or
         not isinstance(sha, str) or
         not re.fullmatch(r"[0-9a-f]{40}", sha)):
         sys.exit(1)

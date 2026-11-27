@@ -76,7 +76,12 @@ if grep -Eq '^stage-sms-md-module:' "$work/oscr/Makefile.migration"; then
 fi
 stage="$work/oscr/build/migration/stage"
 file "$stage/usr/bin/retrode3-cli" "$stage/usr/lib/retrode3/cores-available/"*.so
+previous_args=()
+if [[ -f /previous/build-manifest.json ]]; then
+    previous_args=(--previous /previous)
+fi
 python3 "$src/packaging/build-debs.py" \
+    "${previous_args[@]}" \
     --source-lock "$lock" \
     --oscr-source "$work/oscr" --stage "$stage" --output "$out"
 (cd "$out" && sha256sum ./*.deb > SHA256SUMS)
