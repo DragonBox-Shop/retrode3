@@ -130,3 +130,18 @@ Existing versions are immutable: identical complete downloads are reused;
 different or incomplete files cause an error without overwrite. The private
 build remains available if publication fails. No container sees the website.
 There is no automatic stable publication.
+
+## Kernel compile cache
+
+The immutable platform Debian cache still pins the exact kernel Git commit.
+On a package cache miss the kernel builder also receives the private
+persistent Kbuild cache at `$BASE/private/kernel-build-cache`. A full build
+is needed once per kernel ABI fingerprint (base sources, configuration,
+toolchain and cache schema). Changes to private Retrode3 driver sources
+alone compile only `retrode3.ko` against the saved configuration and
+Module.symvers. Packaging-only changes may reuse both compiled artifacts.
+The exact-version kernel/module Debian pair remains the publication unit.
+An unchanged uImage/DTB is not rewritten on the boot partition. Reboot after
+each kernel package pair update, including driver-only updates.
+This cache is private to the serialized buildserver workflow; it is not
+part of the APT repository or SD image. A first build must populate it.

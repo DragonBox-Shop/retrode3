@@ -49,6 +49,16 @@ for kind in kernel uboot; do
   else
     echo "$kind: CACHE MISS $sha, building .debs"
     temp="$(mktemp -d "$cache/$kind/.build.XXXXXXXX")"
+    compile_cache=()
+    if [[ "$kind" == kernel ]]; then
+      # Separate mutable Kbuild workspace from the immutable .deb cache.
+      # The existing package-automation lock serializes all access.
+      kernel_cache="$base/private/kernel-build-cache"
+      mkdir -p "$kernel_cache"
+      [[ ! -L "$kernel_cache" ]] || exit 1
+      compile_cache=(-v "$kernel_cache:/kernel-build-cache:rw"
+        -e RETRODE3_KERNEL_BUILD_CACHE=/kernel-build-cache)
+    fi
     podman --runtime=crun --cgroup-manager=systemd run --rm \
       --network=slirp4netns --cap-drop=all \
       --cap-add=CHOWN --cap-add=FOWNER --cap-add=SETUID \
@@ -58,6 +68,7 @@ for kind in kernel uboot; do
       --memory "${RETRODE3_PLATFORM_MEMORY:-3g}" \
       --pids-limit "${RETRODE3_PLATFORM_PIDS:-512}" \
       -v "$src:/src:ro" -v "$temp:/out:rw" \
+      "${compile_cache[@]}" \
       -e "RETRODE3_COMPONENT=$kind" -e "RETRODE3_COMPONENT_SHA=$sha" \
       -e "RETRODE3_BUILDER_IMAGE_ID=$image_id" \
       -e "RETRODE3_PLATFORM_KEY=$key" \
